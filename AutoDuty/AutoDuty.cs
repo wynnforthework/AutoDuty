@@ -147,6 +147,7 @@ public sealed class AutoDuty : IDalamudPlugin
                     this.StopAndResetAll();
                     break;
                 case Stage.Paused:
+                    if (TrialsRouletteController.Active) { this.Stage = Stage.Stopped; return; }
                     this.previousStage = this.Stage;
                     if (VNavmesh_IPCSubscriber.Path_NumWaypoints > 0)
                         VNavmesh_IPCSubscriber.Path_Stop();
@@ -803,6 +804,7 @@ public sealed class AutoDuty : IDalamudPlugin
     private void DutyState_DutyRecommenced(IDutyStateEventArgs args) => this.dutyState = DutyState.DutyRecommenced;
     private void DutyState_DutyCompleted(IDutyStateEventArgs args)
     {
+        if (TrialsRouletteController.Active) { TrialsRouletteController.Completed(); return; }
         Svc.Log.Warning("Duty Done");
         this.dutyState = DutyState.DutyComplete;
         if(this.States is not (PluginState.None or PluginState.Paused))
@@ -891,6 +893,7 @@ public sealed class AutoDuty : IDalamudPlugin
 
     private void ClientState_TerritoryChanged(uint t)
     {
+        if (TrialsRouletteController.Active) return;
         if (MultiboxUtility.Config.MultiBox)
         {
             bool isDuty = ContentHelper.DictionaryContent.ContainsKey(t);
@@ -977,6 +980,7 @@ public sealed class AutoDuty : IDalamudPlugin
 
     private unsafe void Condition_ConditionChange(ConditionFlag flag, bool value)
     {
+        if (TrialsRouletteController.Active) return;
         if (this.Stage == Stage.Stopped) 
             return;
 
@@ -1018,6 +1022,7 @@ public sealed class AutoDuty : IDalamudPlugin
 
     public void Run(uint territoryType = 0, int loops = 0, bool startFromZero = true, bool bareMode = false)
     {
+        if (TrialsRouletteController.Active) this.Stage = Stage.Stopped;
         if(InDungeon)
             Configuration.Meta.AutoDutyModeEnum = AutoDutyMode.Looping;
 
@@ -2044,6 +2049,7 @@ public sealed class AutoDuty : IDalamudPlugin
 
     public void Framework_Update(IFramework framework)
     {
+        if (TrialsRouletteController.Active) { TrialsRouletteController.Update(); return; }
         this.PreStageChecks();
 
         this.DutyData?.FrameworkUpdate(framework);
@@ -2106,6 +2112,7 @@ public sealed class AutoDuty : IDalamudPlugin
 
     private void StopAndResetAll()
     {
+        TrialsRouletteController.Stop();
         ConfigOverrideHelper.Pop();
 
         if (this.bareModeSettingsActive != SettingsActive.None)

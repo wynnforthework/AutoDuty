@@ -37,6 +37,8 @@ public class ConfigurationProfileV2
         this.Meta       = new MetaConfig(this);
     }
 
+    public int TrialsRouletteRepeats { get; set; } = 1;
+
     public MetaConfig Meta { get; set; }
 
     [JsonObject(MemberSerialization.OptOut)]

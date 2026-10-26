@@ -46,6 +46,24 @@ namespace AutoDuty.Windows
         internal static void Draw()
         {
             MainWindow.CurrentTabName = "Main";
+            if (ImGui.CollapsingHeader("Trials roulette / 随机讨伐歼灭战"))
+            {
+                int repeats = Configuration.TrialsRouletteRepeats;
+                using (ImRaii.Disabled(TrialsRouletteController.Active))
+                {
+                    if (ImGui.InputInt("Runs (0 = unlimited) / 次数", ref repeats))
+                    {
+                        Configuration.TrialsRouletteRepeats = Math.Max(0, repeats);
+                        ConfigurationProfileV2.Save();
+                    }
+                    ImGui.TextWrapped("通关后等待 5 分钟退出，退出后等待 30 秒再次排队。战斗使用现有自动战斗设置；不运行普通副本路径。");
+                    using (ImRaii.Disabled(Plugin.Stage != Stage.Stopped || InDungeon || !PlayerHelper.IsReadyFull || ActiveHelper.AnyHelperRunning()))
+                        if (ImGui.Button("Start trials roulette / 开始随机讨伐")) TrialsRouletteController.Start();
+                }
+                if (ImGui.Button("Stop trials roulette / 停止")) Plugin.Stage = Stage.Stopped;
+                ImGui.TextWrapped(TrialsRouletteController.Status);
+            }
+            if (TrialsRouletteController.Active) return;
             
             DutyMode     dutyMode     = Configuration.Meta.DutyModeEnum;
             LevelingMode levelingMode = Plugin.LevelingModeEnum;
