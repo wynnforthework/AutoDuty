@@ -924,7 +924,7 @@ public sealed class AutoDuty : IDalamudPlugin
 
         this.LoadPath();
 
-        if (!this.States.HasFlag(PluginState.Looping) || GCTurninHelper.State == ActionState.Running || RepairHelper.State == ActionState.Running || GotoHelper.State == ActionState.Running || GotoInnHelper.State == ActionState.Running || GotoBarracksHelper.State == ActionState.Running || GotoHousingHelper.State == ActionState.Running || this.CurrentTerritoryContent == null)
+        if (!this.States.HasFlag(PluginState.Looping) || MathematicsOreHelper.State == ActionState.Running || GCTurninHelper.State == ActionState.Running || RepairHelper.State == ActionState.Running || GotoHelper.State == ActionState.Running || GotoInnHelper.State == ActionState.Running || GotoBarracksHelper.State == ActionState.Running || GotoHousingHelper.State == ActionState.Running || this.CurrentTerritoryContent == null)
         {
             Svc.Log.Debug("We Changed Territories but are doing after loop actions or not running at all or in a Territory not supported by AutoDuty");
             return;
@@ -948,6 +948,8 @@ public sealed class AutoDuty : IDalamudPlugin
                 this.taskManager.Enqueue(() => { this.States &= ~PluginState.Navigating; },                                 "Loop-RemoveNavigationState");
                 this.taskManager.Enqueue(() => PlayerHelper.IsReady,                                                        "Loop-WaitPlayerReady", new TaskManagerConfiguration(int.MaxValue));
 
+                MathematicsOreHelper.EnqueueCheck();
+
                 this.TrustLeveling();
 
                 this.taskManager.Enqueue(() =>
@@ -969,6 +971,7 @@ public sealed class AutoDuty : IDalamudPlugin
                 this.taskManager.Enqueue(() => Svc.Log.Debug($"Loops Done"), "Loop-Debug");
                 this.taskManager.Enqueue(() => { this.States &= ~PluginState.Navigating; }, "Loop-RemoveNavigationState");
                 this.taskManager.Enqueue(() => PlayerHelper.IsReady, "Loop-WaitPlayerReady", new TaskManagerConfiguration(timeLimitMS: int.MaxValue));
+                MathematicsOreHelper.EnqueueCheck();
                 this.taskManager.Enqueue(() => Svc.Log.Debug($"Loop {this.currentLoop} == {Configuration.Meta.LoopTimes} we are done Looping, Invoking Loop Actions"), "Loop-Debug");
                 this.taskManager.Enqueue(() => this.LoopTasks(false, Configuration is { Loop.Between: { Enabled: true, ExecuteLastLoop: true }}), "Loop-LoopCompleteActions");
             }

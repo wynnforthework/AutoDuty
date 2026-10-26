@@ -1,0 +1,29 @@
+# 数理神典石换矿石（独立功能分支）
+
+在主窗口 Main 页展开“数理神典石购买矿石 / Mathematics ore exchange”，启用购买，选择 1–4 种矿石，使用“上移”调整轮换顺序。默认关闭、默认选择上弦月矿石。配置按 AutoDuty 配置档保存；成功购买后的下次索引也保存，修改选择/顺序会重置到第一项。
+
+挂机每次实际出本并准备完毕后检查（含最后一次出本，不依赖“Between actions”开关）。数理神典石 **严格大于 1500** 时，只购买当前一种矿石 **3 个**，单价必须 500，总价必须 1500。确认背包增加 3 个且数理减少 1500 后才推进轮换；不重复购买同一次请求。小于等于 1500 不触发。
+
+购买完关闭商店，回到原有串行动作队列继续挂机；最后一轮执行完购买后按原设定停止，不额外加一轮副本。无需回到购买前地图即可排本。原有 Stop 按钮会中断移动/交易；未确认成功不推进索引。
+
+## 移动和前置条件
+
+需要已解锁图莱尤拉尔传送、幻境村入口、尔密娜和各自矿石的任务条件，vnavmesh 可用，背包有空间。从外部地区先用 AutoDuty Goto 前往图莱尤拉尔，导航至港口 (17.5, 12.2)，只与该位置唯一匹配的以太奔流交互，确认框必须包含当前客户端语言的幻境村名称。到村后导航至尔密娜 (6.9, 7.3)。支持 1269 / 1278 两种村地图；不自动做解锁任务。
+
+地图坐标通过客户端 Map 的比例和偏移换算并投射到导航地面。NPC 使用 BaseId 1053904；商店 1770925；币种 Item 48；上弦月 46850、下弦月 50058、朔月 50977、新月 47750。物品、币种和单价必须与实际商店匹配，不按固定显示行号买。
+
+移动总超时五分钟；打开菜单三十秒；提交交易十五秒。币种/价格不匹配、未解锁、找不到对象、无空间、未知布局或未知确认框都会停止挂机并打印错误，不跳过失败重新排本。入口确认和实际 NPC/商店流程尚需实机验证。
+
+## 验证
+
+`dotnet run --project tests/OrePolicy.Tests.csproj` 验证严格阈值、1–4 种轮换、失败不推进、无效配置及重载索引。
+
+使用 .NET 10、Dalamud API 15 构建：
+
+```powershell
+dotnet build AutoDuty/AutoDuty.csproj -c Release -p:DalamudLibPath=C:/path/to/dalamud/
+```
+
+参考 AutoFATEGrind 的 Trader / ShopInteraction 流程与 ECommons 商店组件；实现重新编写，未复制其业务代码。数据依据：https://github.com/thewakingsands/ffxiv-datamining-cn （Item / ENpcResident / SpecialShop / TerritoryType / Map / EObjName），入口依据：https://ffxiv.consolegameswiki.com/wiki/Phantom_Village 。
+
+待实测：1500/1501 边界、1/2/4 种跨出本轮换、港口入口及任务锁、四种矿石可见性、背包满、交易中 Stop、购买后自动继续排本、最终轮购买后停止。当前不创建 PR。

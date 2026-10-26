@@ -37,6 +37,8 @@ public class ConfigurationProfileV2
         this.Meta       = new MetaConfig(this);
     }
 
+    public MathematicsOreConfig MathematicsOre { get; set; } = new();
+
     public MetaConfig Meta { get; set; }
 
     [JsonObject(MemberSerialization.OptOut)]

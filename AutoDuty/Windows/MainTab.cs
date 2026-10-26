@@ -1,4 +1,4 @@
-﻿using AutoDuty.Helpers;
+using AutoDuty.Helpers;
 using AutoDuty.IPC;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Components;
@@ -46,6 +46,7 @@ namespace AutoDuty.Windows
         internal static void Draw()
         {
             MainWindow.CurrentTabName = "Main";
+            MathematicsOreSettings.Draw();
             
             DutyMode     dutyMode     = Configuration.Meta.DutyModeEnum;
             LevelingMode levelingMode = Plugin.LevelingModeEnum;
