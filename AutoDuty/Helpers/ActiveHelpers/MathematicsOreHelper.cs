@@ -9,6 +9,7 @@ using ECommons.DalamudServices;
 using ECommons.UIHelpers.AddonMasterImplementations;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using IPC;
 using Lumina.Excel.Sheets;
 using System;
@@ -142,9 +143,8 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
     private void TravelFromCityCrystal()
     {
         // Aetheryte 239 is the invisible Phantom Village destination in group 14.
-        string destination = Svc.Data.GetExcelSheet<Aetheryte>().GetRow(239).AethernetName.Value.Name.ExtractText();
         string village = Svc.Data.GetExcelSheet<TerritoryType>().GetRow(1278).PlaceName.Value.Name.ExtractText();
-        if (string.IsNullOrWhiteSpace(destination) || string.IsNullOrWhiteSpace(village))
+        if (string.IsNullOrWhiteSpace(village))
         { Fail("缺少幻境村传送目的地数据。"); return; }
         // Handle menus before movement: the crystal can be untargetable while its menu is open.
         if (Ready("SelectYesno", out var confirmation))
@@ -161,16 +161,29 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
             if (!interacted) { Fail("测试前已有都市传送窗口，请关闭后重试。"); return; }
             Report("正在选择都市传送目的地：幻境村");
             if (State != ActionState.Running || villageTransferRequested) return;
-            var reader = new ReaderTelepotTown(town);
-            if (reader.NumEntries is 0 or > 20) { Fail("不支持的都市传送列表。"); return; }
-            var names = reader.DestinationName;
-            var entries = reader.DestinationData;
-            int count = Math.Min((int)reader.NumEntries, Math.Min(names.Count, entries.Count));
-            var matches = Enumerable.Range(0, count).Where(i => names[i].Name == destination).ToArray();
-            if (matches.Length != 1)
-            { Fail("大水晶都市传送列表中没有唯一的幻境村目的地；请确认已解锁。"); return; }
+            // Use the native agent, not the legacy AtkValue layout (slot 0 is Bool on CN).
+            var agent = AgentTelepotTown.Instance();
+            if (agent == null || agent->Data == null)
+            { Report("等待都市传送数据加载"); return; }
+            var data = agent->Data;
+            if (data->AetheryteCount == 0) return;
+            if (data->AetheryteCount > data->Entries.Length)
+            { Fail("都市传送目的地数量超出原生列表范围。"); return; }
+            int selected = -1;
+            for (int i = 0; i < data->AetheryteCount; i++)
+            {
+                var entry = data->Entries[i];
+                Svc.Log.Info($"MathematicsOre aethernet: index={i}, id={entry.AetheryteId}, territory={entry.TerritoryTypeId}, locked={entry.IsLocked}, unusable={entry.IsUnusable}, current={entry.IsCurrent}");
+                if (entry.AetheryteId != 239) continue;
+                if (selected != -1) { Fail("都市传送中出现重复的幻境村目的地。"); return; }
+                if (entry.IsLocked || entry.IsUnusable || entry.IsCurrent)
+                { Fail("幻境村传送目的地已锁定或当前不可用。"); return; }
+                selected = i;
+            }
+            if (selected < 0)
+            { Fail("都市传送原生列表中找不到幻境村（Aetheryte 239）；请检查解锁条件。"); return; }
             villageTransferRequested = true;
-            AddonHelper.FireCallBack(town, true, 11, entries[matches[0]].CallbackData);
+            agent->TeleportToAetheryte((byte)selected);
             return;
         }
         if (Ready("SelectString", out var selection))

@@ -54,3 +54,7 @@ dotnet build AutoDuty/AutoDuty.csproj -c Release -p:DalamudLibPath=C:/path/to/da
 ### 靠近水晶超时诊断
 
 先在传送落点尝试交互 4 秒，再按需靠近；交互不再依赖 Move 返回到达。靠近期间每 2 秒有限尝试交互，菜单出现后优先处理。网格未就绪记录等待，投影地面失败尝试落点方向的中点，仍失败立即停止并报告坐标。日志每 5 秒记录角色/水晶坐标、水平距离和半径，并记录寻路状态。原地空等的具体原因尚需以新版日志与实机行为确认，31 项独立检查不覆盖客户端网格与交互。
+
+### TelepotTown 布局兼容
+
+国服窗口第 0 个 AtkValue 为 Bool，与旧 ReaderTelepotTown 的 uint 假设不符。矿石流程不再使用该读取器，改用 FFXIVClientStructs AgentTelepotTown.Data 的目的地列表，匹配 AetheryteId 239、检查锁定/不可用状态后调用 TeleportToAetheryte。记录所有目的地索引与 ID 供诊断；原生接口的实机行为仍待验证。
