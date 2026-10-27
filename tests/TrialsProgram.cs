@@ -4,6 +4,10 @@ using static AutoDuty.Helpers.TrialsRoulettePolicy;
 
 int checks = 0;
 void Check(bool condition, string name) { checks++; if (!condition) throw new Exception(name); }
+foreach (string name in new[] { "Duty Roulette: Trials", "随机任务：讨伐歼灭战", "随机任务:讨伐歼灭战", " 随机任务：讨伐歼灭战 ", "隨機任務：討伐殲滅戰" })
+    Check(TrialsRoulettePolicy.IsTrialsName(name), "localized trials name accepted");
+foreach (string name in new[] { "", "Duty Roulette: Main Scenario", "随机任务：主线任务", "随机任务：行会令", "Trials", "随机任务：讨伐歼灭战（其他）" })
+    Check(!TrialsRoulettePolicy.IsTrialsName(name), "other roulette rejected");
 var now = new DateTime(2026, 10, 27, 0, 0, 0, DateTimeKind.Utc);
 foreach (int limit in new[] { 0, 1, 2, 5 })
 {

@@ -14,4 +14,4 @@
 
 待实测：国服当前客户端的 Roulette 6 注册及弹窗接受、解锁/惩罚拒绝、非队长注册、实际随机分配的讨伐战与战斗插件配合、加载时间、五分钟退出、30 秒重排、最终轮停止、所有阶段手动 Stop 和掉线。编译及独立逻辑测试不能替代这些实测。本轮不创建 PR。
 
-Data correction: row 3 = Main Scenario, row 6 = Trials. Verified against xivapi/ffxiv-datamining csv/en/ContentRoulette.csv; startup also validates the English client sheet name before registering.
+Data correction: row 3 = Main Scenario, row 6 = Trials. Verified against xivapi/ffxiv-datamining csv/en/ContentRoulette.csv; startup validates the active client sheet name (English or Simplified/Traditional Chinese), normalizing whitespace and full-width punctuation. Unknown names stop with the row ID and actual name in the diagnostic.

@@ -1,10 +1,21 @@
 namespace AutoDuty.Helpers;
 
 using System;
+using System.Linq;
 
 // Independent of game APIs so completion, delay and cancellation rules can be tested.
 internal sealed class TrialsRoulettePolicy
 {
+    // Ignore presentation-only whitespace and full-width punctuation, not duty names.
+    internal static bool IsTrialsName(string name)
+    {
+        string normalized = string.Concat(name.Normalize(System.Text.NormalizationForm.FormKC)
+            .Where(c => !char.IsWhiteSpace(c)));
+        return normalized.Equals("DutyRoulette:Trials", StringComparison.OrdinalIgnoreCase)
+            || normalized == "随机任务:讨伐歼灭战"
+            || normalized == "隨機任務:討伐殲滅戰";
+    }
+
     internal enum Phase { Stopped, Queueing, InDuty, CompletionWait, Exiting, RequeueWait }
     internal Phase State { get; private set; }
     internal int Completed { get; private set; }

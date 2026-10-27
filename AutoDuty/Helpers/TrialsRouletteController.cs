@@ -27,15 +27,17 @@ internal static unsafe class TrialsRouletteController
     internal static void Start()
     {
         if (Active || InDungeon || !PlayerHelper.IsReadyFull || Conditions.Instance()->InDutyQueue || ActiveHelper.AnyHelperRunning()) return;
-        // Validate against the client's sheet before sending a queue request.
-        // Use English explicitly so this check also works on Chinese clients.
-        var roulette = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.ContentRoulette>(Dalamud.Game.ClientLanguage.English).GetRowOrDefault(RouletteId);
-        if (roulette?.Name.ExtractText() != "Duty Roulette: Trials")
+        // Read the active client language: regional clients may not supply English sheet text.
+        var roulette = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.ContentRoulette>().GetRowOrDefault(RouletteId);
+        string name = roulette?.Name.ExtractText() ?? string.Empty;
+        if (!TrialsRoulettePolicy.IsTrialsName(name))
         {
-            Status = "Trials roulette data mismatch; queueing stopped";
+            Status = $"Trials roulette data mismatch (row={RouletteId}, name='{name}'); queueing stopped";
             Svc.Chat.PrintError("[AutoDuty] " + Status);
+            Svc.Log.Error(Status);
             return;
         }
+        Svc.Log.Info($"Trials roulette validated: row={RouletteId}, name='{name}'");
         Plugin.Stage = Stage.Stopped;
         Policy.Start(Configuration.TrialsRouletteRepeats);
         queueRequested = queueSeen = wasInDuty = false;
