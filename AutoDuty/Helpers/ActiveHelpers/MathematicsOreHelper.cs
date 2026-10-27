@@ -26,6 +26,9 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
     protected override int TimeOut { get; set; } = 0; // Own watchdog fails the whole loop instead of silently requeueing.
     protected override string[] AddonsToClose { get; } = ["ShopExchangeCurrency", "SelectIconString", "SelectString", "Talk"];
     private enum Phase { Travel, Shop, Confirm, Verify }
+    internal enum TestMode { None, VisitShop, BuyOne }
+    private TestMode testMode;
+    private int PurchaseQuantity => testMode == TestMode.BuyOne ? 1 : MathematicsOreConfig.Quantity;
     private Phase phase;
     private DateTime deadline;
     private DateTime nextTick;
@@ -62,6 +65,23 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         config = Configuration.MathematicsOre;
         if (!config.ShouldBuy(InventoryHelper.ItemCount(MathematicsOreConfig.Currency))) return;
         if (InDungeon) return;
+        Begin(TestMode.None);
+    }
+
+    internal static void Test(TestMode mode)
+    {
+        if (mode == TestMode.None || State == ActionState.Running || Plugin.Stage != Stage.Stopped
+            || Plugin.States != PluginState.None || ActiveHelper.AnyHelperRunning()
+            || InDungeon || !PlayerHelper.IsReadyFull || !Configuration.MathematicsOre.Valid) return;
+        if (mode == TestMode.BuyOne && InventoryHelper.ItemCount(MathematicsOreConfig.Currency) < MathematicsOreConfig.UnitCost)
+        { Svc.Chat.PrintError("[AutoDuty] 试买 1 个需要至少 500 数理神典石；可使用仅打开商店测试。"); return; }
+        Instance.config = Configuration.MathematicsOre;
+        Instance.Begin(mode);
+    }
+
+    private void Begin(TestMode mode)
+    {
+        testMode = mode;
         phase = Phase.Travel; deadline = DateTime.UtcNow.AddMinutes(5); nextTick = DateTime.MinValue;
         ore = config.NextOre;
         interacted = submitted = confirmed = menuSelected = travelling = false;
@@ -176,12 +196,17 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
             var item = master.BasicShopItems.SingleOrDefault(i => i.ItemId == ore);
             if (item == null || master.CurrencyId != MathematicsOreConfig.Currency || item.CostAmount != MathematicsOreConfig.UnitCost)
             { Fail("物品、币种或单价不匹配；不执行购买。"); return; }
-            if (Ready("SelectYesno", out _) || InventoryHelper.SlotsFree == 0 || InventoryHelper.ItemCount(ore) > 996)
+            if (testMode == TestMode.VisitShop)
+            {
+                Svc.Chat.Print("[AutoDuty] 测试完成：已到达尔密娜并验证矿石、币种及单价；未购买。测试结束后关闭商店。");
+                this.Stop(); return;
+            }
+            if (Ready("SelectYesno", out _) || InventoryHelper.SlotsFree == 0 || InventoryHelper.ItemCount(ore) > 999 - PurchaseQuantity)
             { Fail("已有确认框或背包空间不足。"); return; }
             beforeItems = InventoryHelper.ItemCount(ore); beforeCurrency = InventoryHelper.ItemCount(MathematicsOreConfig.Currency);
-            if (beforeCurrency <= MathematicsOreConfig.Threshold) { Fail("交易前币量已变化。"); return; }
+            if (testMode == TestMode.None ? beforeCurrency <= MathematicsOreConfig.Threshold : beforeCurrency < PurchaseQuantity * MathematicsOreConfig.UnitCost) { Fail("交易前币量已变化。"); return; }
             submitted = true; phase = Phase.Confirm; deadline = DateTime.UtcNow.AddSeconds(15);
-            item.Select(MathematicsOreConfig.Quantity); return;
+            item.Select(PurchaseQuantity); return;
         }
         if (phase == Phase.Confirm)
         {
@@ -199,6 +224,13 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         {
             int items = InventoryHelper.ItemCount(ore), currency = InventoryHelper.ItemCount(MathematicsOreConfig.Currency);
             if (items == beforeItems || currency == beforeCurrency) return;
+            if (testMode != TestMode.None)
+            {
+                if (!MathematicsOreConfig.VerifyPurchase(beforeItems, items, beforeCurrency, currency, PurchaseQuantity))
+                { Fail("测试交易实收物品或扣币数量不匹配，请人工检查。"); return; }
+                Svc.Chat.Print("[AutoDuty] 试买完成：矿石 ×1，花费 500 数理神典石。轮换顺序未改变，不启动副本挂机。");
+                this.Stop(); return;
+            }
             if (!config.CommitPurchase(beforeItems, items, beforeCurrency, currency))
             { Fail("实收物品或扣币数量不是 3 个 / 1500，请人工检查。"); return; }
             ConfigurationProfileV2.Save();

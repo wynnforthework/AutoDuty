@@ -27,3 +27,12 @@ dotnet build AutoDuty/AutoDuty.csproj -c Release -p:DalamudLibPath=C:/path/to/da
 参考 AutoFATEGrind 的 Trader / ShopInteraction 流程与 ECommons 商店组件；实现重新编写，未复制其业务代码。数据依据：https://github.com/thewakingsands/ffxiv-datamining-cn （Item / ENpcResident / SpecialShop / TerritoryType / Map / EObjName），入口依据：https://ffxiv.consolegameswiki.com/wiki/Phantom_Village 。
 
 待实测：1500/1501 边界、1/2/4 种跨出本轮换、港口入口及任务锁、四种矿石可见性、背包满、交易中 Stop、购买后自动继续排本、最终轮购买后停止。当前不创建 PR。
+
+## 手动实机测试
+
+主界面展开矿石购买设置，停止挂机后可使用以下一次性按钮，不必开启自动购买：
+
+- **前往 NPC 并打开商店（不购买）**：0 神典石也可测试，复用正式流程前往尔密娜、打开商店并核对当前轮换矿石、币种和 500 单价，随后关闭商店并停止。
+- **花费 500 数理试买 1 个矿石**：至少持有 500 数理，真实购买当前轮换矿石 ×1，核对物品及扣币后停止。没有足够数理时提示且不出发。
+
+两种测试都不修改正式购买轮换索引，不排副本，不持久化测试模式。执行中可点击“停止矿石流程”或原有 Stop。正常出本检查仍严格要求 >1500，购买 3 个；测试不能替代最终出本触发、买完继续挂机的验收。

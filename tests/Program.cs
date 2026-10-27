@@ -32,3 +32,10 @@ config.NextIndex = 999;
 Check(config.NextOre == 50058, "Large saved cursor normalized");
 Check(config.CommitPurchase(0, 3, 2000, 500) && config.NextOre == 46850, "Two-item sequence wraps");
 Console.WriteLine($"PASS: {checks} ore policy checks");
+
+Check(MathematicsOreConfig.VerifyPurchase(0, 1, 500, 0, 1), "One-item test accepts exact deltas");
+Check(!MathematicsOreConfig.VerifyPurchase(0, 3, 1500, 0, 1), "One-item test rejects three items");
+Check(!MathematicsOreConfig.VerifyPurchase(0, 1, 500, 1, 1), "One-item test rejects wrong charge");
+Check(!MathematicsOreConfig.VerifyPurchase(0, 0, 500, 0, 1), "One-item test rejects missing item");
+Check(!MathematicsOreConfig.VerifyPurchase(0, 0, 0, 0, 0), "Zero quantity cannot verify purchase");
+Console.WriteLine($"PASS: {checks} total ore policy checks including test purchases");

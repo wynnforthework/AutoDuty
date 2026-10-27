@@ -18,9 +18,11 @@ public sealed class MathematicsOreConfig
     public bool Valid => Ores is { Count: >= 1 and <= 4 } && Ores.Distinct().Count() == Ores.Count && Ores.All(Allowed.Contains);
     public bool ShouldBuy(int balance) => Enabled && Valid && balance > Threshold;
     public uint NextOre => Valid ? Ores[((NextIndex % Ores.Count) + Ores.Count) % Ores.Count] : 0;
+    public static bool VerifyPurchase(int beforeItems, int afterItems, int beforeCurrency, int afterCurrency, int quantity)
+        => quantity is 1 or Quantity && afterItems - beforeItems == quantity && beforeCurrency - afterCurrency == quantity * UnitCost;
     public bool CommitPurchase(int beforeItems, int afterItems, int beforeCurrency, int afterCurrency)
     {
-        if (!Valid || afterItems - beforeItems != Quantity || beforeCurrency - afterCurrency != Quantity * UnitCost) return false;
+        if (!Valid || !VerifyPurchase(beforeItems, afterItems, beforeCurrency, afterCurrency, Quantity)) return false;
         NextIndex = (((NextIndex % Ores.Count) + Ores.Count) % Ores.Count + 1) % Ores.Count;
         return true;
     }
