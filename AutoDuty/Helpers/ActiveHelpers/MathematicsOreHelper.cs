@@ -43,6 +43,9 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
     private bool confirmed;
     private bool menuSelected;
     private DateTime nextCityTeleport;
+    private DateTime crystalProbeUntil;
+    private DateTime nextCrystalInteraction;
+    private DateTime nextCrystalDiagnostic;
     private DateTime statusSince;
     internal static string Progress { get; private set; } = "未启动";
 
@@ -105,6 +108,7 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         ore = config.NextOre;
         interacted = submitted = confirmed = menuSelected = villageTransferRequested = false;
         nextCityTeleport = DateTime.MinValue;
+        crystalProbeUntil = nextCrystalInteraction = nextCrystalDiagnostic = DateTime.MinValue;
         Progress = "准备出发"; statusSince = DateTime.UtcNow;
         base.Start();
     }
@@ -196,29 +200,66 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
             Report("等待图莱尤拉大水晶对象加载（DataId=216）");
             return;
         }
-        // Crystal centers can be above the floor or inside an unwalkable collision mesh.
-        // Use horizontal edge distance; approach a reachable point outside its hitbox.
+        // The game's aetheryte interaction range need not equal the collision radius.
+        // First try the actual interaction at the teleport landing spot, before requiring a mesh.
+        DateTime now = DateTime.UtcNow;
+        if (crystalProbeUntil == DateTime.MinValue) crystalProbeUntil = now.AddSeconds(4);
         Vector2 offset = new(Player.Position.X - crystal.Position.X, Player.Position.Z - crystal.Position.Z);
+        float distance = offset.Length();
         float radius = Math.Max(0, crystal.HitboxRadius);
-        if (offset.Length() > radius + 3)
+        bool probing = now < crystalProbeUntil;
+        if (now >= nextCrystalDiagnostic)
         {
-            Report("正在靠近大水晶（碰撞范围外）");
-            if (State != ActionState.Running) return;
-            Vector2 direction = Vector2.Normalize(offset);
-            Vector3 edge = crystal.Position + new Vector3(direction.X, 0, direction.Y) * (radius + 2);
-            edge.Y = Player.Position.Y;
-            var floor = VNavmesh_IPCSubscriber.Nav_IsReady ? VNavmesh_IPCSubscriber.Query_Mesh_PointOnFloor(edge, false, 5) : null;
-            if (floor.HasValue) MovementHelper.Move(floor.Value, 0.25f, 1);
-            return;
+            nextCrystalDiagnostic = now.AddSeconds(5);
+            Svc.Log.Info($"MathematicsOre crystal: player={Player.Position}, crystal={crystal.Position}, horizontal={distance:F2}, radius={radius:F2}, vnav={VNavmesh_IPCSubscriber.IsEnabled}");
         }
-        Report("正在与图莱尤拉大水晶交互，等待菜单");
-        if (State != ActionState.Running) return;
-        if (VNavmesh_IPCSubscriber.IsEnabled) VNavmesh_IPCSubscriber.Path_Stop();
         if (FFXIVClientStructs.FFXIV.Client.Game.Conditions.Instance()->Mounted)
         {
-            ActionManager.Instance()->UseAction(ActionType.GeneralAction, 9); return;
+            Report("正在下坐骑以交互大水晶");
+            if (State == ActionState.Running) ActionManager.Instance()->UseAction(ActionType.GeneralAction, 9);
+            return;
         }
-        ObjectHelper.InteractWithObject(crystal); interacted = true;
+        if (probing || distance <= radius + 3)
+        {
+            Report("正在尝试大水晶交互，等待菜单");
+            if (State != ActionState.Running) return;
+            if (VNavmesh_IPCSubscriber.IsEnabled) VNavmesh_IPCSubscriber.Path_Stop();
+        }
+        else
+        {
+            Report("正在靠近大水晶（同时尝试交互）");
+            if (State != ActionState.Running) return;
+            if (!VNavmesh_IPCSubscriber.IsEnabled) { Fail("需要靠近大水晶，但 vnavmesh 未启用。"); return; }
+            if (!VNavmesh_IPCSubscriber.Nav_IsReady)
+            {
+                if (now >= nextCrystalInteraction) Svc.Log.Info("MathematicsOre crystal: waiting for navmesh to become ready");
+            }
+            else
+            {
+                Vector2 direction = Vector2.Normalize(offset);
+                Vector3 edge = crystal.Position + new Vector3(direction.X, 0, direction.Y) * (radius + 2);
+                edge.Y = Player.Position.Y;
+                var floor = VNavmesh_IPCSubscriber.Query_Mesh_PointOnFloor(edge, false, 5);
+                // Outside projection can fail at the raised aetheryte plinth. Try the landing-side midpoint.
+                if (!floor.HasValue)
+                {
+                    Vector3 midpoint = Vector3.Lerp(Player.Position, edge, 0.5f);
+                    floor = VNavmesh_IPCSubscriber.Query_Mesh_PointOnFloor(midpoint, false, 5);
+                }
+                if (!floor.HasValue)
+                { Fail($"大水晶附近找不到可寻路地面：player={Player.Position}, crystal={crystal.Position}, edge={edge}"); return; }
+                if (now >= nextCrystalInteraction)
+                    Svc.Log.Info($"MathematicsOre crystal: approach={floor.Value}, pathRunning={VNavmesh_IPCSubscriber.Path_IsRunning}, pathfinding={VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress}");
+                MovementHelper.Move(floor.Value, 0.25f, 1);
+            }
+        }
+        // Bounded by the step watchdog. A failed interaction is no longer gated on Move() completing.
+        if (distance <= 25 && now >= nextCrystalInteraction)
+        {
+            nextCrystalInteraction = now.AddSeconds(2);
+            ObjectHelper.InteractWithObject(crystal); interacted = true;
+        }
+
     }
 
     protected override void HelperUpdate(IFramework framework)
