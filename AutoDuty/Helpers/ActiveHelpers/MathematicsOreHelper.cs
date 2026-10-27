@@ -43,6 +43,9 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
     private bool submitted;
     private bool confirmed;
     private bool menuSelected;
+    private int nativeTransferAttempts;
+    private DateTime nativeListReadyAt;
+    private DateTime nextNativeTransfer;
     private DateTime nextCityTeleport;
     private DateTime crystalProbeUntil;
     private DateTime nextCrystalInteraction;
@@ -108,6 +111,8 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         phase = Phase.Travel; deadline = DateTime.UtcNow.AddMinutes(5); nextTick = DateTime.MinValue;
         ore = config.NextOre;
         interacted = submitted = confirmed = menuSelected = villageTransferRequested = false;
+        nativeTransferAttempts = 0;
+        nativeListReadyAt = nextNativeTransfer = DateTime.MinValue;
         nextCityTeleport = DateTime.MinValue;
         crystalProbeUntil = nextCrystalInteraction = nextCrystalDiagnostic = DateTime.MinValue;
         Progress = "准备出发"; statusSince = DateTime.UtcNow;
@@ -159,8 +164,12 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         if (Ready("TelepotTown", out var town))
         {
             if (!interacted) { Fail("测试前已有都市传送窗口，请关闭后重试。"); return; }
-            Report("正在选择都市传送目的地：幻境村");
-            if (State != ActionState.Running || villageTransferRequested) return;
+            Report(villageTransferRequested ? "已请求幻境村传送，等待确认或切换地图" : "正在选择都市传送目的地：幻境村");
+            if (State != ActionState.Running) return;
+            // Let the list settle, then allow one delayed second activation (selection/confirmation).
+            DateTime selectionTime = DateTime.UtcNow;
+            if (nativeListReadyAt == DateTime.MinValue) nativeListReadyAt = selectionTime.AddSeconds(1);
+            if (selectionTime < nativeListReadyAt || selectionTime < nextNativeTransfer || nativeTransferAttempts >= 2) return;
             // Use the native agent, not the legacy AtkValue layout (slot 0 is Bool on CN).
             var agent = AgentTelepotTown.Instance();
             if (agent == null || agent->Data == null)
@@ -176,13 +185,18 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
                 Svc.Log.Info($"MathematicsOre aethernet: index={i}, id={entry.AetheryteId}, territory={entry.TerritoryTypeId}, locked={entry.IsLocked}, unusable={entry.IsUnusable}, current={entry.IsCurrent}");
                 if (entry.AetheryteId != 239) continue;
                 if (selected != -1) { Fail("都市传送中出现重复的幻境村目的地。"); return; }
-                if (entry.IsLocked || entry.IsUnusable || entry.IsCurrent)
-                { Fail("幻境村传送目的地已锁定或当前不可用。"); return; }
+                // Regional client layouts/state transitions can disagree with these flags.
+                // Log them, but let the normal game interaction enforce unlock/availability rules.
                 selected = i;
             }
             if (selected < 0)
             { Fail("都市传送原生列表中找不到幻境村（Aetheryte 239）；请检查解锁条件。"); return; }
+            if (data->CurrentAetheryte == selected)
+            { Fail("原生传送列表将幻境村识别为当前水晶，数据不匹配；停止传送。"); return; }
             villageTransferRequested = true;
+            nativeTransferAttempts++;
+            nextNativeTransfer = selectionTime.AddSeconds(2);
+            Svc.Log.Info($"MathematicsOre: native TeleportToAetheryte index={selected}, destination=239, attempt={nativeTransferAttempts}/2");
             agent->TeleportToAetheryte((byte)selected);
             return;
         }

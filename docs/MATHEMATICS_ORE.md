@@ -58,3 +58,7 @@ dotnet build AutoDuty/AutoDuty.csproj -c Release -p:DalamudLibPath=C:/path/to/da
 ### TelepotTown 布局兼容
 
 国服窗口第 0 个 AtkValue 为 Bool，与旧 ReaderTelepotTown 的 uint 假设不符。矿石流程不再使用该读取器，改用 FFXIVClientStructs AgentTelepotTown.Data 的目的地列表，匹配 AetheryteId 239、检查锁定/不可用状态后调用 TeleportToAetheryte。记录所有目的地索引与 ID 供诊断；原生接口的实机行为仍待验证。
+
+### 传送选择与确认时序
+
+列表初次打开等待 1 秒再读取。Locked/Unusable/IsCurrent 字段仅记录诊断，不再依赖区域客户端的瞬时标志提前中断；游戏原生接口负责可用性和任务解锁检查。定位目的地 ID 239 后调用 AgentTelepotTown.TeleportToAetheryte，2 秒后若窗口仍显示、未过图则允许同一目的地第二次激活，最多两次。匹配的 Yes/No 确认框单独处理，最终等待地图变化，30 秒无进展停止。参考 Lifestream WorldChange.TeleportToAethernetDestination 的两次选择流程。本次没有把都市目的地传给普通 Telepo.Teleport，后者用于已解锁的大水晶。
