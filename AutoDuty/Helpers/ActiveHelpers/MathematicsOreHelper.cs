@@ -2,6 +2,7 @@ namespace AutoDuty.Helpers;
 
 using Configurations;
 using Dalamud.Plugin.Services;
+using Dalamud.Game.ClientState.Objects.Enums;
 using ECommons;
 using ECommons.DalamudServices;
 using ECommons.UIHelpers.AddonMasterImplementations;
@@ -24,7 +25,7 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
     public override string Name => nameof(MathematicsOreHelper);
     public override string DisplayName => "数理神典石购买矿石";
     protected override int TimeOut { get; set; } = 0; // Own watchdog fails the whole loop instead of silently requeueing.
-    protected override string[] AddonsToClose { get; } = ["ShopExchangeCurrency", "SelectIconString", "SelectString", "Talk"];
+    protected override string[] AddonsToClose { get; } = ["ShopExchangeCurrency", "SelectIconString", "SelectString", "Talk", "TelepotTown"];
     private enum Phase { Travel, Shop, Confirm, Verify }
     internal enum TestMode { None, VisitShop, BuyOne }
     private TestMode testMode;
@@ -36,6 +37,7 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
     private int beforeItems;
     private int beforeCurrency;
     private bool interacted;
+    private bool villageTransferRequested;
     private bool submitted;
     private bool confirmed;
     private bool menuSelected;
@@ -84,7 +86,7 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         testMode = mode;
         phase = Phase.Travel; deadline = DateTime.UtcNow.AddMinutes(5); nextTick = DateTime.MinValue;
         ore = config.NextOre;
-        interacted = submitted = confirmed = menuSelected = travelling = false;
+        interacted = submitted = confirmed = menuSelected = travelling = villageTransferRequested = false;
         base.Start();
     }
 
@@ -113,6 +115,65 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
             0, (y - 1) * 2048 / 41 - 1024f / (map.SizeFactor / 100f) - map.OffsetY);
     }
 
+    private void TravelFromCityCrystal()
+    {
+        // Aetheryte 239 is the invisible Phantom Village destination in group 14.
+        string destination = Svc.Data.GetExcelSheet<Aetheryte>().GetRow(239).AethernetName.Value.Name.ExtractText();
+        string village = Svc.Data.GetExcelSheet<TerritoryType>().GetRow(1278).PlaceName.Value.Name.ExtractText();
+        if (string.IsNullOrWhiteSpace(destination) || string.IsNullOrWhiteSpace(village))
+        { Fail("缺少幻境村传送目的地数据。"); return; }
+        // Handle menus before movement: the crystal can be untargetable while its menu is open.
+        if (Ready("SelectYesno", out var confirmation))
+        {
+            var prompt = new AddonMaster.SelectYesno(confirmation) { RespectDisabledButtons = true };
+            if (interacted && villageTransferRequested && prompt.Text.Contains(village, StringComparison.Ordinal)) prompt.Yes();
+            else Fail("大水晶传送确认框不匹配：" + prompt.Text);
+            return;
+        }
+        if (Ready("TelepotTown", out var town))
+        {
+            if (!interacted) { Fail("测试前已有都市传送窗口，请关闭后重试。"); return; }
+            if (villageTransferRequested) return;
+            var reader = new ReaderTelepotTown(town);
+            if (reader.NumEntries is 0 or > 20) { Fail("不支持的都市传送列表。"); return; }
+            var names = reader.DestinationName;
+            var entries = reader.DestinationData;
+            int count = Math.Min((int)reader.NumEntries, Math.Min(names.Count, entries.Count));
+            var matches = Enumerable.Range(0, count).Where(i => names[i].Name == destination).ToArray();
+            if (matches.Length != 1)
+            { Fail("大水晶都市传送列表中没有唯一的幻境村目的地；请确认已解锁。"); return; }
+            villageTransferRequested = true;
+            AddonHelper.FireCallBack(town, true, 11, entries[matches[0]].CallbackData);
+            return;
+        }
+        if (Ready("SelectString", out var selection))
+        {
+            if (!interacted) { Fail("测试前已有菜单打开，请关闭后重试。"); return; }
+            if (villageTransferRequested) return;
+            var entries = new AddonMaster.SelectString(selection).Entries;
+            var direct = entries.Where(e => e.Text.Contains(village, StringComparison.Ordinal)).ToArray();
+            if (direct.Length == 1)
+            { villageTransferRequested = true; direct[0].Select(); return; }
+            var aethernet = entries.Where(e => e.Text.Contains("Aethernet", StringComparison.OrdinalIgnoreCase)
+                || e.Text.Contains("都市传送", StringComparison.Ordinal) || e.Text.Contains("都市傳送", StringComparison.Ordinal)
+                || e.Text.Contains("以太之网", StringComparison.Ordinal) || e.Text.Contains("以太之網", StringComparison.Ordinal)).ToArray();
+            if (aethernet.Length == 1) { aethernet[0].Select(); return; }
+            Fail("无法识别大水晶菜单：" + string.Join(" | ", entries.Select(e => e.Text))); return;
+        }
+        if (villageTransferRequested) return; // Wait for the territory change; never issue another interaction.
+        var level = Svc.Data.GetExcelSheet<Level>().GetRow(10566589); // Main Tuliyollal aetheryte 216.
+        var position = new Vector3(level.X, level.Y, level.Z);
+        var crystal = Svc.Objects.FirstOrDefault(o => o.ObjectKind == ObjectKind.Aetheryte && o.IsTargetable
+            && Vector3.Distance(o.Position, position) < 15);
+        if (crystal == null)
+        {
+            if (MovementHelper.Move(position, 0.25f, 7)) Fail("图莱尤拉大水晶附近未找到可交互水晶。");
+            return;
+        }
+        if (!MovementHelper.Move(crystal, 0.25f, 7)) return;
+        ObjectHelper.InteractWithObject(crystal); interacted = true;
+    }
+
     protected override void HelperUpdate(IFramework framework)
     {
         if (Plugin.Stage == Stage.Paused) return;
@@ -132,28 +193,7 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
                     travelling = true; GotoHelper.Invoke(1185); return;
                 }
                 travelling = false;
-                var harbor = Position(1185, 17.5f, 12.2f);
-                // The entrance is the only targetable aetherial current at this specific harbor location.
-                var name = Svc.Data.GetExcelSheet<EObjName>().GetRow(2013421).Singular.ExtractText();
-                var entrances = Svc.Objects.Where(o => o.IsTargetable && o.Name.TextValue == name
-                    && Vector2.Distance(new(o.Position.X, o.Position.Z), new(harbor.X, harbor.Z)) < 12).ToArray();
-                if (entrances.Length != 1)
-                {
-                    var floor = VNavmesh_IPCSubscriber.Query_Mesh_PointOnFloor(harbor, false, 5);
-                    if (floor == null) { Fail("找不到港口入口地面，请先手动前往幻境村。"); return; }
-                    if (MovementHelper.Move(floor.Value, 0.25f, 3)) Fail("找不到唯一的幻境村入口，请确认已解锁。");
-                    return;
-                }
-                if (!MovementHelper.Move(entrances[0], 0.25f, 3)) return;
-                if (Ready("SelectYesno", out var entryPrompt))
-                {
-                    var prompt = new AddonMaster.SelectYesno(entryPrompt) { RespectDisabledButtons = true };
-                    string villageName = Svc.Data.GetExcelSheet<TerritoryType>().GetRow(1278).PlaceName.Value.Name.ExtractText();
-                    if (interacted && prompt.Text.Contains(villageName, StringComparison.Ordinal)) prompt.Yes();
-                    else Fail("幻境村入口确认框不匹配。");
-                    return;
-                }
-                ObjectHelper.InteractWithObject(entrances[0]); interacted = true; return;
+                TravelFromCityCrystal(); return;
             }
             interacted = false;
             var npc = ObjectHelper.GetObjectByDataId(Npc);
