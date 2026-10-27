@@ -4,7 +4,7 @@
 
 两个功能分支独立，矿石购买不包含在本分支中。
 
-- 使用 ContentRoulette 3（Trials），通过游戏原生 QueueRoulette 接口注册；只接受本次循环发起的队列。不能在已排队或副本内启动。
+- 使用 ContentRoulette 6（Trials），通过游戏原生 QueueRoulette 接口注册；只接受本次循环发起的队列。不能在已排队或副本内启动。
 - 随机进入的地图不能预先选固定路径，因此此模式不运行普通副本路径。战斗沿用现有 AutoManageRotationPluginState / BossMod / Wrath / RSR 配置；请预先配置并确认战斗插件对目标讨伐战的支持。此功能不提供所有讨伐战的新战斗机制或导航脚本。
 - 停止按钮、原有 Stop、暂停（对此模式按停止处理）、插件卸载会终止循环，并撤销本模式的待匹配队列。副本中手动停止不会主动退出副本。
 - 计数以通关事件为准，重复事件不重复计数。未通关退出、等待五分钟期间提前离开、队列被取消、意外进入其他类型副本、注册超过 60 秒未成功、退出超过 60 秒未成功均停止，不反复重试。
@@ -12,4 +12,6 @@
 
 验证：`dotnet run --project tests/TrialsPolicy.Tests.csproj` 覆盖 0/1/2/5 次、300/30 秒边界、通关幂等、所有阶段取消和提前离开。
 
-待实测：国服当前客户端的 Roulette 3 注册及弹窗接受、解锁/惩罚拒绝、非队长注册、实际随机分配的讨伐战与战斗插件配合、加载时间、五分钟退出、30 秒重排、最终轮停止、所有阶段手动 Stop 和掉线。编译及独立逻辑测试不能替代这些实测。本轮不创建 PR。
+待实测：国服当前客户端的 Roulette 6 注册及弹窗接受、解锁/惩罚拒绝、非队长注册、实际随机分配的讨伐战与战斗插件配合、加载时间、五分钟退出、30 秒重排、最终轮停止、所有阶段手动 Stop 和掉线。编译及独立逻辑测试不能替代这些实测。本轮不创建 PR。
+
+Data correction: row 3 = Main Scenario, row 6 = Trials. Verified against xivapi/ffxiv-datamining csv/en/ContentRoulette.csv; startup also validates the English client sheet name before registering.
