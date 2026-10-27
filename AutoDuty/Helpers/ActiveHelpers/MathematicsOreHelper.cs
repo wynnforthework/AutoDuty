@@ -2,6 +2,7 @@ namespace AutoDuty.Helpers;
 
 using Configurations;
 using Dalamud.Plugin.Services;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Enums;
 using ECommons;
 using ECommons.DalamudServices;
@@ -41,7 +42,23 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
     private bool submitted;
     private bool confirmed;
     private bool menuSelected;
-    private bool travelling;
+    private DateTime nextCityTeleport;
+    private DateTime statusSince;
+    internal static string Progress { get; private set; } = "未启动";
+
+    private void Report(string status)
+    {
+        Plugin.action = status;
+        if (Progress == status)
+        {
+            if (DateTime.UtcNow - statusSince > TimeSpan.FromSeconds(30)) Fail("步骤超过 30 秒未完成：" + status);
+            return;
+        }
+        Progress = status;
+        statusSince = DateTime.UtcNow;
+        Svc.Chat.Print("[AutoDuty] " + status);
+        Svc.Log.Info("MathematicsOre: " + status);
+    }
     private MathematicsOreConfig config = null!;
     private const uint Npc = 1053904;
     private static bool InVillage => Svc.ClientState.TerritoryType is 1269 or 1278;
@@ -86,13 +103,16 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         testMode = mode;
         phase = Phase.Travel; deadline = DateTime.UtcNow.AddMinutes(5); nextTick = DateTime.MinValue;
         ore = config.NextOre;
-        interacted = submitted = confirmed = menuSelected = travelling = villageTransferRequested = false;
+        interacted = submitted = confirmed = menuSelected = villageTransferRequested = false;
+        nextCityTeleport = DateTime.MinValue;
+        Progress = "准备出发"; statusSince = DateTime.UtcNow;
         base.Start();
     }
 
     private void Fail(string message)
     {
         Svc.Chat.PrintError("[AutoDuty] 矿石购买失败，已停止挂机：" + message);
+        Progress = "已停止：" + message;
         Svc.Log.Error(message);
         Plugin.Stage = Stage.Stopped; // Aborts queued tasks and stops every active helper.
     }
@@ -125,6 +145,8 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         // Handle menus before movement: the crystal can be untargetable while its menu is open.
         if (Ready("SelectYesno", out var confirmation))
         {
+            Report("正在确认进入幻境村");
+            if (State != ActionState.Running) return;
             var prompt = new AddonMaster.SelectYesno(confirmation) { RespectDisabledButtons = true };
             if (interacted && villageTransferRequested && prompt.Text.Contains(village, StringComparison.Ordinal)) prompt.Yes();
             else Fail("大水晶传送确认框不匹配：" + prompt.Text);
@@ -133,7 +155,8 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         if (Ready("TelepotTown", out var town))
         {
             if (!interacted) { Fail("测试前已有都市传送窗口，请关闭后重试。"); return; }
-            if (villageTransferRequested) return;
+            Report("正在选择都市传送目的地：幻境村");
+            if (State != ActionState.Running || villageTransferRequested) return;
             var reader = new ReaderTelepotTown(town);
             if (reader.NumEntries is 0 or > 20) { Fail("不支持的都市传送列表。"); return; }
             var names = reader.DestinationName;
@@ -149,7 +172,8 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         if (Ready("SelectString", out var selection))
         {
             if (!interacted) { Fail("测试前已有菜单打开，请关闭后重试。"); return; }
-            if (villageTransferRequested) return;
+            Report("正在选择大水晶菜单");
+            if (State != ActionState.Running || villageTransferRequested) return;
             var entries = new AddonMaster.SelectString(selection).Entries;
             var direct = entries.Where(e => e.Text.Contains(village, StringComparison.Ordinal)).ToArray();
             if (direct.Length == 1)
@@ -160,17 +184,42 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
             if (aethernet.Length == 1) { aethernet[0].Select(); return; }
             Fail("无法识别大水晶菜单：" + string.Join(" | ", entries.Select(e => e.Text))); return;
         }
-        if (villageTransferRequested) return; // Wait for the territory change; never issue another interaction.
+        if (villageTransferRequested) { Report("已选择幻境村，等待切换地图"); return; }
+        if (!PlayerHelper.IsReadyFull || PlayerHelper.IsCasting || PlayerHelper.InCombat)
+        { Report("等待角色恢复可交互状态"); return; }
         var level = Svc.Data.GetExcelSheet<Level>().GetRow(10566589); // Main Tuliyollal aetheryte 216.
         var position = new Vector3(level.X, level.Y, level.Z);
         var crystal = Svc.Objects.FirstOrDefault(o => o.ObjectKind == ObjectKind.Aetheryte && o.IsTargetable
             && Vector3.Distance(o.Position, position) < 15);
         if (crystal == null)
         {
+            Report("正在寻找图莱尤拉大水晶");
+            if (State != ActionState.Running) return;
             if (MovementHelper.Move(position, 0.25f, 7)) Fail("图莱尤拉大水晶附近未找到可交互水晶。");
             return;
         }
-        if (!MovementHelper.Move(crystal, 0.25f, 7)) return;
+        // Crystal centers can be above the floor or inside an unwalkable collision mesh.
+        // Use horizontal edge distance; approach a reachable point outside its hitbox.
+        Vector2 offset = new(Player.Position.X - crystal.Position.X, Player.Position.Z - crystal.Position.Z);
+        float radius = Math.Max(0, crystal.HitboxRadius);
+        if (offset.Length() > radius + 3)
+        {
+            Report("正在靠近大水晶（碰撞范围外）");
+            if (State != ActionState.Running) return;
+            Vector2 direction = Vector2.Normalize(offset);
+            Vector3 edge = crystal.Position + new Vector3(direction.X, 0, direction.Y) * (radius + 2);
+            edge.Y = Player.Position.Y;
+            var floor = VNavmesh_IPCSubscriber.Nav_IsReady ? VNavmesh_IPCSubscriber.Query_Mesh_PointOnFloor(edge, false, 5) : null;
+            if (floor.HasValue) MovementHelper.Move(floor.Value, 0.25f, 1);
+            return;
+        }
+        Report("正在与图莱尤拉大水晶交互，等待菜单");
+        if (State != ActionState.Running) return;
+        if (VNavmesh_IPCSubscriber.IsEnabled) VNavmesh_IPCSubscriber.Path_Stop();
+        if (FFXIVClientStructs.FFXIV.Client.Game.Conditions.Instance()->Mounted)
+        {
+            ActionManager.Instance()->UseAction(ActionType.GeneralAction, 9); return;
+        }
         ObjectHelper.InteractWithObject(crystal); interacted = true;
     }
 
@@ -180,21 +229,28 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         if (DateTime.UtcNow > deadline) { Fail("移动、菜单或交易超时；请检查解锁任务及背包。"); return; }
         if (DateTime.UtcNow < nextTick) return;
         nextTick = DateTime.UtcNow.AddMilliseconds(500);
-        if (!PlayerHelper.IsValid || PlayerHelper.IsCasting || PlayerHelper.InCombat) return;
         if (InDungeon) { Fail("购买期间意外进入副本。"); return; }
+        // Process crystal menus without the generic readiness gate (menus can occupy the player).
+        if (phase == Phase.Travel && !InVillage)
+        {
+            if (!Player.Available || Svc.Condition[ConditionFlag.BetweenAreas] || Svc.Condition[ConditionFlag.BetweenAreas51]) return;
+            if (Svc.ClientState.TerritoryType == 1185)
+            {
+                TravelFromCityCrystal(); return;
+            }
+            Report("正在传送至图莱尤拉大水晶");
+            if (State != ActionState.Running || !PlayerHelper.IsReadyFull || PlayerHelper.IsCasting || PlayerHelper.InCombat) return;
+            if (DateTime.UtcNow >= nextCityTeleport)
+            {
+                nextCityTeleport = DateTime.UtcNow.AddSeconds(10);
+                if (!TeleportHelper.TeleportAction(216)) Fail("无法发起图莱尤拉传送，请检查水晶解锁及传送条件。");
+            }
+            return;
+        }
+        if (!PlayerHelper.IsValid || PlayerHelper.IsCasting || PlayerHelper.InCombat) return;
         if (GotoHelper.State == ActionState.Running) return;
         if (phase == Phase.Travel)
         {
-            if (!InVillage)
-            {
-                if (Svc.ClientState.TerritoryType != 1185)
-                {
-                    if (travelling) { Fail("未能到达图莱尤拉尔。"); return; }
-                    travelling = true; GotoHelper.Invoke(1185); return;
-                }
-                travelling = false;
-                TravelFromCityCrystal(); return;
-            }
             interacted = false;
             var npc = ObjectHelper.GetObjectByDataId(Npc);
             if (npc == null)

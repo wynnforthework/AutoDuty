@@ -15,6 +15,7 @@ internal static class MathematicsOreSettings
         if (MathematicsOreHelper.State == ActionState.Running)
         {
             ImGui.TextWrapped("矿石流程执行中，可随时停止。");
+            ImGui.TextWrapped(MathematicsOreHelper.Progress);
             if (ImGui.Button("停止矿石流程 / Stop ore test")) Plugin.Stage = Stage.Stopped;
             return;
         }
