@@ -38,6 +38,10 @@ public class ConfigurationProfileV2
     }
 
     public int TrialsRouletteRepeats { get; set; } = 1;
+    public int TrialsCompletionWaitSeconds { get; set; } = 300;
+    public int TrialsRequeueWaitSeconds { get; set; } = 30;
+    public bool TrialsSendCompletionMessage { get; set; } = true;
+    public string TrialsCompletionMessage { get; set; } = "/p 辛苦啦~对位已赞，可以放心退本了<se.2>";
 
     public MetaConfig Meta { get; set; }
 

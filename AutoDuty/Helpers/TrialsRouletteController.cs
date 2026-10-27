@@ -1,6 +1,7 @@
 namespace AutoDuty.Helpers;
 
 using System;
+using System.Linq;
 using Configurations;
 using ECommons;
 using ECommons.DalamudServices;
@@ -23,6 +24,7 @@ internal static unsafe class TrialsRouletteController
     private static bool queueRequested;
     private static bool queueSeen;
     private static bool wasInDuty;
+    private static string? completionMessage;
 
     internal static void Start()
     {
@@ -38,8 +40,15 @@ internal static unsafe class TrialsRouletteController
             return;
         }
         Svc.Log.Info($"Trials roulette validated: row={RouletteId}, name='{name}'");
+        completionMessage = Configuration.TrialsSendCompletionMessage
+            ? TrialsRoulettePolicy.PartyCommand(Configuration.TrialsCompletionMessage) : null;
+        if (Configuration.TrialsSendCompletionMessage && completionMessage == null)
+        {
+            Status = "通关发言无效：请输入单行小队消息（可带 /p），最多 500 UTF-8 字节。";
+            Svc.Chat.PrintError("[AutoDuty] " + Status); return;
+        }
         Plugin.Stage = Stage.Stopped;
-        Policy.Start(Configuration.TrialsRouletteRepeats);
+        Policy.Start(Configuration.TrialsRouletteRepeats, Configuration.TrialsCompletionWaitSeconds, Configuration.TrialsRequeueWaitSeconds);
         queueRequested = queueSeen = wasInDuty = false;
         nextAttempt = DateTime.MinValue;
         queueDeadline = DateTime.UtcNow.AddSeconds(60);
@@ -67,7 +76,12 @@ internal static unsafe class TrialsRouletteController
     internal static void Completed()
     {
         if (!Active) return;
-        Policy.Complete(DateTime.UtcNow);
+        if (!Policy.Complete(DateTime.UtcNow)) return; // Mark once before sending: duplicate events cannot repeat chat.
+        if (completionMessage != null)
+        {
+            try { ECommons.Automation.Chat.ExecuteCommand(completionMessage); }
+            catch (Exception ex) { Svc.Log.Error($"Trials completion message failed (no retry): {ex}"); }
+        }
         Plugin.SetRotationPluginSettings(false);
     }
 
@@ -89,6 +103,9 @@ internal static unsafe class TrialsRouletteController
             }
             if (Policy.State == Phase.InDuty)
                 Plugin.SetRotationPluginSettings(true);
+            // Count roster members, not visible objects: loading/dead/offline members still count.
+            bool onlySelf = Svc.Party.Length == 0 || (Svc.Party.Length == 1 && Svc.Party.Any(member => member.ContentId == Player.CID));
+            Policy.ObserveParty(now, onlySelf);
             Policy.Tick(now);
             if (Policy.State == Phase.Exiting)
             {

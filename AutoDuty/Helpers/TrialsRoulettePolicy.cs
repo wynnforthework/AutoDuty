@@ -21,16 +21,46 @@ internal sealed class TrialsRoulettePolicy
     internal int Completed { get; private set; }
     internal int Limit { get; private set; }
     internal DateTime Deadline { get; private set; }
+    private int completionWaitSeconds = 300;
+    private int requeueWaitSeconds = 30;
+    private DateTime maximumExitTime;
+    private DateTime? aloneSince;
+    internal static int ClampSeconds(int value) => Math.Clamp(value, 0, 86400);
+    internal static string? PartyCommand(string? input)
+    {
+        string text = (input ?? "").Trim();
+        if (text.StartsWith("/p ", StringComparison.OrdinalIgnoreCase)) text = text[3..].Trim();
+        else if (text.StartsWith("/party ", StringComparison.OrdinalIgnoreCase)) text = text[7..].Trim();
+        if (text.Length == 0 || text.StartsWith('/') || text.Any(char.IsControl)) return null;
+        string command = "/p " + text;
+        return System.Text.Encoding.UTF8.GetByteCount(command) <= 500 ? command : null;
+    }
     internal bool Finished => Limit > 0 && Completed >= Limit;
-    internal void Start(int limit) { Limit = Math.Max(0, limit); Completed = 0; State = Phase.Queueing; }
+    internal void Start(int limit, int completionSeconds = 300, int requeueSeconds = 30)
+    {
+        Limit = Math.Max(0, limit); Completed = 0;
+        completionWaitSeconds = ClampSeconds(completionSeconds);
+        requeueWaitSeconds = ClampSeconds(requeueSeconds);
+        aloneSince = null; State = Phase.Queueing;
+    }
     internal void Stop() => State = Phase.Stopped;
     internal void Enter() { if (State == Phase.Queueing) State = Phase.InDuty; }
-    internal void Complete(DateTime now)
+    internal bool Complete(DateTime now)
     {
-        if (State != Phase.InDuty) return;
+        if (State != Phase.InDuty) return false;
         Completed++;
-        Deadline = now.AddMinutes(5);
+        Deadline = maximumExitTime = now.AddSeconds(completionWaitSeconds);
+        aloneSince = null;
         State = Phase.CompletionWait;
+        return true;
+    }
+    internal void ObserveParty(DateTime now, bool onlySelf)
+    {
+        if (State != Phase.CompletionWait) return;
+        if (!onlySelf) { aloneSince = null; Deadline = maximumExitTime; return; }
+        aloneSince ??= now;
+        DateTime soloExit = aloneSince.Value.AddSeconds(30);
+        Deadline = soloExit < maximumExitTime ? soloExit : maximumExitTime;
     }
     internal void Tick(DateTime now)
     {
@@ -42,7 +72,7 @@ internal sealed class TrialsRoulettePolicy
     {
         if (State != Phase.Exiting) { Stop(); return false; }
         if (Finished) Stop();
-        else { State = Phase.RequeueWait; Deadline = now.AddSeconds(30); }
+        else { State = Phase.RequeueWait; Deadline = now.AddSeconds(requeueWaitSeconds); }
         return true;
     }
 }

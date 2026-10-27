@@ -64,3 +64,53 @@ foreach (bool completed in new[] { false, true })
     Check(!p.Leave(now) && p.State == Phase.Stopped, "unexpected early exit stops loop");
 }
 Console.WriteLine($"Trials policy: {checks} checks passed.");
+
+// Configurable waits, continuous solo grace and hard completion cap.
+var t = new DateTime(2026, 10, 27, 12, 0, 0, DateTimeKind.Utc);
+foreach (int seconds in new[] { 0, 1, 10, 300, 86400 })
+{
+    var p = new TrialsRoulettePolicy(); p.Start(2, seconds, seconds); p.Enter();
+    Check(p.Complete(t), "first completion sends once");
+    Check(!p.Complete(t), "duplicate completion must not send");
+    Check(p.Deadline == t.AddSeconds(seconds), "configured completion wait");
+    if (seconds > 0) { p.Tick(t.AddSeconds(seconds - 1)); Check(p.State == Phase.CompletionWait, "completion wait boundary"); }
+    p.Tick(t.AddSeconds(seconds)); Check(p.State == Phase.Exiting, "configured exit");
+    DateTime leaveTime = t.AddSeconds(seconds + 10);
+    Check(p.Leave(leaveTime), "configured normal leave");
+    Check(p.Deadline == leaveTime.AddSeconds(seconds), "requeue starts on actual leave");
+    if (seconds > 0) { p.Tick(leaveTime.AddSeconds(seconds - 1)); Check(p.State == Phase.RequeueWait, "configured requeue boundary"); }
+    p.Tick(leaveTime.AddSeconds(seconds)); Check(p.State == Phase.Queueing, "configured requeue");
+}
+{
+    var p = new TrialsRoulettePolicy(); p.Start(1); p.Enter(); p.Complete(t);
+    p.ObserveParty(t.AddSeconds(60), true);
+    Check(p.Deadline == t.AddSeconds(90), "alone starts thirty second grace");
+    p.ObserveParty(t.AddSeconds(70), true);
+    Check(p.Deadline == t.AddSeconds(90), "solo observation does not extend timer");
+    p.Tick(t.AddSeconds(89)); Check(p.State == Phase.CompletionWait, "full thirty seconds");
+    p.Tick(t.AddSeconds(90)); Check(p.State == Phase.Exiting, "early solo exit");
+}
+{
+    var p = new TrialsRoulettePolicy(); p.Start(1); p.Enter(); p.Complete(t);
+    p.ObserveParty(t.AddSeconds(290), true);
+    Check(p.Deadline == t.AddSeconds(300), "solo grace cannot exceed hard cap");
+    p.Tick(t.AddSeconds(300)); Check(p.State == Phase.Exiting, "hard cap wins");
+}
+{
+    var p = new TrialsRoulettePolicy(); p.Start(1); p.Enter(); p.Complete(t);
+    p.ObserveParty(t.AddSeconds(60), true); p.ObserveParty(t.AddSeconds(70), false);
+    Check(p.Deadline == t.AddSeconds(300), "others returning cancels solo grace");
+    p.ObserveParty(t.AddSeconds(80), true);
+    Check(p.Deadline == t.AddSeconds(110), "fresh thirty seconds when alone again");
+    p.Stop(); p.ObserveParty(t.AddDays(1), true); p.Tick(t.AddDays(1));
+    Check(p.State == Phase.Stopped && !p.Complete(t), "no message or exit after stopping");
+    p.Start(1, -1, -1); p.Enter(); p.Complete(t); p.Tick(t);
+    Check(p.State == Phase.Exiting, "negative delay clamps to zero");
+}
+Check(TrialsRoulettePolicy.ClampSeconds(int.MaxValue) == 86400, "delay bounded");
+Check(TrialsRoulettePolicy.PartyCommand("/p 辛苦啦~对位已赞，可以放心退本了<se.2>") == "/p 辛苦啦~对位已赞，可以放心退本了<se.2>", "default preserved with sound tag");
+Check(TrialsRoulettePolicy.PartyCommand("hello") == "/p hello", "plain message routed to party");
+Check(TrialsRoulettePolicy.PartyCommand("/party hello") == "/p hello", "party alias normalized");
+foreach (string invalid in new[] { "", " /p ", "/logout", "hello\n/p again", "hello\0", new string('中', 200) })
+    Check(TrialsRoulettePolicy.PartyCommand(invalid) == null, "invalid party message rejected");
+Console.WriteLine($"Trials policy: {checks} total checks passed including timings, solo grace and party chat.");

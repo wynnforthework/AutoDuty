@@ -56,7 +56,19 @@ namespace AutoDuty.Windows
                         Configuration.TrialsRouletteRepeats = Math.Max(0, repeats);
                         ConfigurationProfileV2.Save();
                     }
-                    ImGui.TextWrapped("通关后等待 5 分钟退出，退出后等待 30 秒再次排队。战斗使用现有自动战斗设置；不运行普通副本路径。");
+                    int completionSeconds = Configuration.TrialsCompletionWaitSeconds;
+                    if (ImGui.InputInt("通关后最多停留（秒）", ref completionSeconds))
+                    { Configuration.TrialsCompletionWaitSeconds = TrialsRoulettePolicy.ClampSeconds(completionSeconds); ConfigurationProfileV2.Save(); }
+                    int requeueSeconds = Configuration.TrialsRequeueWaitSeconds;
+                    if (ImGui.InputInt("退出后等待（秒）", ref requeueSeconds))
+                    { Configuration.TrialsRequeueWaitSeconds = TrialsRoulettePolicy.ClampSeconds(requeueSeconds); ConfigurationProfileV2.Save(); }
+                    bool sendMessage = Configuration.TrialsSendCompletionMessage;
+                    if (ImGui.Checkbox("通关后立即发送小队消息", ref sendMessage))
+                    { Configuration.TrialsSendCompletionMessage = sendMessage; ConfigurationProfileV2.Save(); }
+                    string message = Configuration.TrialsCompletionMessage ?? string.Empty;
+                    if (ImGui.InputText("通关发言（/p）", ref message, 500))
+                    { Configuration.TrialsCompletionMessage = message; ConfigurationProfileV2.Save(); }
+                    ImGui.TextWrapped("时间范围 0–86400 秒。其他队员退光后再等 30 秒，最迟到最大停留时间退出。0 秒表示立即退出/重排。战斗使用现有自动战斗设置。");
                     using (ImRaii.Disabled(Plugin.Stage != Stage.Stopped || InDungeon || !PlayerHelper.IsReadyFull || ActiveHelper.AnyHelperRunning()))
                         if (ImGui.Button("Start trials roulette / 开始随机讨伐")) TrialsRouletteController.Start();
                 }
