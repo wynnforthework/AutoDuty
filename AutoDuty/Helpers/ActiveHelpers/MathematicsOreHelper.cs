@@ -187,15 +187,13 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
         if (villageTransferRequested) { Report("已选择幻境村，等待切换地图"); return; }
         if (!PlayerHelper.IsReadyFull || PlayerHelper.IsCasting || PlayerHelper.InCombat)
         { Report("等待角色恢复可交互状态"); return; }
-        var level = Svc.Data.GetExcelSheet<Level>().GetRow(10566589); // Main Tuliyollal aetheryte 216.
-        var position = new Vector3(level.X, level.Y, level.Z);
-        var crystal = Svc.Objects.FirstOrDefault(o => o.ObjectKind == ObjectKind.Aetheryte && o.IsTargetable
-            && Vector3.Distance(o.Position, position) < 15);
+        // Aetheryte object DataId is the Aetheryte sheet ID, not a Level row ID.
+        // Do not dereference exported Level references: these differ across client data versions.
+        var crystal = Svc.Objects.FirstOrDefault(o => o.ObjectKind == ObjectKind.Aetheryte
+            && o.BaseId == 216 && o.IsTargetable);
         if (crystal == null)
         {
-            Report("正在寻找图莱尤拉大水晶");
-            if (State != ActionState.Running) return;
-            if (MovementHelper.Move(position, 0.25f, 7)) Fail("图莱尤拉大水晶附近未找到可交互水晶。");
+            Report("等待图莱尤拉大水晶对象加载（DataId=216）");
             return;
         }
         // Crystal centers can be above the floor or inside an unwalkable collision mesh.
@@ -224,6 +222,21 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
     }
 
     protected override void HelperUpdate(IFramework framework)
+    {
+        if (State != ActionState.Running) return;
+        try
+        {
+            UpdateCore(framework);
+        }
+        catch (Exception ex)
+        {
+            // Stop immediately so a bad sheet or addon layout cannot throw on every frame.
+            Svc.Log.Error($"MathematicsOre exception: phase={phase}, territory={Svc.ClientState.TerritoryType}, progress={Progress}\n{ex}");
+            Fail($"{Progress}：{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private void UpdateCore(IFramework framework)
     {
         if (Plugin.Stage == Stage.Paused) return;
         if (DateTime.UtcNow > deadline) { Fail("移动、菜单或交易超时；请检查解锁任务及背包。"); return; }
