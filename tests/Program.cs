@@ -39,3 +39,10 @@ Check(!MathematicsOreConfig.VerifyPurchase(0, 1, 500, 1, 1), "One-item test reje
 Check(!MathematicsOreConfig.VerifyPurchase(0, 0, 500, 0, 1), "One-item test rejects missing item");
 Check(!MathematicsOreConfig.VerifyPurchase(0, 0, 0, 0, 0), "Zero quantity cannot verify purchase");
 Console.WriteLine($"PASS: {checks} total ore policy checks including test purchases");
+
+Check(MathematicsOreConfig.ConfirmationMatches("购买「上弦月矿石」×1？", "上弦月矿石"), "Named confirmation");
+Check(MathematicsOreConfig.ConfirmationMatches("购买上弦月\n矿石？", "上弦月矿石"), "Wrapped confirmation");
+Check(!MathematicsOreConfig.ConfirmationMatches("购买下弦月矿石？", "上弦月矿石"), "Other ore rejected");
+Check(!MathematicsOreConfig.ConfirmationMatches("确定购买？", "上弦月矿石"), "Unnamed dialog rejected");
+Check(!MathematicsOreConfig.ConfirmationMatches("购买？", ""), "Missing item name rejected");
+Console.WriteLine($"PASS: {checks} total ore checks including confirmation text");

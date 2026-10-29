@@ -20,6 +20,13 @@ public sealed class MathematicsOreConfig
     public uint NextOre => Valid ? Ores[((NextIndex % Ores.Count) + Ores.Count) % Ores.Count] : 0;
     public static bool VerifyPurchase(int beforeItems, int afterItems, int beforeCurrency, int afterCurrency, int quantity)
         => quantity is 1 or Quantity && afterItems - beforeItems == quantity && beforeCurrency - afterCurrency == quantity * UnitCost;
+    public static bool ConfirmationMatches(string prompt, string itemName)
+    {
+        static string Normalize(string value) => string.Concat(value.Normalize(System.Text.NormalizationForm.FormKC)
+            .Where(c => !char.IsWhiteSpace(c) && c != '\u200B' && c != '\uFEFF'));
+        string expected = Normalize(itemName);
+        return expected.Length > 0 && Normalize(prompt).Contains(expected, System.StringComparison.Ordinal);
+    }
     public bool CommitPurchase(int beforeItems, int afterItems, int beforeCurrency, int afterCurrency)
     {
         if (!Valid || !VerifyPurchase(beforeItems, afterItems, beforeCurrency, afterCurrency, Quantity)) return false;

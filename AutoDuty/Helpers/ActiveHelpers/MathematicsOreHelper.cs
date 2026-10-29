@@ -40,6 +40,7 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
     private int beforeCurrency;
     private bool interacted;
     private bool villageTransferRequested;
+    private DateTime confirmationReadyAt;
     private bool submitted;
     private bool confirmed;
     private bool menuSelected;
@@ -383,16 +384,25 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
             beforeItems = InventoryHelper.ItemCount(ore); beforeCurrency = InventoryHelper.ItemCount(MathematicsOreConfig.Currency);
             if (testMode == TestMode.None ? beforeCurrency <= MathematicsOreConfig.Threshold : beforeCurrency < PurchaseQuantity * MathematicsOreConfig.UnitCost) { Fail("交易前币量已变化。"); return; }
             submitted = true; phase = Phase.Confirm; deadline = DateTime.UtcNow.AddSeconds(15);
+            confirmationReadyAt = DateTime.MinValue;
             item.Select(PurchaseQuantity); return;
         }
         if (phase == Phase.Confirm)
         {
             if (Ready("SelectYesno", out var yesno))
             {
+                if (confirmationReadyAt == DateTime.MinValue) confirmationReadyAt = DateTime.UtcNow.AddSeconds(1);
+                if (DateTime.UtcNow < confirmationReadyAt) return;
                 var dialog = new AddonMaster.SelectYesno(yesno) { RespectDisabledButtons = true };
                 string itemName = Svc.Data.GetExcelSheet<Item>().GetRow(ore).Name.ExtractText();
-                if (!submitted || confirmed || !dialog.Text.Contains(itemName, StringComparison.Ordinal))
-                { Fail("购买确认框不匹配。"); return; }
+                string visible = dialog.Text;
+                string raw = string.Empty;
+                if (yesno->AtkValuesCount > 0 && yesno->AtkValues[0].Type is AtkValueType.String or AtkValueType.ConstString or AtkValueType.ManagedString)
+                    raw = dialog.SeStringNullTerminated.TextValue;
+                Svc.Log.Info($"MathematicsOre purchase confirmation: item={ore}, expected='{itemName}', quantity={PurchaseQuantity}, visible='{visible}', raw='{raw}'");
+                if (!submitted || confirmed || (!MathematicsOreConfig.ConfirmationMatches(visible, itemName)
+                    && !MathematicsOreConfig.ConfirmationMatches(raw, itemName)))
+                { Fail($"购买确认框不匹配：预期「{itemName}」；显示「{visible}」；原文「{raw}」。"); return; }
                 confirmed = true; phase = Phase.Verify; dialog.Yes(); return;
             }
             if (InventoryHelper.ItemCount(ore) != beforeItems) phase = Phase.Verify;
