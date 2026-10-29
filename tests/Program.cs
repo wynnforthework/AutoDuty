@@ -46,3 +46,10 @@ Check(!MathematicsOreConfig.ConfirmationMatches("购买下弦月矿石？", "上
 Check(!MathematicsOreConfig.ConfirmationMatches("确定购买？", "上弦月矿石"), "Unnamed dialog rejected");
 Check(!MathematicsOreConfig.ConfirmationMatches("购买？", ""), "Missing item name rejected");
 Console.WriteLine($"PASS: {checks} total ore checks including confirmation text");
+
+Check(MathematicsOreConfig.CurrencyConfirmationMatches("确定要用亚拉戈数理神典石×500， 换取以下道具吗？", "亚拉戈数理神典石", 1), "Actual CN single purchase prompt");
+Check(MathematicsOreConfig.CurrencyConfirmationMatches("确定要用亚拉戈数理神典石×1500，换取以下道具吗？", "亚拉戈数理神典石", 3), "Three-ore prompt");
+Check(!MathematicsOreConfig.CurrencyConfirmationMatches("确定要用亚拉戈数理神典石×1500，换取以下道具吗？", "亚拉戈数理神典石", 1), "Wrong total rejected");
+Check(!MathematicsOreConfig.CurrencyConfirmationMatches("确定要用金币×500，换取以下道具吗？", "亚拉戈数理神典石", 1), "Wrong currency rejected");
+Check(!MathematicsOreConfig.CurrencyConfirmationMatches("确定吗？", "亚拉戈数理神典石", 1), "Unrelated prompt rejected");
+Console.WriteLine($"PASS: {checks} total ore checks including generic currency prompt");

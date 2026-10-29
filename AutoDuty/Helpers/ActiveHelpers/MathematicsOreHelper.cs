@@ -41,6 +41,7 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
     private bool interacted;
     private bool villageTransferRequested;
     private DateTime confirmationReadyAt;
+    private uint submittedShopIndex;
     private bool submitted;
     private bool confirmed;
     private bool menuSelected;
@@ -385,6 +386,7 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
             if (testMode == TestMode.None ? beforeCurrency <= MathematicsOreConfig.Threshold : beforeCurrency < PurchaseQuantity * MathematicsOreConfig.UnitCost) { Fail("交易前币量已变化。"); return; }
             submitted = true; phase = Phase.Confirm; deadline = DateTime.UtcNow.AddSeconds(15);
             confirmationReadyAt = DateTime.MinValue;
+            submittedShopIndex = item.Index;
             item.Select(PurchaseQuantity); return;
         }
         if (phase == Phase.Confirm)
@@ -400,9 +402,25 @@ public sealed unsafe class MathematicsOreHelper : ActiveHelperBase<MathematicsOr
                 if (yesno->AtkValuesCount > 0 && yesno->AtkValues[0].Type is AtkValueType.String or AtkValueType.ConstString or AtkValueType.ManagedString)
                     raw = dialog.SeStringNullTerminated.TextValue;
                 Svc.Log.Info($"MathematicsOre purchase confirmation: item={ore}, expected='{itemName}', quantity={PurchaseQuantity}, visible='{visible}', raw='{raw}'");
-                if (!submitted || confirmed || (!MathematicsOreConfig.ConfirmationMatches(visible, itemName)
-                    && !MathematicsOreConfig.ConfirmationMatches(raw, itemName)))
-                { Fail($"购买确认框不匹配：预期「{itemName}」；显示「{visible}」；原文「{raw}」。"); return; }
+                bool matchesItem = MathematicsOreConfig.ConfirmationMatches(visible, itemName)
+                    || MathematicsOreConfig.ConfirmationMatches(raw, itemName);
+                string currencyName = Svc.Data.GetExcelSheet<Item>().GetRow(MathematicsOreConfig.Currency).Name.ExtractText();
+                bool matchesCurrency = MathematicsOreConfig.CurrencyConfirmationMatches(visible, currencyName, PurchaseQuantity)
+                    || MathematicsOreConfig.CurrencyConfirmationMatches(raw, currencyName, PurchaseQuantity);
+                if (!submitted || confirmed || (!matchesItem && !matchesCurrency))
+                { Fail($"购买确认框不匹配：预期「{itemName}」或数理 ×{PurchaseQuantity * MathematicsOreConfig.UnitCost}；显示「{visible}」；原文「{raw}」。"); return; }
+                // This generic prompt omits the item name. Revalidate the exact submitted shop row.
+                if (!Ready("ShopExchangeCurrency", out var currentShop) || currentShop->AtkValuesCount < 1314
+                    || currentShop->AtkValues[4].UInt is 0 or > 60
+                    || currentShop->AtkValuesCount < 1310 + currentShop->AtkValues[4].UInt)
+                { Fail("购买确认时商店已关闭或布局无效。"); return; }
+                var currentMaster = new AddonMaster.ShopExchangeCurrency(currentShop);
+                var currentItem = currentMaster.BasicShopItems.SingleOrDefault(i => i.ItemId == ore && i.Index == submittedShopIndex);
+                if (currentItem == null || currentItem.CostAmount != MathematicsOreConfig.UnitCost
+                    || currentMaster.CurrencyId != MathematicsOreConfig.Currency
+                    || InventoryHelper.ItemCount(ore) != beforeItems
+                    || InventoryHelper.ItemCount(MathematicsOreConfig.Currency) != beforeCurrency)
+                { Fail("购买确认时矿石、币种、价格或钱包已变化。"); return; }
                 confirmed = true; phase = Phase.Verify; dialog.Yes(); return;
             }
             if (InventoryHelper.ItemCount(ore) != beforeItems) phase = Phase.Verify;

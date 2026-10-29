@@ -27,6 +27,14 @@ public sealed class MathematicsOreConfig
         string expected = Normalize(itemName);
         return expected.Length > 0 && Normalize(prompt).Contains(expected, System.StringComparison.Ordinal);
     }
+    public static bool CurrencyConfirmationMatches(string prompt, string currencyName, int quantity)
+    {
+        if (quantity is not (1 or Quantity) || string.IsNullOrWhiteSpace(currencyName)) return false;
+        static string Normalize(string value) => string.Concat(value.Normalize(System.Text.NormalizationForm.FormKC)
+            .Where(c => !char.IsWhiteSpace(c)));
+        string expected = $"确定要用{currencyName}×{quantity * UnitCost}，换取以下道具吗？";
+        return Normalize(prompt) == Normalize(expected);
+    }
     public bool CommitPurchase(int beforeItems, int afterItems, int beforeCurrency, int afterCurrency)
     {
         if (!Valid || !VerifyPurchase(beforeItems, afterItems, beforeCurrency, afterCurrency, Quantity)) return false;
