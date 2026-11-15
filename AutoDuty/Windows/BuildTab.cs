@@ -255,7 +255,7 @@ namespace AutoDuty.Windows
                     pathFile ??= new PathFile();
 
                     pathFile.Actions = [.. Plugin.Actions];
-                    string json = JsonConvert.SerializeObject(pathFile, ConfigurationMain.JsonSerializerSettings);
+                    string json = PathJson.WriteFile(pathFile);
                     File.WriteAllText(Plugin.pathFile, json);
                     Plugin.currentPath = 0;
                 }

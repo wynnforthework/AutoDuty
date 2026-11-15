@@ -94,11 +94,12 @@ namespace AutoDuty.Data
 
         public class PathFile
         {
+            public int SchemaVersion { get; set; } = 1;
             public List<PathAction> Actions { get; set; } = [];
 
             public PathFileMetaData Meta { get; set; } = new()
                                                          {
-                                                             CreatedAt = Plugin.Version,
+                                                             CreatedAt = Plugin?.Version ?? 0,
                                                              Changelog = [],
                                                              Notes     = []
                                                          };

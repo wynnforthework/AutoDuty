@@ -1382,6 +1382,11 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         Svc.Log.Debug($"Starting Action {this.pathAction.ToCustomString()}");
 
+        if (PathValidator.Error(this.pathAction) is { } validationError)
+        {
+            this.RegisterStepFailure("invalid-arguments", validationError);
+            return;
+        }
         bool unsync = QueueHelper.ShouldBeUnSynced();
 
         if (this.pathAction.Tag.HasFlag(ActionTag.Unsynced) && !unsync)

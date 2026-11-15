@@ -159,7 +159,7 @@ namespace AutoDuty.Managers
                                 json = streamReader.ReadToEnd();
 
 
-                            field = JsonConvert.DeserializeObject<PathFile>(json, ConfigurationMain.JsonSerializerSettings);
+                            field = PathJson.ReadFile(json);
 
                             this.RevivalFound = this.PathFile.Actions.Any(x => x.Tag.HasFlag(ActionTag.Revival));
                             this.W2WFound     = this.PathFile.Actions.Any(x => x.Tag.HasFlag(ActionTag.W2W));
@@ -174,7 +174,7 @@ namespace AutoDuty.Managers
                                                              Change  = "Version update"
                                                          });
 
-                                json = JsonConvert.SerializeObject(field, ConfigurationMain.JsonSerializerSettings);
+                                json = PathJson.WriteFile(field);
                                 File.WriteAllText(FilePath, json);
                             }
                         }

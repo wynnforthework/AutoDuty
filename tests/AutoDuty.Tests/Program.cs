@@ -23,8 +23,29 @@ static void Run()
     Check(PathEditHelper.Relocate(before, Array.Empty<object>(), 2) == 0, "delete all");
     Check(PathEditHelper.Relocate(before, new[]{a,b,c}, -1) == -1, "unselected");
     Console.WriteLine("PASS: 9 action relocation cases");
+    TestPaths();
 }
 static void Check(bool value, string name)
 {
     if (!value) throw new Exception("FAILED: " + name);
+}
+
+static void TestPaths()
+{
+    string directory = Path.GetFullPath("AutoDuty/Paths");
+    int count = 0;
+    foreach (string path in Directory.GetFiles(directory, "*.json"))
+    {
+        var file = AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(path));
+        string encoded = AutoDuty.Data.PathJson.WriteFile(file);
+        Check(!encoded.Contains("$type"), "no assembly type names: " + path);
+        var decoded = AutoDuty.Data.PathJson.ReadFile(encoded);
+        Check(encoded == AutoDuty.Data.PathJson.WriteFile(decoded), "path round trip: " + path);
+        count++;
+    }
+    var old = AutoDuty.Data.PathJson.ReadFile("""{"Actions":[{"Name":"Wait","Position":{"X":1,"Y":2,"Z":3},"Arguments":["100"],"Conditions":[{"$type":"AutoDuty.Data.Classes+PathActionConditionToDo, AutoDuty","index":0,"count":1,"operatorValue":"<"}]}]}""");
+    Check(old.Actions[0].Conditions.Count == 1, "legacy condition");
+    Check(AutoDuty.Data.PathJson.ReadFile(AutoDuty.Data.PathJson.WriteFile(old)).Actions[0].Conditions.Count == 1, "new condition");
+    try { AutoDuty.Data.PathJson.ReadFile("""{"SchemaVersion":999,"Actions":[]}"""); throw new Exception("accepted future schema"); } catch (Newtonsoft.Json.JsonException) { }
+    Console.WriteLine($"PASS: {count} bundled paths round trip; legacy/new conditions and future schema rejection");
 }
