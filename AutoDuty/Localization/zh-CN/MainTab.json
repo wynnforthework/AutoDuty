@@ -39,7 +39,7 @@
     "CurrentGearset": "当前套装",
     "Busy": "工作中...",
     "RequiresVNavmeshAlt": "AutoDuty 依赖 vnavmesh 插件进行移动和导航。\n请添加仓库：https://puni.sh/api/repository/veyn",
-    "RequiresBossModAlt": "AutoDuty 依赖 BossMod 插���处理战斗机制。\n请添加仓库：https://puni.sh/api/repository/veyn",
+    "RequiresBossModAlt": "AutoDuty 依赖 BossMod 插件处理战斗机制。\n请添加仓库：https://puni.sh/api/repository/veyn",
     "Modes": {
       "Looping": "单副本挂机 (Looping)",
       "Playlist": "任务列表模式 (Playlist)",
