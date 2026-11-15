@@ -67,6 +67,10 @@ namespace AutoDuty.Windows
         {
             SetCurrentTabName("BuildTab");
             if (ImGui.Button(DutyToolsUi.Text("Recorder"))) Plugin.ShowRecorder();
+            ImGui.SameLine();
+            if (ImGui.Button(DutyToolsUi.Text("CopyPath"))) Plugin.PathCommand(["path", "copy"]);
+            ImGui.SameLine();
+            if (ImGui.Button(DutyToolsUi.Text("PastePath"))) Plugin.PathCommand(["path", "import"]);
             using (ImRaii.Disabled(false))
             {
                 if (InDungeon)

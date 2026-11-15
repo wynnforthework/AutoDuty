@@ -451,6 +451,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
                                                                  this.SeekToStep(this.indexer + 1);
                                                              }
                                                          }),
+                (["path"], "copy or import shared routes", this.PathCommand),
                 (["rec"], "record: start|stop|add <action>|undo|save <name>|append <name>", args =>
                 {
                     this.ShowRecorder();

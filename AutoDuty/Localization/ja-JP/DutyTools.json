@@ -51,6 +51,15 @@
     "RouteName": "Route name",
     "SaveRecording": "Save as new route",
     "AppendRecording": "Append to named route",
-    "ReviewRecording": "Review detected steps and dialog arguments before running. Click a step to edit."
+    "ReviewRecording": "Review detected steps and dialog arguments before running. Click a step to edit.",
+    "CopyPath": "Copy sharing string",
+    "PastePath": "Import from clipboard",
+    "ImportReview": "Review this route before saving. Highlighted steps can issue commands or invoke game actions. Importing does not execute the route.",
+    "Steps": "Steps",
+    "Territory": "Territory ID",
+    "ProtectImport": "Protect imported route from updates",
+    "ConfirmImport": "Confirm and save",
+    "Cancel": "Cancel",
+    "ImportSaved": "Route saved"
   }
 }

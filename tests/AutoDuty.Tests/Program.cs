@@ -40,6 +40,19 @@ static void TestPaths()
         var file = AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(path));
         string encoded = AutoDuty.Data.PathJson.WriteFile(file);
         Check(!encoded.Contains("$type"), "no assembly type names: " + path);
+        var shared = PathCodec.Encode(file);
+        var imported = PathCodec.Decode(shared, out string error);
+        Check(imported != null && shared == PathCodec.Encode(imported), "sharing round trip: " + path + ": " + error);
+        var chunks = PathCodec.Split(shared);
+        Check(chunks.All(c => c.Length <= 450), "chat size limit");
+        Check(PathCodec.TryAssemble(chunks, out string assembled, out error) && assembled == shared, "chunk round trip: " + path);
+        if (chunks.Length > 1)
+        {
+            Check(!PathCodec.TryAssemble(chunks.Reverse(), out _, out _), "reordered chunks rejected");
+            Check(!PathCodec.TryAssemble(chunks.SkipLast(1), out _, out _), "missing chunks rejected");
+        }
+        Check(PathCodec.Decode(shared[..^1], out _) == null, "truncated share rejected");
+        Check(PathCodec.Decode(shared[..^1] + (shared[^1] == '0' ? "1" : "0"), out _) == null, "bad checksum rejected");
         var decoded = AutoDuty.Data.PathJson.ReadFile(encoded);
         Check(encoded == AutoDuty.Data.PathJson.WriteFile(decoded), "path round trip: " + path);
         count++;
@@ -48,7 +61,7 @@ static void TestPaths()
     Check(old.Actions[0].Conditions.Count == 1, "legacy condition");
     Check(AutoDuty.Data.PathJson.ReadFile(AutoDuty.Data.PathJson.WriteFile(old)).Actions[0].Conditions.Count == 1, "new condition");
     try { AutoDuty.Data.PathJson.ReadFile("""{"SchemaVersion":999,"Actions":[]}"""); throw new Exception("accepted future schema"); } catch (Newtonsoft.Json.JsonException) { }
-    Console.WriteLine($"PASS: {count} bundled paths round trip; legacy/new conditions and future schema rejection");
+    Console.WriteLine($"PASS: {count} bundled paths JSON and sharing round trips, chunks, corruption; legacy/new conditions and future schema rejection");
 }
 
 static void TestRecording()
