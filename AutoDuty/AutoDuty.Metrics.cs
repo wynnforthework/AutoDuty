@@ -1,8 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using AutoDuty.Configurations;
 using AutoDuty.Data;
 using AutoDuty.Helpers;
@@ -10,6 +8,8 @@ using AutoDuty.Multibox;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Lumina.Excel.Sheets;
+using FFXIVClientStructs.FFXIV.Client.System.Input;
+using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace AutoDuty;
 
@@ -20,6 +20,8 @@ public sealed partial class AutoDuty
     private ExperienceAccumulator experienceSamples = new();
     private bool metricsInitialized;
     private long lastMetricsSave, lastExperienceSample;
+    private bool manualMovementHeld;
+    private volatile bool metricsTextInputActive;
 
     private void BeginMetricsSession()
     {
@@ -49,12 +51,11 @@ public sealed partial class AutoDuty
         this.BeginMetricsSession();
         this.EndRouteMetrics("restarted");
         DateTime now = DateTime.UtcNow;
-        string canonical = PathJson.WriteFile(new() { Actions = [.. this.Actions] }, Newtonsoft.Json.Formatting.None);
         var record = new RouteRunRecord
         {
             SessionId = this.MetricsSession!.Id, ParticipantId = ConfigurationMain.Instance.stats.telemetryParticipantId,
             CharacterId = Player.CID, TerritoryId = Svc.ClientState.TerritoryType,
-            RouteName = Path.GetFileName(this.pathFile), RouteHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))),
+            RouteName = Path.GetFileName(this.pathFile), RouteHash = AutomationReports.Fingerprint(this.Actions),
             JobId = (uint)Player.Job, Mode = Configuration.Meta.DutyModeEnum + (QueueHelper.ShouldBeUnSynced() ? "/Unsynced" : "/Synced"),
             PartySize = Math.Max(1, Svc.Party.Length), Multibox = MultiboxUtility.Config.MultiBox,
             StartedAt = this.lastDutyStart >= this.MetricsSession.StartedAt && this.lastDutyStart <= now ? this.lastDutyStart : now,
@@ -63,6 +64,7 @@ public sealed partial class AutoDuty
         if (!record.StartedAtFirstStep) { record.FirstProblem = "started-mid-route"; record.ProblemStep = Math.Max(0, this.indexer); }
         // Starting a script after the completion event cannot prove a clean duty run.
         if (this.dutyState == DutyState.DutyComplete) record.FirstProblem = "started-after-duty-completion";
+        this.manualMovementHeld = false;
         this.MetricsRun = new(record);
         ConfigurationMain.Instance.stats.routeRuns.Add(record);
         this.SampleExperience();
@@ -128,12 +130,27 @@ public sealed partial class AutoDuty
         if (this.MetricsSession is not { EndedAt: null } session) return;
         session.UpdatedAt = DateTime.UtcNow;
         if (this.MetricsRun is { } tracker) tracker.Record.UpdatedAt = session.UpdatedAt;
+        this.ObserveManualMovement();
         if (Environment.TickCount64 - this.lastExperienceSample >= 500)
         {
             this.lastExperienceSample = Environment.TickCount64;
             this.SampleExperience();
         }
         if (Environment.TickCount64 - this.lastMetricsSave >= 30000) this.SaveMetrics();
+    }
+
+    private unsafe void ObserveManualMovement()
+    {
+        if (this.MetricsRun == null || !Player.Available) { this.manualMovementHeld = false; return; }
+        var input = UIModule.Instance()->GetUIInputData();
+        // Use game bindings, rather than assuming WASD. Typing in chat or an ImGui input is not movement.
+        bool typing = RaptureAtkModule.Instance()->IsTextInputActive() || this.metricsTextInputActive;
+        bool moving = !typing && input != null && (input->IsInputIdDown(InputId.MOVE_FORE) || input->IsInputIdDown(InputId.MOVE_BACK)
+            || input->IsInputIdDown(InputId.MOVE_LEFT) || input->IsInputIdDown(InputId.MOVE_RIGHT)
+            || input->IsInputIdDown(InputId.MOVE_STRIFE_L) || input->IsInputIdDown(InputId.MOVE_STRIFE_R)
+            || input->IsInputIdDown(InputId.MOVE_AND_STEER) || input->IsInputIdDown(InputId.JUMP));
+        if (moving && !this.manualMovementHeld) this.MetricsProblem("manual-movement", true);
+        this.manualMovementHeld = moving;
     }
 
     private unsafe void SampleExperience()

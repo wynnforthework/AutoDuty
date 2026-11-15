@@ -65,11 +65,13 @@ internal static class StatsTab
 
     public static void Draw()
     {
+        MetricsDashboard.Draw();
+        if (!ImGui.CollapsingHeader(Loc.Get("Metrics.LegacyStats"))) return;
         ConfigurationMain.StatData stats = filteredStats ??= ConfigurationMain.Instance.stats;
 
         ImGuiIOPtr io = ImGui.GetIO();
 
-        using (ImRaii.Disabled(!io.KeyCtrl))
+        using (ImRaii.Disabled(!io.KeyCtrl || Plugin.MetricsSession is { EndedAt: null }))
         {
             if (ImGuiComponents.IconButton(FontAwesomeIcon.TrashAlt))
             {

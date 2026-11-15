@@ -2345,7 +2345,11 @@ public sealed partial class AutoDuty : IDalamudPlugin
         Svc.Commands.RemoveHandler(CommandName);
     }
 
-    private void DrawUI() => this.windowSystem.Draw();
+    private void DrawUI()
+    {
+        this.windowSystem.Draw();
+        this.metricsTextInputActive = Dalamud.Bindings.ImGui.ImGui.GetIO().WantTextInput;
+    }
 
     public void OpenConfigUI()
     {

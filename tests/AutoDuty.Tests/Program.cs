@@ -27,6 +27,7 @@ static void Run()
     TestRecording();
     TestValidation();
     TestRunMetrics();
+    TestAutomationReports();
 }
 static void Check(bool value, string name)
 {
@@ -126,6 +127,45 @@ static void TestRunMetrics()
     var saved = Newtonsoft.Json.JsonConvert.SerializeObject(record);
     Check(!saved.Contains("CompletionPercent") && !saved.Contains("VerifiedComplete"), "completion is computed from evidence");
     Console.WriteLine("PASS: completion evidence, freeze after failure/intervention, deduplication and cross-level/job/character XP");
+}
+
+static void TestAutomationReports()
+{
+    var actions = new List<AutoDuty.Data.Classes.PathAction> { new() { Name = "MoveTo", Position = new(1, 2, 3) } };
+    string hash = AutomationReports.Fingerprint(actions);
+    actions[0].Position = new(2, 2, 3);
+    Check(hash != AutomationReports.Fingerprint(actions), "route edits create separate metric versions");
+    AutoDuty.Data.RouteRunRecord Clean() => new()
+    {
+        ParticipantId = Guid.NewGuid(), CharacterId = 123456, TerritoryId = 1037, JobId = 19, RouteHash = hash, RouteName = "Test route",
+        Mode = "Support/Synced", StartedAt = DateTime.UtcNow.AddMinutes(-10), UpdatedAt = DateTime.UtcNow, EndedAt = DateTime.UtcNow,
+        TotalSteps = 2, CompletedSteps = 2, ExecutedSteps = 2, AutonomousSteps = 2, StartedAtFirstStep = true,
+        DutyCompleted = true, RouteFinished = true, Experience = 600000, Outcome = "complete",
+    };
+    var good = Clean(); var failed = Clean();
+    failed.FirstProblem = "stuck"; failed.ProblemStep = 1; failed.Failures = 1; failed.AutonomousSteps = 1;
+    var groups = AutomationReports.Summarize([good, failed]);
+    Check(groups.Count == 1 && groups[0].Reliability == 50 && groups[0].MeanCompletion == 75 && groups[0].Participants == 2, "failed attempts and multiple contributors are included");
+    Check(groups[0].ExperiencePerHour > 3500000 && groups[0].ExperiencePerHour < 3700000, "XP/hour uses all attempt durations");
+    var tank = Clean(); tank.JobId = 21;
+    var party = Clean(); party.PartySize = 4;
+    var mode = Clean(); mode.Mode = "Regular/Unsynced";
+    var version = Clean(); version.RouteHash = AutomationReports.Fingerprint(actions);
+    Check(AutomationReports.Summarize([good, tank, party, mode, version]).Count == 5, "job, party, mode and version cohorts remain separate");
+    string json = AutomationReports.Export([good, failed]);
+    var imported = AutomationReports.Read(json);
+    Check(imported.Count == 2 && imported.All(r => r.CharacterId == 0 && r.Imported) && imported[0].VerifiedComplete, "report export removes character identity and preserves evidence");
+    var destination = new List<AutoDuty.Data.RouteRunRecord> { good };
+    Check(AutomationReports.Merge(destination, imported) == 1 && AutomationReports.Merge(destination, imported) == 0, "report imports deduplicate run IDs");
+    Check(AutomationReports.Export([new()]) == "{\"Version\":1,\"Runs\":[]}", "unfinished attempts are not shared as final samples");
+    foreach (string invalid in new[] { json.Replace("\"Version\":1", "\"Version\":99"), json.Replace("\"AutonomousSteps\":2", "\"AutonomousSteps\":99"), json.Replace("\"CompletedSteps\":2", "\"CompletedSteps\":-1"), json.Replace("\"PartySize\":1", "\"PartySize\":0") })
+    {
+        try { AutomationReports.Read(invalid); throw new Exception("accepted invalid metrics report"); }
+        catch (Newtonsoft.Json.JsonException) { }
+    }
+    var oldStats = Newtonsoft.Json.JsonConvert.DeserializeObject<AutoDuty.Configurations.ConfigurationMain.StatData>("{\"dungeonsRun\":5}")!;
+    Check(oldStats.dungeonsRun == 5 && oldStats.routeRuns.Count == 0 && oldStats.automationSessions.Count == 0, "old statistics gain empty metrics collections");
+    Console.WriteLine("PASS: report privacy, deduplication, validation, cohort separation and failure-inclusive efficiency");
 }
 
 static void TestRecording()
