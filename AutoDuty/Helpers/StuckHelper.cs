@@ -18,6 +18,14 @@ namespace AutoDuty.Helpers
         private static byte counter = 0;
         private static int  index   = 0;
 
+        internal static void ResetForStep()
+        {
+            counter = 0;
+            index = Plugin.indexer;
+            LastPosition = Player.Available ? Player.Position : Vector3.Zero;
+            LastPositionUpdate = LastStuckPositionUpdate = Environment.TickCount64;
+        }
+
         internal static bool IsStuck(out byte count)
         {
             count = 0;

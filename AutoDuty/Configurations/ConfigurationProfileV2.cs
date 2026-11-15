@@ -1,4 +1,4 @@
-namespace AutoDuty.Configurations;
+﻿namespace AutoDuty.Configurations;
 
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
@@ -278,6 +278,15 @@ public class ConfigurationProfileV2
             this.config = config;
             this.Stuck  = new StuckConfig(this);
         }
+
+        public int MaxStepRetries { get; set; } = 3;
+        public bool PauseOnStepFailure { get; set; } = true;
+        public int MoveToStepTimeoutMs { get; set; } = 60_000;
+        public int ActionStepTimeoutMs { get; set; } = 120_000;
+        public int BossSpawnTimeoutMs { get; set; } = 30_000;
+        public int BossStepTimeoutMs { get; set; } = 600_000;
+        public int WaitForStepTimeoutMs { get; set; } = 0;
+        public bool PlaySoundOnFailure { get; set; } = true;
 
         public bool           AutoExitDuty                  { get; set; } = true;
         public bool           OnlyExitWhenDutyDone          { get; set; } = false;

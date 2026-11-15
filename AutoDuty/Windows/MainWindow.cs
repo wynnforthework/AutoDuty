@@ -103,9 +103,7 @@ public sealed class MainWindow : Window, IDisposable
             {
                 if (ImGui.Button("Resume"))
                 {
-                    Plugin.taskManager.StepMode = false;
-                    Plugin.Stage = Plugin.previousStage;
-                    Plugin.States &= ~PluginState.Paused;
+                    Plugin.ResumeFromPause();
                 }
             }
             else

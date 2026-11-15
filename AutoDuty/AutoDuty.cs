@@ -1,4 +1,4 @@
-global using AutoDuty.Managers;
+﻿global using AutoDuty.Managers;
 global using ECommons.GameHelpers;
 global using static AutoDuty.AutoDuty;
 global using static AutoDuty.Data.Classes;
@@ -58,7 +58,7 @@ using TaskManager = ECommons.Automation.NeoTaskManager.TaskManager;
 // Scrapped interable list, going to implement an internal list that when a interactable step end in fail, the Dataid gets add to the list and is scanned for from there on out, if found we goto it and get it, then remove from list.
 // Need to expand AutoRepair to include check for level and stuff to see if you are eligible for self repair. and check for dark matter
 
-public sealed class AutoDuty : IDalamudPlugin
+public sealed partial class AutoDuty : IDalamudPlugin
 {
     [PluginService]
     internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
@@ -386,15 +386,7 @@ public sealed class AutoDuty : IDalamudPlugin
                 (["stop"], "stops everything", _ => Plugin.Stage = Stage.Stopped),
                 (["pause"], "pause route", _ => Plugin.Stage     = Stage.Paused),
                 (["board"], "opens the Crucible board map", _ => this.CrucibleBoardWindow.Toggle()),
-                (["resume"], "resume route", _ =>
-                                             {
-                                                 if (Plugin.Stage == Stage.Paused)
-                                                 {
-                                                     Plugin.taskManager.StepMode =  false;
-                                                     Plugin.Stage                =  Plugin.previousStage;
-                                                     Plugin.States               &= ~PluginState.Paused;
-                                                 }
-                                             }),
+                (["resume"], "resume route", _ => this.ResumeFromPause()),
                 (["queue"], "queues duty", argsArray =>
                                            {
                                                QueueHelper.Invoke(ContentHelper.DictionaryContent
@@ -435,8 +427,7 @@ public sealed class AutoDuty : IDalamudPlugin
                                                          {
                                                              if (this.States.HasFlag(PluginState.Navigating))
                                                              {
-                                                                 this.indexer++;
-                                                                 this.Stage = Stage.Reading_Path;
+                                                                 this.SeekToStep(this.indexer + 1);
                                                              }
                                                          }),
                 (["movetoflag"], "moves to the flag map marker", _ => MapHelper.MoveToMapMarker()),
@@ -2061,6 +2052,7 @@ public sealed class AutoDuty : IDalamudPlugin
         if (this.Stage == Stage.Stopped)
             return;
 
+        if (!this.UpdateStepAttempt()) return;
         this.PreStageChecks();
 
         if (this.Stage == Stage.Stopped)
@@ -2138,6 +2130,10 @@ public sealed class AutoDuty : IDalamudPlugin
 
     private void StopAndResetAll()
     {
+        this.currentAttempt = null;
+        this.currentFailure = null;
+        this.pendingStepFailure = null;
+        this.attemptHistory.Clear();
         ConfigOverrideHelper.Pop();
 
         if (this.currentlyActivePluginConfig != null)

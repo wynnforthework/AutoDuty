@@ -246,7 +246,8 @@
             Looping = 1,
             Navigating = 2,
             Paused = 4,
-            Other = 8
+            Other = 8,
+            Failed = 1 << 4
         }
 
         [Flags]
@@ -346,7 +347,8 @@
         public enum PathActionFlags : int
         {
             None = 0,
-            NoPartyCoherency = 1 << 0
+            NoPartyCoherency = 1 << 0,
+            StrictConditions = 1 << 1
         }
 
         [Flags]
