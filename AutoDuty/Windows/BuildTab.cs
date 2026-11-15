@@ -66,6 +66,7 @@ namespace AutoDuty.Windows
         internal static unsafe void DrawBuildTab()
         {
             SetCurrentTabName("BuildTab");
+            if (ImGui.Button(DutyToolsUi.Text("Recorder"))) Plugin.ShowRecorder();
             using (ImRaii.Disabled(false))
             {
                 if (InDungeon)

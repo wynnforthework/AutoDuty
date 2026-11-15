@@ -35,6 +35,22 @@
     "Source": "Source URL",
     "LimitJobs": "Limit to jobs / roles",
     "JobConflict": "Another route matches these jobs; first match wins.",
-    "SaveMetadata": "Save metadata and protect from updates"
+    "SaveMetadata": "Save metadata and protect from updates",
+    "Recorder": "Open recorder",
+    "Recording": "Recording",
+    "RecorderStopped": "Recording stopped",
+    "StopRecording": "Stop recording",
+    "StartRecording": "Start new recording",
+    "Undo": "Undo last step",
+    "DetectBoss": "Detect bosses",
+    "DetectTreasure": "Detect treasure",
+    "DetectInteractions": "Record selected event objects",
+    "DetectDialogs": "Detect dialogs (review choices)",
+    "SampleDistance": "Sample distance (y)",
+    "SimplifyTolerance": "Simplification tolerance (y)",
+    "RouteName": "Route name",
+    "SaveRecording": "Save as new route",
+    "AppendRecording": "Append to named route",
+    "ReviewRecording": "Review detected steps and dialog arguments before running. Click a step to edit."
   }
 }

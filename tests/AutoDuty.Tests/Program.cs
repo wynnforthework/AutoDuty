@@ -8,7 +8,7 @@ AssemblyLoadContext.Default.Resolving += (_, name) =>
     string file = Path.Combine(hooks ?? "", name.Name + ".dll");
     return File.Exists(file) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(file)) : null;
 };
-Run();
+try { Run(); } catch (Exception ex) { Console.Error.WriteLine(ex); Environment.ExitCode = 1; }
 static void Run()
 {
     object a = new(), b = new(), c = new(), x = new();
@@ -24,6 +24,7 @@ static void Run()
     Check(PathEditHelper.Relocate(before, new[]{a,b,c}, -1) == -1, "unselected");
     Console.WriteLine("PASS: 9 action relocation cases");
     TestPaths();
+    TestRecording();
 }
 static void Check(bool value, string name)
 {
@@ -48,4 +49,17 @@ static void TestPaths()
     Check(AutoDuty.Data.PathJson.ReadFile(AutoDuty.Data.PathJson.WriteFile(old)).Actions[0].Conditions.Count == 1, "new condition");
     try { AutoDuty.Data.PathJson.ReadFile("""{"SchemaVersion":999,"Actions":[]}"""); throw new Exception("accepted future schema"); } catch (Newtonsoft.Json.JsonException) { }
     Console.WriteLine($"PASS: {count} bundled paths round trip; legacy/new conditions and future schema rejection");
+}
+
+static void TestRecording()
+{
+    var actions = Enumerable.Range(0, 101).Select(i => new AutoDuty.Data.Classes.PathAction { Name = "MoveTo", Position = new(i, 0, i % 2 == 0 ? .1f : -.1f) }).ToList();
+    var simplified = PathRecorder.Simplify(actions, .5f);
+    Check(simplified.Count == 2 && ReferenceEquals(simplified[0], actions[0]) && ReferenceEquals(simplified[^1], actions[^1]), "RDP endpoints/jitter");
+    actions.Insert(50, new() { Name = "Interactable", Position = new(50, 0, 0), Arguments = ["1"] });
+    simplified = PathRecorder.Simplify(actions, .5f);
+    Check(simplified.Count == 5 && simplified[2].Name == "Interactable", "RDP event boundaries");
+    var corner = new List<AutoDuty.Data.Classes.PathAction> { new() { Name="MoveTo", Position=new(0,0,0) }, new() { Name="MoveTo", Position=new(10,0,0) }, new() { Name="MoveTo", Position=new(10,0,10) } };
+    Check(PathRecorder.Simplify(corner, 2.5f).Count == 3, "RDP corner preserved");
+    Console.WriteLine("PASS: recorder jitter, endpoints, action boundaries and corners");
 }

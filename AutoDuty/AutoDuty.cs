@@ -300,6 +300,14 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     public DutyDataTemporary? DutyData { get; set; } = new();
 
+    internal PathRecorder Recorder { get; } = new();
+    private PathRecorderWindow? recorderWindow;
+    internal void ShowRecorder()
+    {
+        if (this.recorderWindow == null) this.windowSystem.AddWindow(this.recorderWindow = new());
+        this.recorderWindow.IsOpen = true;
+    }
+
     public AutoDuty()
     {
         try
@@ -443,6 +451,24 @@ public sealed partial class AutoDuty : IDalamudPlugin
                                                                  this.SeekToStep(this.indexer + 1);
                                                              }
                                                          }),
+                (["rec"], "record: start|stop|add <action>|undo|save <name>|append <name>", args =>
+                {
+                    this.ShowRecorder();
+                    try
+                    {
+                        if (args.Length < 2) return;
+                        switch (args[1].ToLowerInvariant())
+                        {
+                            case "start": this.Recorder.Start(); break;
+                            case "stop": this.Recorder.Stop(); break;
+                            case "undo": this.Recorder.Undo(); break;
+                            case "add" when args.Length > 2: this.Recorder.Add(args[2]); break;
+                            case "save" when args.Length > 2: Svc.Chat.Print(this.Recorder.Save(string.Join(" ", args[2..]))); break;
+                            case "append" when args.Length > 2: Svc.Chat.Print(this.Recorder.Save(string.Join(" ", args[2..]), true)); break;
+                        }
+                    }
+                    catch (Exception ex) { Svc.Chat.PrintError(ex.Message); }
+                }),
                 (["step"], "seek to a 1-based step", args => { if (args.Length > 1 && int.TryParse(args[1], out int step) && step > 0 && step <= this.Actions.Count) this.SeekToStep(step - 1); }),
                 (["retry"], "retry current step", _ => { if (this.indexer >= 0) this.SeekToStep(this.indexer); }),
                 (["where"], "show current step", _ => Svc.Chat.Print($"[AutoDuty] Step {this.indexer + 1}/{this.Actions.Count}: {this.currentAttempt?.Action.ToCustomString()} {this.currentFailure?.Reason}")),
@@ -2117,6 +2143,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     public void Framework_Update(IFramework framework)
     {
+        this.Recorder.Tick();
         if (this.Stage == Stage.Stopped)
             return;
 
