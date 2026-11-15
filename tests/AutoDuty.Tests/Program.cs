@@ -26,6 +26,7 @@ static void Run()
     TestPaths();
     TestRecording();
     TestValidation();
+    TestRunMetrics();
 }
 static void Check(bool value, string name)
 {
@@ -83,6 +84,48 @@ static void TestValidation()
         catch (Newtonsoft.Json.JsonException) { }
     }
     Console.WriteLine("PASS: legacy wait aliases, typed arguments, overflow, malformed paths and clone/wire compatibility");
+}
+
+static void TestRunMetrics()
+{
+    AutoDuty.Data.RouteRunRecord Record(int total = 4) => new() { TotalSteps = total, StartedAtFirstStep = true, StartedAt = DateTime.UtcNow };
+    var record = Record();
+    var run = new RouteRunTracker(record);
+    run.CompleteStep(0); run.CompleteStep(0); run.CompleteStep(1, true);
+    Check(record.CompletedSteps == 2 && record.AutonomousSteps == 2 && record.ExecutedSteps == 1 && record.PolicySkippedSteps == 1, "distinct successful and authored skips");
+    run.Problem("stuck", 2);
+    run.CompleteStep(2); run.CompleteStep(3);
+    record.DutyCompleted = record.RouteFinished = true;
+    run.Finish(DateTime.UtcNow, "recovered");
+    Check(record.CompletionPercent == 50 && !record.VerifiedComplete && record.ProblemStep == 2 && record.CompletedSteps == 4, "recovery never erases first interruption");
+    record = Record(); run = new(record);
+    for (int i = 0; i < 4; i++) run.CompleteStep(i);
+    record.RouteFinished = true;
+    Check(record.CompletionPercent == 99.9 && !record.VerifiedComplete, "end of route without duty complete is not 100 percent");
+    record.DutyCompleted = true;
+    run.Finish(DateTime.UtcNow, "duty-complete");
+    Check(record.CompletionPercent == 100 && record.Outcome == "complete", "full clean completion");
+    record = Record(); run = new(record);
+    run.CompleteStep(0); run.Problem("manual-seek", 1, true);
+    run.CompleteStep(3); record.DutyCompleted = record.RouteFinished = true;
+    Check(record.CompletionPercent == 25 && record.Interventions == 1, "manual jumps cannot inflate completion");
+    record = Record(); record.StartedAtFirstStep = false; run = new(record);
+    for (int i = 0; i < 4; i++) run.CompleteStep(i);
+    record.DutyCompleted = record.RouteFinished = true;
+    Check(!record.VerifiedComplete && record.CompletionPercent == 0, "mid-route start is not clean evidence");
+    record = Record(0); record.DutyCompleted = record.RouteFinished = true;
+    Check(record.CompletionPercent == 0, "empty route cannot be certified");
+    var xp = new ExperienceAccumulator();
+    Check(xp.Sample(new(1, 25, 16, 900), _ => 1000) == (0L, 0), "experience baseline");
+    Check(xp.Sample(new(1, 25, 17, 200), _ => 1000) == (300L, 1), "level-up experience includes consumed level");
+    Check(xp.Sample(new(1, 25, 19, 50), _ => 1000) == (1850L, 2), "multiple level ups");
+    Check(xp.Sample(new(1, 26, 70, 2000), _ => 1000) == (0L, 0), "job switch has separate baseline");
+    Check(xp.Sample(new(1, 25, 19, 150), _ => 1000) == (100L, 0), "shared job experience index is not double counted");
+    Check(xp.Sample(new(2, 25, 19, 1500), _ => 1000) == (0L, 0), "character switch has separate baseline");
+    Check(xp.Sample(new(1, 25, 20, 0), _ => 0) == (0L, 0), "missing XP table is not fabricated");
+    var saved = Newtonsoft.Json.JsonConvert.SerializeObject(record);
+    Check(!saved.Contains("CompletionPercent") && !saved.Contains("VerifiedComplete"), "completion is computed from evidence");
+    Console.WriteLine("PASS: completion evidence, freeze after failure/intervention, deduplication and cross-level/job/character XP");
 }
 
 static void TestRecording()

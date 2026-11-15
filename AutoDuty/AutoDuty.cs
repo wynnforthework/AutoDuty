@@ -1,4 +1,4 @@
-﻿global using AutoDuty.Managers;
+global using AutoDuty.Managers;
 global using ECommons.GameHelpers;
 global using static AutoDuty.AutoDuty;
 global using static AutoDuty.Data.Classes;
@@ -147,6 +147,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
                     this.StopAndResetAll();
                     break;
                 case Stage.Paused:
+                    if (this.currentFailure == null) this.MetricsProblem("manual-pause", true);
                     this.previousStage = this.Stage;
                     if (VNavmesh_IPCSubscriber.Path_NumWaypoints > 0)
                         VNavmesh_IPCSubscriber.Path_Stop();
@@ -841,6 +842,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
     private void DutyState_DutyRecommenced(IDutyStateEventArgs args) => this.dutyState = DutyState.DutyRecommenced;
     private void DutyState_DutyCompleted(IDutyStateEventArgs args)
     {
+        this.MetricsDutyCompleted();
         Svc.Log.Warning("Duty Done");
         this.dutyState = DutyState.DutyComplete;
         if (this.LevelingEnabled) LevelingHelper.RecordSuccess(Svc.ClientState.TerritoryType);
@@ -931,6 +933,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private void ClientState_TerritoryChanged(uint t)
     {
+        this.MetricsTerritoryChanged(t);
         if (MultiboxUtility.Config.MultiBox)
         {
             bool isDuty = ContentHelper.DictionaryContent.ContainsKey(t);
@@ -1025,6 +1028,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             switch (value)
             {
                 case true when this.Stage != Stage.Dead || DeathHelper.DeathState != PlayerLifeState.Dead:
+                    this.MetricsProblem("death");
                     Svc.Log.Debug($"We Died, Setting Stage to Dead");
                     DeathHelper.DeathState = PlayerLifeState.Dead;
                     this.Stage             = Stage.Dead;
@@ -1045,6 +1049,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             value && this.States.HasFlag(PluginState.Navigating))
         {
             Svc.Log.Info($"Condition_ConditionChange: Indexer Increase and Change Stage to Condition");
+            this.MetricsStepCompleted();
             this.indexer++;
             VNavmesh_IPCSubscriber.Path_Stop();
             this.Stage = Stage.Condition;
@@ -1102,6 +1107,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         }
 
         Svc.Log.Info($"Running AutoDuty in {this.CurrentTerritoryContent.EnglishName}, Looping {Configuration.Meta.LoopTimes} times{(bareMode ? " in BareMode (No Pre, Between or Termination Loop Actions)" : "")}");
+        this.BeginMetricsSession();
 
         //MainWindow.OpenTab("Mini");
         if (Configuration.Overlay.Show)
@@ -1432,6 +1438,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (this.pathAction.Tag.HasFlag(ActionTag.Unsynced) && !unsync)
         {
             Svc.Log.Debug($"Skipping path entry {this.Actions[this.indexer].Name} because we are synced");
+            this.MetricsStepCompleted(true);
             this.indexer++;
             return;
         }
@@ -1439,6 +1446,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (this.pathAction.Tag.HasFlag(ActionTag.W2W) && !Configuration.DutyConfig.IsW2W(unsync: unsync))
         {
             Svc.Log.Debug($"Skipping path entry {this.Actions[this.indexer].Name} because we are not W2W-ing");
+            this.MetricsStepCompleted(true);
             this.indexer++;
             return;
         }
@@ -1446,6 +1454,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (this.pathAction.Tag.HasFlag(ActionTag.Synced) && unsync)
         {
             Svc.Log.Debug($"Skipping path entry {this.Actions[this.indexer].Name} because we are unsynced");
+            this.MetricsStepCompleted(true);
             this.indexer++;
             return;
         }
@@ -1453,6 +1462,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (this.pathAction.Tag.HasFlag(ActionTag.Comment))
         {
             Svc.Log.Debug($"Skipping path entry {this.Actions[this.indexer].Name} because it is a comment");
+            this.MetricsStepCompleted(true);
             this.indexer++;
             return;
         }
@@ -1460,6 +1470,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (this.pathAction.Tag.HasFlag(ActionTag.Revival))
         {
             Svc.Log.Debug($"Skipping path entry {this.Actions[this.indexer].Name} because it is a Revival Tag");
+            this.MetricsStepCompleted(true);
             this.indexer++;
             return;
         }
@@ -1467,6 +1478,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if ((this.skipTreasureCoffer || !Configuration.DutyConfig.LootTreasure || Configuration.DutyConfig.LootBossTreasureOnly) && this.pathAction.Tag.HasFlag(ActionTag.Treasure))
         {
             Svc.Log.Debug($"Skipping path entry {this.Actions[this.indexer].Name} because we are either in revival mode, LootTreasure is off or BossOnly");
+            this.MetricsStepCompleted(true);
             this.indexer++;
             return;
         }
@@ -1479,6 +1491,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
                 return;
             }
             Svc.Log.Debug($"Skipping path entry {this.pathAction.Name} because one of the conditions is not fulfilled");
+            this.MetricsStepCompleted(true);
             this.indexer++;
             return;
         }
@@ -1545,6 +1558,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
             if (!PlayerHelper.IsCasting && StuckHelper.IsStuck(out byte stuckCount))
             {
+                this.MetricsProblem("stuck-recovery");
                 VNavmesh_IPCSubscriber.Path_Stop();
                 if (this.currentAttempt != null && ++this.currentAttempt.StuckCount >= Math.Max(1, Configuration.DutyConfig.MaxStepRetries) * Math.Max(1, Configuration.DutyConfig.Stuck.StuckReturnX))
                 {
@@ -1610,7 +1624,10 @@ public sealed partial class AutoDuty : IDalamudPlugin
             {
                 this.Stage = Stage.Reading_Path;
                 if (this.pathAction.ConditionsUntil.Count == 0 || this.pathAction.ConditionsUntil.All(c => c.IsFulfilled()))
+                {
+                    this.MetricsStepCompleted();
                     this.indexer++;
+                }
             }
             else
             {
@@ -1652,7 +1669,10 @@ public sealed partial class AutoDuty : IDalamudPlugin
             PathAction? curAction = this.indexer < this.Actions.Count ? this.Actions[this.indexer] : null;
 
             if (curAction == null || (curAction.ConditionsUntil.Count == 0 || curAction.ConditionsUntil.All(c => c.IsFulfilled())))
+            {
+                this.MetricsStepCompleted();
                 this.indexer++;
+            }
         }
     }
 
@@ -1837,10 +1857,12 @@ public sealed partial class AutoDuty : IDalamudPlugin
         Svc.Log.Info("Starting Navigation");
         if (startFromZero) 
             this.indexer = 0;
+        this.BeginRouteMetrics();
     }
 
     private void DoneNavigating()
     {
+        this.MetricsRouteFinished();
         this.States &= ~PluginState.Navigating;
         this.CheckFinishing();
     }
@@ -2150,6 +2172,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     public void Framework_Update(IFramework framework)
     {
+        this.TickMetrics();
         this.Recorder.Tick();
         if (this.Stage == Stage.Stopped)
             return;
@@ -2171,6 +2194,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
             this.taskManager.Abort();
             Svc.Log.Warning($"Step {this.indexer + 1} interrupted by ConditionsWhile");
+            this.MetricsStepCompleted(true);
             if (this.currentAttempt != null) this.currentAttempt.SkippedReason = "conditions-while";
             this.Stage = Stage.Reading_Path;
             this.indexer++;
@@ -2233,6 +2257,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private void StopAndResetAll()
     {
+        this.EndMetricsSession();
         this.currentAttempt = null;
         this.currentFailure = null;
         this.pendingStepFailure = null;

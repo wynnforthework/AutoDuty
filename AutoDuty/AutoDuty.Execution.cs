@@ -48,6 +48,7 @@ public partial class AutoDuty
         if (this.currentAttempt?.Index != this.indexer) this.BeginAttempt(this.indexer);
         if (this.currentAttempt == null) return;
         var attempt = this.currentAttempt;
+        this.MetricsProblem(reason);
         attempt.LastFailReason = reason;
         attempt.Attempts++;
         Svc.Log.Warning($"Step {this.indexer + 1} ({attempt.Action.ToCustomString()}): {reason}; {detail}; failure {attempt.Attempts}/{Configuration.DutyConfig.MaxStepRetries}");
@@ -104,8 +105,9 @@ public partial class AutoDuty
         if (this.currentAttempt != null) this.currentAttempt.LastTickAt = Environment.TickCount64;
     }
 
-    internal void SeekToStep(int index, bool resume = true, bool broadcast = true)
+    internal void SeekToStep(int index, bool resume = true, bool broadcast = true, bool manual = true)
     {
+        if (manual) this.MetricsProblem("manual-seek", true);
         this.CancelStepWork();
         this.pendingStepFailure = null;
         this.currentFailure = null;
@@ -127,7 +129,7 @@ public partial class AutoDuty
         {
             MultiboxUtility.stepBlock = false;
             MultiboxUtility.Server.SendPath();
-            MultiboxUtility.Server.SendStepStart();
+            MultiboxUtility.Server.SendStepStart(manual);
         }
         Svc.Log.Info($"Seek to step {this.indexer + 1}; resume={resume}");
     }

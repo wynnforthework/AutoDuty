@@ -124,6 +124,9 @@ public class ConfigurationMain
     [JsonObject(MemberSerialization.OptOut)]
     public class StatData
     {
+        public Guid telemetryParticipantId = Guid.NewGuid();
+        public List<Data.RouteRunRecord> routeRuns = [];
+        public List<Data.AutomationSessionRecord> automationSessions = [];
         public int                  dungeonsRun;
         public List<DutyDataRecord> dutyRecords = [];
         public TimeSpan             timeSpent   = TimeSpan.Zero;

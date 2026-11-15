@@ -1,4 +1,4 @@
-﻿namespace AutoDuty.Multibox;
+namespace AutoDuty.Multibox;
 
 using System;
 using System.Collections.Generic;
@@ -435,10 +435,10 @@ public static class MultiboxUtility
             }
         }
 
-        public static void SendStepStart()
+        public static void SendStepStart(bool manual = false)
         {
             DebugLog("Synchronizing Clients to Server step");
-            SendToAllClients($"{STEP_START}|{Plugin.indexer}");
+            SendToAllClients($"{STEP_START}|{Plugin.indexer}{(manual ? "|manual" : "")}");
         }
 
         public static void ExitDuty()
@@ -545,7 +545,7 @@ public static class MultiboxUtility
                                 {
                                     _ = Svc.Framework.RunOnTick(() =>
                                     {
-                                        Plugin.SeekToStep(step, broadcast: false);
+                                        Plugin.SeekToStep(step, broadcast: false, manual: split.Length > 2 && split[2] == "manual");
                                         stepBlock = false;
                                     });
                                 }

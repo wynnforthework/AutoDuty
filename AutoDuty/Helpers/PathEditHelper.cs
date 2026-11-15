@@ -26,6 +26,10 @@ internal static class PathEditHelper
         bool active = Plugin.States.HasFlag(PluginState.Navigating);
         bool paused = Plugin.Stage == Stage.Paused;
         mutate(Plugin.Actions);
+        if (Plugin.MetricsRun != null && (reason != "host path" ||
+            Data.PathJson.WriteFile(new() { Actions = [.. before] }, Newtonsoft.Json.Formatting.None) !=
+            Data.PathJson.WriteFile(new() { Actions = [.. Plugin.Actions] }, Newtonsoft.Json.Formatting.None)))
+            Plugin.MetricsProblem("path-edited", true);
         int relocated = Relocate(before, Plugin.Actions, oldIndex);
         bool same = running != null && relocated >= 0 && relocated < Plugin.Actions.Count && ReferenceEquals(running, Plugin.Actions[relocated]);
         Plugin.indexer = relocated;
@@ -46,7 +50,7 @@ internal static class PathEditHelper
         if (MultiboxUtility.Config.MultiBox && MultiboxUtility.Config.Host)
         {
             MultiboxUtility.Server.SendPath();
-            if (active && !paused) MultiboxUtility.Server.SendStepStart();
+            if (active && !paused) MultiboxUtility.Server.SendStepStart(true);
         }
         Svc.Log.Info($"Path edit: {reason}; step {oldIndex + 1} -> {relocated + 1}");
     }
