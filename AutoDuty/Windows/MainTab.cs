@@ -239,6 +239,7 @@ namespace AutoDuty.Windows
                         }
 
                         DrawTerminationNotice();
+                        DutyToolsUi.FailureBanner();
 
                         if (!ImGui.BeginListBox("##MainList", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetContentRegionAvail().Y))) return;
 

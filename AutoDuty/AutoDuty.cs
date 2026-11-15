@@ -341,6 +341,19 @@ public sealed partial class AutoDuty : IDalamudPlugin
                                                    ShowDebug = true
                                                });
 
+            this.taskManager.DefaultConfiguration.OnTaskTimeout += (ECommons.Automation.NeoTaskManager.TaskManagerTask task, ref long remaining) =>
+            {
+                if (this.Stage != Stage.Action || this.currentAttempt == null) return;
+                this.ReportTaskFailure(task.Name.StartsWith("Boss-") ? "boss-timeout" : "task-timeout", task.Name);
+                remaining = 1000; // Keep this task in place until Framework_Update cancels the step.
+            };
+            this.taskManager.DefaultConfiguration.OnTaskException += (ECommons.Automation.NeoTaskManager.TaskManagerTask task, Exception ex, ref bool keepRunning, ref bool? abort) =>
+            {
+                if (this.Stage != Stage.Action || this.currentAttempt == null) return;
+                this.ReportTaskFailure("task-exception", $"{task.Name}: {ex.GetBaseException().Message}");
+                keepRunning = true;
+            };
+
             TrustHelper.PopulateTrustMembers();
             ContentHelper.PopulateDuties();
             RepairNPCHelper.PopulateRepairNPCs();
@@ -1412,6 +1425,11 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (this.pathAction.Conditions.Any(pac => !pac.IsFulfilled()))
         {
+            if (this.pathAction.Flags.HasFlag(PathActionFlags.StrictConditions))
+            {
+                this.RegisterStepFailure("condition-unmet");
+                return;
+            }
             Svc.Log.Debug($"Skipping path entry {this.pathAction.Name} because one of the conditions is not fulfilled");
             this.indexer++;
             return;
@@ -1432,12 +1450,17 @@ public sealed partial class AutoDuty : IDalamudPlugin
             VNavmesh_IPCSubscriber.Path_Stop();
 
         Chat.ExecuteCommand("/automove off");
-        VNavmesh_IPCSubscriber.Path_SetTolerance(0.25f);
+        if (this.currentAttempt == null) this.BeginAttempt(this.indexer);
+        VNavmesh_IPCSubscriber.Path_SetTolerance(this.currentAttempt?.Attempts > 0 ? 0.5f : 0.25f);
         if (this.pathAction is { Name: "MoveTo", Arguments.Count: > 0 } && bool.TryParse(this.pathAction.Arguments[0], out bool useMesh) && !useMesh)
             VNavmesh_IPCSubscriber.Path_MoveTo([this.pathAction.Position], false);
-        else
-            VNavmesh_IPCSubscriber.SimpleMove_PathfindAndMoveTo(this.pathAction.Position, false);
+        else if (!VNavmesh_IPCSubscriber.SimpleMove_PathfindAndMoveTo(this.pathAction.Position, false))
+        {
+            this.RegisterStepFailure("pathfind-rejected", this.pathAction.Position.ToString());
+            return;
+        }
 
+        this.currentAttempt!.StartedAt = Environment.TickCount64;
         this.Stage = Stage.Moving;
     }
 
@@ -1475,6 +1498,11 @@ public sealed partial class AutoDuty : IDalamudPlugin
             if (!PlayerHelper.IsCasting && StuckHelper.IsStuck(out byte stuckCount))
             {
                 VNavmesh_IPCSubscriber.Path_Stop();
+                if (this.currentAttempt != null && ++this.currentAttempt.StuckCount >= Math.Max(1, Configuration.DutyConfig.MaxStepRetries) * Math.Max(1, Configuration.DutyConfig.Stuck.StuckReturnX))
+                {
+                    this.RegisterStepFailure("stuck", this.pathAction.Position.ToString());
+                    return;
+                }
                 if (Configuration.DutyConfig.Stuck.StuckReturn && stuckCount >= Configuration.DutyConfig.Stuck.StuckReturnX)
                 {
                     Svc.Log.Debug($"Using Stuck Return Action");
@@ -1517,9 +1545,18 @@ public sealed partial class AutoDuty : IDalamudPlugin
             }
         }
 
-        if (((!VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress && VNavmesh_IPCSubscriber.Path_NumWaypoints == 0) ||
-             (!this.pathAction.Name.IsNullOrEmpty() && this.pathAction.Position != Vector3.Zero && ObjectHelper.GetDistanceToPlayer(this.pathAction.Position) <= (this.pathAction.Name.EqualsIgnoreCase("Interactable") ? 2f : 0.25f))) &&
-            EzThrottler.Throttle("AdvanceStep" + this.indexer, 100))
+        if (this.currentAttempt != null)
+        {
+            this.currentAttempt.MovementStarted |= VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress || VNavmesh_IPCSubscriber.Path_IsRunning || VNavmesh_IPCSubscriber.Path_NumWaypoints > 0;
+            if (Environment.TickCount64 - this.currentAttempt.StartedAt > Math.Max(1000, Configuration.DutyConfig.MoveToStepTimeoutMs))
+            {
+                this.RegisterStepFailure(this.currentAttempt.MovementStarted ? "move-timeout" : "no-path", this.pathAction.Position.ToString());
+                return;
+            }
+        }
+        // An exhausted/empty path is not proof of arrival; it may have been rejected or cancelled.
+        if (ObjectHelper.GetDistanceToPlayer(this.pathAction.Position) <= (this.pathAction.Name.EqualsIgnoreCase("Interactable") ? 2f : this.currentAttempt?.Attempts > 0 ? 0.5f : 0.25f)
+            && EzThrottler.Throttle("AdvanceStep" + this.indexer, 100))
         {
             if (this.pathAction.Name.IsNullOrEmpty() || this.pathAction.Name.Equals("MoveTo") || this.pathAction.Name.Equals("TreasureCoffer") || this.pathAction.Name.Equals("Revival"))
             {
@@ -1545,6 +1582,21 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (Configuration is { DutyConfig: { AutoManageRotationPluginState: true, UsingAlternativeRotationPlugin: false } } && !Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent])
             this.SetRotationPluginSettings(true);
         
+        if (this.currentAttempt is { ActionStartedAt: > 0 } attempt && this.taskManager.IsBusy)
+        {
+            long limit = attempt.Action.Name switch
+            {
+                "Boss" => Configuration.DutyConfig.BossStepTimeoutMs,
+                "WaitFor" => Configuration.DutyConfig.WaitForStepTimeoutMs <= 0 ? long.MaxValue : Configuration.DutyConfig.WaitForStepTimeoutMs,
+                "Wait" when attempt.Action.Arguments.Count > 0 && int.TryParse(attempt.Action.Arguments[0], out int wait) => Math.Max(0L, wait) + 30_000L,
+                _ => Configuration.DutyConfig.ActionStepTimeoutMs,
+            };
+            if (Environment.TickCount64 - attempt.ActionStartedAt > Math.Max(1000L, limit))
+            {
+                this.RegisterStepFailure("action-timeout", attempt.Action.Name);
+                return;
+            }
+        }
         if (!this.taskManager.IsBusy && EzThrottler.Throttle("AdvanceStep" + this.indexer, 100))
         {
             this.Stage = Stage.Reading_Path;
@@ -1947,8 +1999,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (!this.taskManager.IsBusy && !this.pathAction.Name.IsNullOrEmpty())
         {
+            if (this.currentAttempt?.Index != this.indexer) this.BeginAttempt(this.indexer);
+            if (this.currentAttempt != null) this.currentAttempt.ActionStartedAt = Environment.TickCount64;
             this.actions.InvokeAction(this.pathAction);
-            this.pathAction = new PathAction();
         }
     }
 
@@ -2068,7 +2121,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
                 VNavmesh_IPCSubscriber.Path_Stop();
 
             this.taskManager.Abort();
-
+            Svc.Log.Warning($"Step {this.indexer + 1} interrupted by ConditionsWhile");
+            if (this.currentAttempt != null) this.currentAttempt.SkippedReason = "conditions-while";
             this.Stage = Stage.Reading_Path;
             this.indexer++;
             return;

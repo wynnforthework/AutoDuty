@@ -24,6 +24,8 @@ namespace AutoDuty.Data
 
             Vector4 v4 = index == Plugin.indexer ? new Vector4(0, 255, 255, 1) : (pathAction.Name.StartsWith("<--", StringComparison.InvariantCultureIgnoreCase) ? new Vector4(0, 255, 0, 1) : new Vector4(255, 255, 255, 1));
 
+            if (Plugin.currentFailure?.Index == index) v4 = new Vector4(1, .35f, .3f, 1);
+            else if (Plugin.attemptHistory.TryGetValue(index, out var attempt) && attempt.SkippedReason != null) v4 = new Vector4(.8f, .65f, .35f, 1);
             if (pathAction.Tag.HasFlag(ActionTag.Comment))
             {
                 results.Add((new Vector4(0, 1, 0, 1), pathAction.Note));

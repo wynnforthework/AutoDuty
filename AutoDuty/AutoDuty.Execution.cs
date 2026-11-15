@@ -57,6 +57,7 @@ public partial class AutoDuty
             attempt.StartedAt = attempt.LastTickAt = Environment.TickCount64;
             attempt.ActionStartedAt = 0;
             attempt.MovementStarted = false;
+            attempt.StuckCount = 0;
             StuckHelper.ResetForStep();
             this.Stage = Stage.Reading_Path;
             return;

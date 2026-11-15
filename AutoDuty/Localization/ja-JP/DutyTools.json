@@ -1,0 +1,18 @@
+{
+  "DutyTools": {
+    "Failed": "Step failed; paused",
+    "Retry": "Retry",
+    "Skip": "Skip",
+    "Previous": "Previous step",
+    "Reliability": "Step reliability",
+    "MaxStepRetries": "Failure limit per step",
+    "MoveToStepTimeoutMs": "Movement timeout (ms)",
+    "ActionStepTimeoutMs": "Action timeout (ms)",
+    "BossSpawnTimeoutMs": "Boss spawn / engage timeout (ms)",
+    "BossStepTimeoutMs": "Boss step timeout (ms)",
+    "WaitForStepTimeoutMs": "WaitFor timeout (ms; 0 = unlimited)",
+    "PauseOnStepFailure": "Pause on step failure",
+    "PlaySoundOnFailure": "Play sound on failure",
+    "StrictConditions": "Fail if entry conditions are unmet"
+  }
+}

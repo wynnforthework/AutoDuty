@@ -1,4 +1,4 @@
-using AutoDuty.Helpers;
+﻿using AutoDuty.Helpers;
 using AutoDuty.IPC;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
@@ -658,6 +658,7 @@ public static class ConfigTab
 
         if (dutyConfigHeaderSelected == true)
         {
+            DutyToolsUi.ReliabilityConfig();
             ImGui.Columns(2, "##DutyConfigHeaderColumns");
             bool exitDuty = Configuration.DutyConfig.AutoExitDuty;
             if (ImGui.Checkbox(Loc.Get("ConfigTab.Duty.AutoLeaveDuty"), ref exitDuty))

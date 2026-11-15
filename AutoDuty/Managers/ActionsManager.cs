@@ -81,7 +81,8 @@ namespace AutoDuty.Managers
                 {
                     Type?       thisType   = this.GetType();
                     MethodInfo? actionTask = thisType.GetMethod(action.Name, ReflectionHelper.ALL, [typeof(PathAction)]);
-                    taskManager.Enqueue(() => actionTask?.Invoke(this, [action]), $"InvokeAction-{actionTask?.Name}");
+                    if (actionTask == null) { Plugin.ReportTaskFailure("unknown-action", action.Name); return; }
+                    taskManager.Enqueue(() => actionTask.Invoke(this, [action]), $"InvokeAction-{actionTask?.Name}");
                 }
                 else
                 {
@@ -91,6 +92,7 @@ namespace AutoDuty.Managers
             catch (Exception ex)
             {
                 Svc.Log.Error(ex.ToString());
+                Plugin.ReportTaskFailure("action-exception", ex.GetBaseException().Message);
             }
         }
 
@@ -782,11 +784,11 @@ namespace AutoDuty.Managers
             List<IGameObject>? treasureCofferObjects = null;
             Plugin.skipTreasureCoffer = false;
             this.StopForCombat(true, false);
-            taskManager.Enqueue(() => (Plugin.DutyData?.bossObject = GetBossObject(position: action.Position.LengthSquared() > float.Epsilon ? action.Position : null)) != null, "Boss-GetBossObject");
-            taskManager.Enqueue(() => BossMoveCheck(action.Position),                                                                                                            "Boss-MoveCheck");
+            taskManager.Enqueue(() => (Plugin.DutyData?.bossObject = GetBossObject(position: action.Position.LengthSquared() > float.Epsilon ? action.Position : null)) != null, "Boss-GetBossObject", new TaskManagerConfiguration(Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs)));
+            taskManager.Enqueue(() => BossMoveCheck(action.Position),                                                                                                            "Boss-MoveCheck", new TaskManagerConfiguration(Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs)));
             taskManager.Enqueue(() => Plugin.action      = $"Boss: {Plugin.DutyData?.bossObject?.Name.TextValue ?? ""}",                                                         "Boss-SetActionVar");
             taskManager.Enqueue(() => Svc.Targets.Target = Plugin.DutyData?.bossObject,                                                                                          "Boss-SetTarget");
-            taskManager.Enqueue(() => Svc.Condition[ConditionFlag.InCombat],                                                                                                     "Boss-WaitInCombat");
+            taskManager.Enqueue(() => Svc.Condition[ConditionFlag.InCombat],                                                                                                     "Boss-WaitInCombat", new TaskManagerConfiguration(Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs)));
             taskManager.Enqueue(() => BossCheck(),                                                                                                                               "Boss-BossCheck", new TaskManagerConfiguration(int.MaxValue));
             taskManager.Enqueue(() => { Plugin.DutyData?.bossObject = null; },                                                                                                   "Boss-ClearBossObject");
 

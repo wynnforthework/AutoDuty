@@ -1,4 +1,4 @@
-using AutoDuty.Helpers;
+﻿using AutoDuty.Helpers;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
@@ -67,6 +67,7 @@ public class Overlay : Window
             return;
         }
 
+        DutyToolsUi.FailureBanner(true);
         List<Action> lineActions = [];
 
         if (!Plugin.States.HasAnyFlag(PluginState.Looping, PluginState.Navigating))

@@ -609,6 +609,9 @@ namespace AutoDuty.Windows
                     this.action.Position = actionPosition;
                 }
 
+                bool strict = this.action.Flags.HasFlag(PathActionFlags.StrictConditions);
+                if (ImGui.Checkbox(DutyToolsUi.Text("StrictConditions"), ref strict))
+                    this.action.Flags = strict ? this.action.Flags | PathActionFlags.StrictConditions : this.action.Flags & ~PathActionFlags.StrictConditions;
                 ImGui.AlignTextToFramePadding();
                 ImGui.Text(Loc.Get("BuildTab.Note"));
                 ImGui.SameLine();

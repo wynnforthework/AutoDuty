@@ -8,6 +8,7 @@ internal sealed class StepAttempt
     internal required int Index;
     internal required PathAction Action;
     internal int Attempts;
+    internal int StuckCount;
     internal long StartedAt = Environment.TickCount64;
     internal long ActionStartedAt;
     internal long LastTickAt = Environment.TickCount64;
