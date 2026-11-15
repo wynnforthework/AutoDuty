@@ -443,6 +443,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
                                                                  this.SeekToStep(this.indexer + 1);
                                                              }
                                                          }),
+                (["step"], "seek to a 1-based step", args => { if (args.Length > 1 && int.TryParse(args[1], out int step) && step > 0 && step <= this.Actions.Count) this.SeekToStep(step - 1); }),
+                (["retry"], "retry current step", _ => { if (this.indexer >= 0) this.SeekToStep(this.indexer); }),
+                (["where"], "show current step", _ => Svc.Chat.Print($"[AutoDuty] Step {this.indexer + 1}/{this.Actions.Count}: {this.currentAttempt?.Action.ToCustomString()} {this.currentFailure?.Reason}")),
                 (["movetoflag"], "moves to the flag map marker", _ => MapHelper.MoveToMapMarker()),
                 (["ttfull"], "opens packs, registers cards and sells the rest", _ =>
                                                                                 {

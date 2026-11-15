@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using AutoDuty.Configurations;
 using Dalamud.Bindings.ImGui;
@@ -7,6 +7,36 @@ namespace AutoDuty.Windows;
 
 internal static class DutyToolsUi
 {
+    internal static bool ManualSelection;
+    private static int selectedStep = -1;
+    internal static void StepRow(PathAction action, int index)
+    {
+        ImGui.PushID(index);
+        bool failed = Plugin.currentFailure?.Index == index;
+        if (failed) ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, .35f, .3f, 1));
+        bool selected = ImGui.Selectable($"{index + 1}. {action.ToCustomString()}", selectedStep == index, ImGuiSelectableFlags.AllowDoubleClick);
+        if (selected)
+        {
+            selectedStep = index;
+            ManualSelection = true;
+            if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) Plugin.SeekToStep(index);
+        }
+        if (failed) ImGui.PopStyleColor();
+        if (ImGui.BeginPopupContextItem("StepMenu"))
+        {
+            if (ImGui.MenuItem(Text("RunHere"))) Plugin.SeekToStep(index);
+            if (ImGui.MenuItem(Text("Previous"))) Plugin.SeekToStep(index - 1);
+            if (ImGui.MenuItem(Text("Skip"))) Plugin.SeekToStep(index + 1);
+            if (ImGui.MenuItem(Text("Edit"))) BuildTab.EditStep(index);
+            if (ImGui.MenuItem(Text("CopyStep"))) ImGui.SetClipboardText(Newtonsoft.Json.JsonConvert.SerializeObject(action, ConfigurationMain.JsonSerializerSettings));
+            if (ImGui.MenuItem(Text("InsertAfter"))) Helpers.PathEditHelper.MutateActions(list => list.Insert(index + 1, new PathAction { Name = "MoveTo", Position = Player.Position }), "insert after");
+            if (ImGui.MenuItem(Text("StrictConditions"), "", action.Flags.HasFlag(PathActionFlags.StrictConditions)))
+                Helpers.PathEditHelper.MutateActions(list => list[index].Flags ^= PathActionFlags.StrictConditions, "strict conditions");
+            ImGui.EndPopup();
+        }
+        ImGui.PopID();
+    }
+
     internal static string Text(string key) => Loc.Get("DutyTools." + key);
 
     internal static void FailureBanner(bool compact = false)
@@ -20,6 +50,8 @@ internal static class DutyToolsUi
         if (ImGui.Button(Text("Skip"))) Plugin.SeekToStep(failure.Index + 1);
         ImGui.SameLine();
         if (ImGui.Button(Text("Previous"))) Plugin.SeekToStep(failure.Index - 1);
+        ImGui.SameLine();
+        if (ImGui.Button(Text("Edit"))) BuildTab.EditStep(failure.Index);
         ImGui.PopID();
     }
 

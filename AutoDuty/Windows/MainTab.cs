@@ -247,10 +247,10 @@ namespace AutoDuty.Windows
                             (BossMod_IPCSubscriber.IsEnabled  || Configuration.DutyConfig.UsingAlternativeBossPlugin)     &&
                             (RSR_IPCSubscriber.IsEnabled      || BossMod_IPCSubscriber.IsEnabled || Configuration.DutyConfig.UsingAlternativeRotationPlugin))
                         {
-                            foreach ((PathAction Value, int Index) item in Plugin.Actions.Select((Value, Index) => (Value, Index))) item.Value.DrawCustomText(item.Index, () => ItemClicked(item));
+                            foreach ((PathAction Value, int Index) item in Plugin.Actions.ToArray().Select((Value, Index) => (Value, Index))) DutyToolsUi.StepRow(item.Value, item.Index);
                             //var text = item.Value.Name.StartsWith("<--", StringComparison.InvariantCultureIgnoreCase) ? item.Value.Note : $"{item.Value.ToCustomString()}";
                             ////////////////////////////////////////////////////////////////
-                            if (currentStepIndex != Plugin.indexer && currentStepIndex > -1 && Plugin.Stage > 0)
+                            if (!DutyToolsUi.ManualSelection && currentStepIndex != Plugin.indexer && currentStepIndex > -1 && Plugin.Stage > 0)
                             {
                                 float lineHeight = ImGui.GetTextLineHeightWithSpacing();
                                 currentStepIndex = Plugin.indexer;

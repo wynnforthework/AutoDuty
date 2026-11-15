@@ -29,6 +29,15 @@ namespace AutoDuty.Windows
 
     internal static class BuildTab
     {
+        private static PathAction? editingOriginal;
+        internal static void EditStep(int index)
+        {
+            if (index < 0 || index >= Plugin.Actions.Count) return;
+            _buildListSelected = index;
+            editingOriginal = Plugin.Actions[index];
+            _action = ActionWindow.EditAction(editingOriginal);
+        }
+
         private static bool        _scrollBottom = false;
         private static string      _changelog    = string.Empty;
         private static PathAction? _action       = null;
@@ -57,7 +66,7 @@ namespace AutoDuty.Windows
         internal static unsafe void DrawBuildTab()
         {
             SetCurrentTabName("BuildTab");
-            using (ImRaii.Disabled(Plugin.States.HasFlag(PluginState.Navigating) || Plugin.States.HasFlag(PluginState.Looping)))
+            using (ImRaii.Disabled(false))
             {
                 if (InDungeon)
                 {
@@ -111,7 +120,7 @@ namespace AutoDuty.Windows
             if (ImGui.Button(Loc.Get("BuildTab.AddPos")))
             {
                 _scrollBottom = true;
-                Plugin.Actions.Add(new PathAction { Name = "MoveTo", Position = Player.Position });
+                PathEditHelper.MutateActions(list => list.Add(new PathAction { Name = "MoveTo", Position = Player.Position }), "add MoveTo");
             }
 
             ImGui.SameLine(0, 5);
@@ -181,15 +190,38 @@ namespace AutoDuty.Windows
             }
 
             ImGui.SameLine(0, 5);
-            if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.ClearPath")))
+            if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.ClearPath")) && Plugin.Stage == Stage.Stopped)
             {
-                Plugin.Actions.Clear();
+                PathEditHelper.MutateActions(list => list.Clear(), "clear");
                 ClearAll();
             }
 
             ImGuiComponents.HelpMarker(Loc.Get("BuildTab.ClearPathTooltip"));
             ImGui.SameLine(0, 5);
-            if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.SavePath")))
+            if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.SavePath"))) SavePath();
+
+            ImGuiComponents.HelpMarker(Loc.Get("BuildTab.SavePathTooltip"));
+            ImGui.SameLine(0, 5);
+            if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.LoadPath")) && Plugin.Stage == Stage.Stopped)
+            {
+                Plugin.LoadPath();
+                ClearAll();
+            }
+
+            ImGuiComponents.HelpMarker(Loc.Get("BuildTab.LoadPathTooltip"));
+            ImGui.SameLine(0, 5);
+            using (ImRaii.Enabled())
+            {
+                using (ImRaii.Disabled(Plugin.pathFile.IsNullOrEmpty()))
+                {
+                    if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.OpenFile")))
+                        Process.Start("explorer", Plugin.pathFile ?? string.Empty);
+                }
+            }
+        }
+
+        internal static void SavePath()
+        {
                 try
                 {
                     if (Plugin.Actions.Count < 1)
@@ -233,24 +265,6 @@ namespace AutoDuty.Windows
                     //throw;
                 }
 
-            ImGuiComponents.HelpMarker(Loc.Get("BuildTab.SavePathTooltip"));
-            ImGui.SameLine(0, 5);
-            if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.LoadPath")))
-            {
-                Plugin.LoadPath();
-                ClearAll();
-            }
-
-            ImGuiComponents.HelpMarker(Loc.Get("BuildTab.LoadPathTooltip"));
-            ImGui.SameLine(0, 5);
-            using (ImRaii.Enabled())
-            {
-                using (ImRaii.Disabled(Plugin.pathFile.IsNullOrEmpty()))
-                {
-                    if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.OpenFile")))
-                        Process.Start("explorer", Plugin.pathFile ?? string.Empty);
-                }
-            }
         }
 
         private static void DrawBuildList()
@@ -286,6 +300,7 @@ namespace AutoDuty.Windows
                                 _buildListSelected = item.Index;
                                 _addActionButton   = Loc.Get("BuildTab.Modify");
 
+                                editingOriginal = item.Value;
                                 _action = ActionWindow.EditAction(item.Value);
                             }
                         }
@@ -328,7 +343,7 @@ namespace AutoDuty.Windows
 
                     if (dragIndex.HasValue && dragNext is >= 0 && dragNext < Plugin.Actions.Count)
                     {
-                        (Plugin.Actions[dragNext.Value], Plugin.Actions[dragIndex.Value]) = (Plugin.Actions[dragIndex.Value], Plugin.Actions[dragNext.Value]);
+                        PathEditHelper.MutateActions(list => (list[dragNext.Value], list[dragIndex.Value]) = (list[dragIndex.Value], list[dragNext.Value]), "reorder");
 
                         _buildListSelected = dragNext.Value;
                         ImGui.ResetMouseDragDelta();
@@ -341,7 +356,7 @@ namespace AutoDuty.Windows
 
                     if (_deleteItem)
                     {
-                        Plugin.Actions.RemoveAt(_deleteItemIndex);
+                        PathEditHelper.MutateActions(list => list.RemoveAt(_deleteItemIndex), "delete");
                         _deleteItemIndex = -1;
                         _deleteItem      = false;
                     }
@@ -350,7 +365,7 @@ namespace AutoDuty.Windows
                     {
                         PathAction clone = Plugin.Actions[_duplicateItemIndex].JSONClone(ConfigurationMain.JsonSerializerSettings);
                         if (clone != null)
-                            Plugin.Actions.Insert(_duplicateItemIndex, clone);
+                            PathEditHelper.MutateActions(list => list.Insert(_duplicateItemIndex, clone), "duplicate");
                         _duplicateItem = false;
                     }
                 }
@@ -375,6 +390,7 @@ namespace AutoDuty.Windows
 
         private static void ClearAll()
         {
+            editingOriginal = null;
             _actionText        = string.Empty;
             _addActionButton   = Loc.Get("BuildTab.Add");
             _buildListSelected = -1;
@@ -396,12 +412,14 @@ namespace AutoDuty.Windows
             
             if (_buildListSelected == -1)
             {
-                Plugin.Actions.Add(_action);
+                PathEditHelper.MutateActions(list => list.Add(_action), "add action");
                 _scrollBottom = true;
             }
             else
             {
-                Plugin.Actions[_buildListSelected] = _action;
+                int index = editingOriginal == null ? _buildListSelected : Plugin.Actions.IndexOf(editingOriginal);
+                if (index < 0) { Svc.Chat.PrintError("[AutoDuty] Edited step was deleted; reopen the editor."); return; }
+                PathEditHelper.MutateActions(list => list[index] = _action, "replace action");
             }
             ActionWindow.Close();
 

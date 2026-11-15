@@ -1,4 +1,4 @@
-namespace AutoDuty.Multibox;
+﻿namespace AutoDuty.Multibox;
 
 using System;
 using System.Collections.Generic;
@@ -543,10 +543,11 @@ public static class MultiboxUtility
                             case STEP_START:
                                 if (int.TryParse(split[1], out int step))
                                 {
-                                    Plugin.indexer = step;
-                                    stepBlock      = false;
-                                    Plugin.Stage   = Stage.Idle;
-                                    Plugin.Stage   = Stage.Reading_Path;
+                                    _ = Svc.Framework.RunOnTick(() =>
+                                    {
+                                        Plugin.SeekToStep(step, broadcast: false);
+                                        stepBlock = false;
+                                    });
                                 }
                                 break;
                             case KEEPALIVE_KEY:
@@ -597,7 +598,7 @@ public static class MultiboxUtility
                                 if (steps is { Count: > 0 })
                                 {
                                     DebugLog("setting steps from host");
-                                    Plugin.Actions = steps;
+                                    _ = Svc.Framework.RunOnTick(() => PathEditHelper.MutateActions(list => { list.Clear(); list.AddRange(steps); }, "host path"));
                                 }
                                 break;
                             default:

@@ -13,6 +13,10 @@
     "WaitForStepTimeoutMs": "WaitFor timeout (ms; 0 = unlimited)",
     "PauseOnStepFailure": "Pause on step failure",
     "PlaySoundOnFailure": "Play sound on failure",
-    "StrictConditions": "Fail if entry conditions are unmet"
+    "StrictConditions": "Fail if entry conditions are unmet",
+    "RunHere": "Run from here",
+    "Edit": "Edit",
+    "CopyStep": "Copy step JSON",
+    "InsertAfter": "Insert position after"
   }
 }
