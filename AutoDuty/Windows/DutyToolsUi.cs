@@ -59,7 +59,7 @@ internal static class DutyToolsUi
     {
         if (!ImGui.CollapsingHeader(Text("Reliability"))) return;
         var config = Configuration.DutyConfig;
-        foreach (string name in new[] { "MaxStepRetries", "MoveToStepTimeoutMs", "ActionStepTimeoutMs", "BossSpawnTimeoutMs", "BossStepTimeoutMs", "WaitForStepTimeoutMs" })
+        foreach (string name in new[] { "MaxStepRetries", "MoveToStepTimeoutMs", "ActionStepTimeoutMs", "BossSpawnTimeoutMs", "BossStepTimeoutMs", "WaitForStepTimeoutMs", "NavmeshRebuildTimeoutMs" })
         {
             var property = config.GetType().GetProperty(name)!;
             int value = (int)property.GetValue(config)!;
@@ -69,7 +69,7 @@ internal static class DutyToolsUi
                 ConfigurationProfileV2.Save();
             }
         }
-        foreach (string name in new[] { "PauseOnStepFailure", "PlaySoundOnFailure" })
+        foreach (string name in new[] { "PauseOnStepFailure", "PlaySoundOnFailure", "RebuildNavmeshOnFirstVisitThisSession" })
         {
             var property = config.GetType().GetProperty(name)!;
             bool value = (bool)property.GetValue(config)!;

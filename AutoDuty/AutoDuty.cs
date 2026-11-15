@@ -1105,6 +1105,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.taskManager.Enqueue(() => Svc.Log.Debug($"Done Queueing-WaitDutyStarted, NavIsReady"));
         this.taskManager.Enqueue(() => Svc.DutyState.IsDutyStarted,          "Run-WaitDutyStarted");
         this.taskManager.Enqueue(() => VNavmesh_IPCSubscriber.Nav_IsReady, "Run-WaitNavIsReady", new TaskManagerConfiguration(int.MaxValue));
+        this.taskManager.Enqueue(() => this.EnsureNavmeshForTerritory(Svc.ClientState.TerritoryType), "Run-EnsureNavmesh", new TaskManagerConfiguration(int.MaxValue));
         this.taskManager.Enqueue(() => Svc.Log.Debug($"Start Navigation"));
         this.taskManager.Enqueue(() => this.StartNavigation(startFromZero), "Run-StartNavigation");
 
@@ -1210,6 +1211,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
                                                                this.taskManager.Enqueue(() => Svc.DutyState.IsDutyStarted,          "Loop-WaitDutyStarted", new TaskManagerConfiguration(int.MaxValue));
                                                                this.taskManager.Enqueue(() => VNavmesh_IPCSubscriber.Nav_IsReady, "Loop-WaitNavReady", new TaskManagerConfiguration(int.MaxValue));
                                                                this.taskManager.Enqueue(() => Svc.Log.Debug($"StartNavigation"));
+                                                               this.taskManager.Enqueue(() => this.EnsureNavmeshForTerritory(Svc.ClientState.TerritoryType), "Loop-EnsureNavmesh", new TaskManagerConfiguration(int.MaxValue));
                                                                this.taskManager.Enqueue(() => this.StartNavigation(true), "Loop-StartNavigation");
                                                            }, () => !MultiboxUtility.MultiboxBlockingNextStep);
     }

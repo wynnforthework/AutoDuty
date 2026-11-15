@@ -279,6 +279,8 @@ public class ConfigurationProfileV2
             this.Stuck  = new StuckConfig(this);
         }
 
+        public bool RebuildNavmeshOnFirstVisitThisSession { get; set; } = true;
+        public int NavmeshRebuildTimeoutMs { get; set; } = 120_000;
         public int MaxStepRetries { get; set; } = 3;
         public bool PauseOnStepFailure { get; set; } = true;
         public int MoveToStepTimeoutMs { get; set; } = 60_000;

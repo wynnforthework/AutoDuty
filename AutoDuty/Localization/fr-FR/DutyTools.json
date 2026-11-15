@@ -17,6 +17,8 @@
     "RunHere": "Run from here",
     "Edit": "Edit",
     "CopyStep": "Copy step JSON",
-    "InsertAfter": "Insert position after"
+    "InsertAfter": "Insert position after",
+    "NavmeshRebuildTimeoutMs": "Navmesh rebuild timeout (ms)",
+    "RebuildNavmeshOnFirstVisitThisSession": "Rebuild navmesh on first duty visit this session"
   }
 }
