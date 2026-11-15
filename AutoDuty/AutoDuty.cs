@@ -351,7 +351,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
             this.taskManager.DefaultConfiguration.OnTaskTimeout += (ECommons.Automation.NeoTaskManager.TaskManagerTask task, ref long remaining) =>
             {
-                if (this.Stage != Stage.Action || this.currentAttempt == null) return;
+                if (this.Stage != Stage.Action || this.currentAttempt == null || task.Configuration is OptionalWaitConfiguration) return;
                 this.ReportTaskFailure(task.Name.StartsWith("Boss-") ? "boss-timeout" : "task-timeout", task.Name);
                 remaining = 1000; // Keep this task in place until Framework_Update cancels the step.
             };
@@ -863,6 +863,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     internal void LoadPath()
     {
+        DutyToolsUi.ManualSelection = false;
         try
         {
             if (this.CurrentTerritoryContent == null || (this.CurrentTerritoryContent != null && this.CurrentTerritoryContent.TerritoryType != Svc.ClientState.TerritoryType))
@@ -1057,6 +1058,11 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     public void Run(uint territoryType = 0, int loops = 0, bool startFromZero = true, bool bareMode = false)
     {
+        if (this.Recorder.Recording)
+        {
+            Svc.Chat.PrintError("[AutoDuty] Stop and save the recording before starting a duty route (/ad rec stop).");
+            return;
+        }
         if(InDungeon)
             Configuration.Meta.AutoDutyModeEnum = AutoDutyMode.Looping;
 

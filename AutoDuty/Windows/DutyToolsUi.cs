@@ -13,6 +13,11 @@ internal static class DutyToolsUi
     {
         ImGui.PushID(index);
         bool failed = Plugin.currentFailure?.Index == index;
+        if (Plugin.attemptHistory.TryGetValue(index, out var attempt) && attempt.SkippedReason is { } skipped)
+        {
+            ImGui.TextColored(new Vector4(1, .65f, .25f, 1), $"[!] {skipped}");
+            ImGui.SameLine();
+        }
         if (failed) ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, .35f, .3f, 1));
         bool selected = ImGui.Selectable($"{index + 1}. {action.ToCustomString()}", selectedStep == index, ImGuiSelectableFlags.AllowDoubleClick);
         if (selected)

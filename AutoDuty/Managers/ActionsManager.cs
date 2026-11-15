@@ -1,4 +1,4 @@
-﻿using AutoDuty.Data;
+using AutoDuty.Data;
 using AutoDuty.Helpers;
 using AutoDuty.IPC;
 using Dalamud.Game.ClientState.Conditions;
@@ -334,7 +334,7 @@ namespace AutoDuty.Managers
             {
                 taskManager.Enqueue(() => Chat.ExecuteCommand("/automove on"), "Jump");
                 taskManager.Enqueue(() => EzThrottler.Throttle("AutoMove", Convert.ToInt32(wait)), "Jump");
-                taskManager.Enqueue(() => EzThrottler.Check("AutoMove"), "Jump", new TaskManagerConfiguration(Convert.ToInt32(wait)));
+                taskManager.Enqueue(() => EzThrottler.Check("AutoMove"), "Jump", new TaskManagerConfiguration((int)Math.Min(int.MaxValue, Math.Max(0L, Convert.ToInt32(wait)) + 1000)));
             }
 
             taskManager.Enqueue(() => ActionManager.Instance()->UseAction(ActionType.GeneralAction, 2), "Jump");
@@ -342,7 +342,7 @@ namespace AutoDuty.Managers
             if (wait > 0)
             {
                 taskManager.Enqueue(() => EzThrottler.Throttle("AutoMove", Convert.ToInt32(100)), "Jump");
-                taskManager.Enqueue(() => EzThrottler.Check("AutoMove"), "AutoMove", new TaskManagerConfiguration(Convert.ToInt32(100)));
+                taskManager.Enqueue(() => EzThrottler.Check("AutoMove"), "AutoMove", new TaskManagerConfiguration(1100));
                 taskManager.Enqueue(() => Chat.ExecuteCommand("/automove off"), "Jump");
             }
         }
@@ -358,7 +358,7 @@ namespace AutoDuty.Managers
             taskManager.Enqueue(() => VNavmesh_IPCSubscriber.Path_MoveTo([position], false), "Start-JumpTo-Move");
 
             taskManager.Enqueue(() => EzThrottler.Throttle("JumpTo", Convert.ToInt32(wait)), "JumpTo-Wait");
-            taskManager.Enqueue(() => EzThrottler.Check("JumpTo"),                           "JumpTo-Wait", new TaskManagerConfiguration(Convert.ToInt32(wait)));
+            taskManager.Enqueue(() => EzThrottler.Check("JumpTo"),                           "JumpTo-Wait", new TaskManagerConfiguration((int)Math.Min(int.MaxValue, Math.Max(0L, Convert.ToInt32(wait)) + 1000)));
 
             taskManager.Enqueue(() => ActionManager.Instance()->UseAction(ActionType.GeneralAction, 2), "JumpTo");
             taskManager.Enqueue(() => MovementHelper.Move(position, useMesh: false),                    "Finish-JumpTo-Move");
@@ -382,7 +382,7 @@ namespace AutoDuty.Managers
             taskManager.Enqueue(() => { if (movementMode == 1) Svc.GameConfig.UiControl.Set("MoveMode", 0); }, "AutoMove-MoveMode");
             taskManager.Enqueue(() => Chat.ExecuteCommand("/automove on"), "AutoMove-On");
             taskManager.Enqueue(() => EzThrottler.Throttle("AutoMove", Convert.ToInt32(action.Arguments[0])), "AutoMove-Throttle");
-            taskManager.Enqueue(() => EzThrottler.Check("AutoMove") || !IsReady, "AutoMove-CheckThrottleOrNotReady", new TaskManagerConfiguration(Convert.ToInt32(action.Arguments[0])));
+            taskManager.Enqueue(() => EzThrottler.Check("AutoMove") || !IsReady, "AutoMove-CheckThrottleOrNotReady", new TaskManagerConfiguration((int)Math.Min(int.MaxValue, Math.Max(0L, Convert.ToInt32(action.Arguments[0])) + 1000)));
             taskManager.Enqueue(() => { if (movementMode == 1) Svc.GameConfig.UiControl.Set("MoveMode", 1); }, "AutoMove-MoveMode2");
             taskManager.Enqueue(() => IsReady, "AutoMove-WaitIsReady", new TaskManagerConfiguration(int.MaxValue));
             taskManager.Enqueue(() => Chat.ExecuteCommand("/automove off"), "AutoMove-Off");
@@ -400,7 +400,7 @@ namespace AutoDuty.Managers
             if (Plugin.DutyData?.StopForCombat ?? true)
                 taskManager.Enqueue(() => !Player.Character->InCombat, "Wait", new TaskManagerConfiguration(int.MaxValue));
             taskManager.Enqueue(() => EzThrottler.Throttle("Wait", ms), "Wait");
-            taskManager.Enqueue(() => EzThrottler.Check("Wait"),                                          "Wait", new TaskManagerConfiguration(ms));
+            taskManager.Enqueue(() => EzThrottler.Check("Wait"),                                          "Wait", new TaskManagerConfiguration((int)Math.Min(int.MaxValue, Math.Max(0L, ms) + 1000)));
             if (Plugin.DutyData?.StopForCombat ?? true)
                 taskManager.Enqueue(() => !Player.Character->InCombat, "Wait", new TaskManagerConfiguration(int.MaxValue));
         }
@@ -408,33 +408,33 @@ namespace AutoDuty.Managers
         public unsafe void WaitFor(PathAction action)
         {
             Plugin.action = $"WaitFor: {action.Arguments[0]}";
-            string[]? waitForWhats = action.Arguments[0].Split(';');
+            string[] waitForWhats = WaitForArguments.Normalize(action.Arguments[0]);
             switch (waitForWhats[0])
             {
                 case "Combat":
-                    taskManager.Enqueue(() => Player.Character->InCombat, "WaitFor-Combat");
+                    taskManager.Enqueue(() => Player.Character->InCombat, "WaitFor-Combat", new TaskManagerConfiguration(int.MaxValue));
                     break;
                 case "OOC":
-                    taskManager.Enqueue(() => Player.Character->InCombat, "WaitFor-Combat-500", new TaskManagerConfiguration(500));
+                    taskManager.Enqueue(() => Player.Character->InCombat, "WaitFor-Combat-500", new OptionalWaitConfiguration(500));
                     taskManager.Enqueue(() => !Player.Character->InCombat, "WaitFor-OOC", new TaskManagerConfiguration(int.MaxValue));
                     break;
                 case "IsValid":
-                    taskManager.Enqueue(() => !IsValid, "WaitFor-NotIsValid-500", new TaskManagerConfiguration(500));
+                    taskManager.Enqueue(() => !IsValid, "WaitFor-NotIsValid-500", new OptionalWaitConfiguration(500));
                     taskManager.Enqueue(() => IsValid, "WaitFor-IsValid", new TaskManagerConfiguration(int.MaxValue));
                     break;
                 case "IsOccupied":
-                    taskManager.Enqueue(() => !IsOccupied, "WaitFor-NotIsOccupied-500", new TaskManagerConfiguration(500));
+                    taskManager.Enqueue(() => !IsOccupied, "WaitFor-NotIsOccupied-500", new OptionalWaitConfiguration(500));
                     taskManager.Enqueue(() => IsOccupied, "WaitFor-IsOccupied", new TaskManagerConfiguration(int.MaxValue));
                     break;
                 case "IsReady":
-                    taskManager.Enqueue(() => !IsReady, "WaitFor-NotIsReady-500", new TaskManagerConfiguration(500));
+                    taskManager.Enqueue(() => !IsReady, "WaitFor-NotIsReady-500", new OptionalWaitConfiguration(500));
                     taskManager.Enqueue(() => IsReady, "WaitFor-IsReady", new TaskManagerConfiguration(int.MaxValue));
                     break;
                 case "DistanceTo":
                     if (waitForWhats.Length < 3)
                         return;
-                    if (waitForWhats[1].TryGetVector3(out Vector3 position)) return;
-                    if (float.TryParse(waitForWhats[2], out float distance)) return;
+                    if (!waitForWhats[1].TryGetVector3(out Vector3 position)) return;
+                    if (!float.TryParse(waitForWhats[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float distance)) return;
 
                     taskManager.Enqueue(() => Vector3.Distance(Player.Position, position) <= distance, $"WaitFor-DistanceTo({position})<={distance}", new TaskManagerConfiguration(int.MaxValue));
                     break;
@@ -446,13 +446,13 @@ namespace AutoDuty.Managers
 
                     if (conditionFlag == ConditionFlag.None) return;
 
-                    taskManager.Enqueue(() => Svc.Condition[conditionFlag] == !active, $"WaitFor-{conditionFlag}=={!active}-500", new TaskManagerConfiguration(500));
+                    taskManager.Enqueue(() => Svc.Condition[conditionFlag] == !active, $"WaitFor-{conditionFlag}=={!active}-500", new OptionalWaitConfiguration(500));
                     taskManager.Enqueue(() => Svc.Condition[conditionFlag] == active,  $"WaitFor-{conditionFlag}=={!active}",     new TaskManagerConfiguration(int.MaxValue));
                     break;
                 case "BNpcInRadius":
                     if (waitForWhats.Length == 1)
                         return;
-                    taskManager.Enqueue(() => !(GetObjectsByRadius(int.TryParse(waitForWhats[1], out int radius) ? radius : 0)?.Count > 0), $"WaitFor-BNpcInRadius{waitForWhats[1]}");
+                    taskManager.Enqueue(() => !(GetObjectsByRadius(int.TryParse(waitForWhats[1], out int radius) ? radius : 0)?.Count > 0), $"WaitFor-BNpcInRadius{waitForWhats[1]}", new TaskManagerConfiguration(int.MaxValue));
                     taskManager.Enqueue(() => IsReady, "WaitFor", new TaskManagerConfiguration(int.MaxValue));
                     break;
                 case "Addon":
@@ -639,7 +639,7 @@ namespace AutoDuty.Managers
         {
             taskManager.Enqueue(() => BossMod_IPCSubscriber.SetMovement(false));
             taskManager.Enqueue(() => InteractableCheck(gameObject), "Interactable-InteractableCheck");
-            taskManager.Enqueue(() => IsCasting, "Interactable-WaitIsCasting", new TaskManagerConfiguration(500));
+            taskManager.Enqueue(() => IsCasting, "Interactable-WaitIsCasting", new OptionalWaitConfiguration(500));
             taskManager.Enqueue(() => !IsCasting, "Interactable-WaitNotIsCasting");
             taskManager.Enqueue(() => BossMod_IPCSubscriber.SetMovement(true));
             taskManager.EnqueueDelay(100);
@@ -1042,27 +1042,27 @@ namespace AutoDuty.Managers
                             taskManager.Enqueue(() => Chat.ExecuteCommand("/rotation Settings AoEType Off"), "DutySpecificCode");
                             taskManager.Enqueue(() => ActionManager.Instance()->UseAction(ActionType.GeneralAction, 16), "DutySpecificCode");
                             taskManager.Enqueue(() => EzThrottler.Throttle("DutySpecificCode", Convert.ToInt32(500)));
-                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(Convert.ToInt32(500)));
+                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(1500));
                             taskManager.Enqueue(() => Chat.ExecuteCommand("/mk ignore1"), "DutySpecificCode");
                             taskManager.Enqueue(() => EzThrottler.Throttle("DutySpecificCode", Convert.ToInt32(100)));
-                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(Convert.ToInt32(100)));
+                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(1100));
 
                             taskManager.Enqueue(() => ActionManager.Instance()->UseAction(ActionType.GeneralAction, 16), "DutySpecificCode");
                             taskManager.Enqueue(() => EzThrottler.Throttle("DutySpecificCode", Convert.ToInt32(500)));
-                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(Convert.ToInt32(500)));
+                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(1500));
                             taskManager.Enqueue(() => Chat.ExecuteCommand("/mk ignore2"), "DutySpecificCode");
                             taskManager.Enqueue(() => EzThrottler.Throttle("DutySpecificCode", Convert.ToInt32(100)));
-                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(Convert.ToInt32(100)));
+                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(1100));
 
                             taskManager.Enqueue(() => ActionManager.Instance()->UseAction(ActionType.GeneralAction, 16), "DutySpecificCode");
                             taskManager.Enqueue(() => EzThrottler.Throttle("DutySpecificCode", Convert.ToInt32(500)));
-                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(Convert.ToInt32(500)));
+                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(1500));
                             taskManager.Enqueue(() => Chat.ExecuteCommand("/mk attack1"), "DutySpecificCode");
                             break;
                         case "13":
                             taskManager.Enqueue(() => ActionManager.Instance()->UseAction(ActionType.GeneralAction, 16), "DutySpecificCode");
                             taskManager.Enqueue(() => EzThrottler.Throttle("DutySpecificCode", Convert.ToInt32(500)));
-                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(Convert.ToInt32(500)));
+                            taskManager.Enqueue(() => EzThrottler.Check("DutySpecificCode"), "DutySpecificCode", new TaskManagerConfiguration(1500));
                             taskManager.Enqueue(() => Chat.ExecuteCommand("/mk attack1"), "DutySpecificCode");
                             break;
 

@@ -24,7 +24,7 @@ internal static class PathValidator
     internal static string? Error(PathAction action)
     {
         bool Missing(int count) => action.Arguments.Count < count || action.Arguments.Take(count).Any(string.IsNullOrWhiteSpace);
-        bool Integer(int i) => long.TryParse(action.Arguments[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
+        bool Integer(int i) => int.TryParse(action.Arguments[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
         int required = action.Name switch
         {
             "Wait" or "WaitFor" or "Interactable" or "SelectString" or "SelectYesno" or "SelectJournalResult" or "MoveToObject" or "Target" or "KillInRange" or "AutoMoveFor" or "ChatCommand" or "StopForCombat" or "ModifyIndex" or "DutySpecificCode" => 1,
@@ -32,6 +32,7 @@ internal static class PathValidator
             _ => 0,
         };
         if (Missing(required)) return $"{action.Name}: expected {required} arguments";
+        if (action.Name == "WaitFor") return WaitForArguments.Error(action.Arguments[0]);
         if (action.Name is "Wait" or "SelectString" or "DutySpecificCode" or "AutoMoveFor" or "ModifyIndex")
             if (!Integer(0)) return $"{action.Name}: invalid integer";
         if (action.Name == "MoveTo" && action.Arguments.Count > 0 && action.Arguments[0].Length > 0 && !bool.TryParse(action.Arguments[0], out _)) return "MoveTo: invalid mesh boolean";

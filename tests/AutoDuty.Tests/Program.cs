@@ -25,6 +25,7 @@ static void Run()
     Console.WriteLine("PASS: 9 action relocation cases");
     TestPaths();
     TestRecording();
+    TestValidation();
 }
 static void Check(bool value, string name)
 {
@@ -60,8 +61,28 @@ static void TestPaths()
     var old = AutoDuty.Data.PathJson.ReadFile("""{"Actions":[{"Name":"Wait","Position":{"X":1,"Y":2,"Z":3},"Arguments":["100"],"Conditions":[{"$type":"AutoDuty.Data.Classes+PathActionConditionToDo, AutoDuty","index":0,"count":1,"operatorValue":"<"}]}]}""");
     Check(old.Actions[0].Conditions.Count == 1, "legacy condition");
     Check(AutoDuty.Data.PathJson.ReadFile(AutoDuty.Data.PathJson.WriteFile(old)).Actions[0].Conditions.Count == 1, "new condition");
+    var clone = Newtonsoft.Json.JsonConvert.DeserializeObject<AutoDuty.Data.Classes.PathFile>(
+        Newtonsoft.Json.JsonConvert.SerializeObject(old, AutoDuty.Configurations.ConfigurationMain.JsonSerializerSettings),
+        AutoDuty.Configurations.ConfigurationMain.JsonSerializerSettings)!;
+    Check(clone.Actions.Count == 1 && clone.Actions[0].Conditions.Count == 1 && !ReferenceEquals(clone.Actions[0], old.Actions[0]), "legacy clone/wire settings preserve polymorphic conditions and replace collections");
     try { AutoDuty.Data.PathJson.ReadFile("""{"SchemaVersion":999,"Actions":[]}"""); throw new Exception("accepted future schema"); } catch (Newtonsoft.Json.JsonException) { }
     Console.WriteLine($"PASS: {count} bundled paths JSON and sharing round trips, chunks, corruption; legacy/new conditions and future schema rejection");
+}
+
+static void TestValidation()
+{
+    foreach (string argument in new[] { "IsReady", "Ready", "IsOcupied", "combat", "OOC", "Addon;XBMResult", "ConditionFlag;Jumping61;FALSE", "DistanceTo;1, 2, 3;20", "400.10, 0, -177.38;20" })
+        Check(PathValidator.Error(new() { Name = "WaitFor", Arguments = [argument] }) == null, "valid wait: " + argument);
+    foreach (string argument in new[] { "", "Typo", "Addon;", "ConditionFlag;Typo;true", "ConditionFlag;Casting;typo", "DistanceTo;bad;20", "DistanceTo;1, 2, 3;NaN", "BNpcInRadius;-1" })
+        Check(PathValidator.Error(new() { Name = "WaitFor", Arguments = [argument] }) != null, "invalid wait rejected: " + argument);
+    Check(PathValidator.Error(new() { Name = "Wait", Arguments = ["2147483648"] }) != null, "overflow rejected before execution");
+    Check(PathValidator.Error(new() { Name = "MoveTo", Arguments = ["typo"] }) != null, "bad mesh boolean");
+    foreach (string json in new[] { """{"Actions":[null]}""", """{"Actions":[{"Name":"Wait","Arguments":null}]}""", """{"Actions":[{"Position":[1,2]}]}""", """{"Actions":[],"Actions":[]}""", """{"Actions":[{"Conditions":[{"Condition":"Unknown"}]}]}""" })
+    {
+        try { AutoDuty.Data.PathJson.ReadFile(json); throw new Exception("accepted malformed path: " + json); }
+        catch (Newtonsoft.Json.JsonException) { }
+    }
+    Console.WriteLine("PASS: legacy wait aliases, typed arguments, overflow, malformed paths and clone/wire compatibility");
 }
 
 static void TestRecording()

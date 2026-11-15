@@ -29,10 +29,12 @@ internal sealed class PathRecorder
         if (!PlayerHelper.IsReady || !InDungeon) throw new InvalidOperationException("Enter a duty before recording");
         Plugin.Stage = Stage.Stopped;
         this.Territory = Svc.ClientState.TerritoryType;
-        this.author = Player.Name;
+        this.author = Player.Name ?? "";
         this.job = Player.Job.ToString();
         this.seenObjects.Clear(); this.visibleDialogs.Clear();
         PathEditHelper.MutateActions(list => list.Clear(), "start recording");
+        // A new recording must never retain an existing route as its save target.
+        Plugin.pathFile = Path.Combine(Plugin.pathsDirectory.FullName, $"({this.Territory}) Recorded {DateTime.UtcNow:yyyyMMdd-HHmmss-fff}.json");
         this.Recording = true;
         this.Add("MoveTo");
     }
@@ -136,6 +138,8 @@ internal sealed class PathRecorder
         }
         PathValidator.ValidateStructure(file);
         File.WriteAllText(path, PathJson.WriteFile(file));
+        if (append)
+            PathEditHelper.MutateActions(list => { list.Clear(); list.AddRange(file.Actions); }, "load appended recording");
         ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(Path.GetFileName(path));
         ConfigurationProfileV2.Save();
         Plugin.pathFile = path;
