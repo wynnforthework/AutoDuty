@@ -677,6 +677,16 @@ namespace AutoDuty.Windows
                                                     {
                                                         ImGuiEx.TextWrapped(item.Value == Plugin.CurrentTerritoryContent ? new Vector4(0, 1, 1, 1) : new Vector4(1, 1, 1, 1),
                                                                             $"L{item.Value.ClassJobLevelRequired} (i{item.Value.ItemLevelRequired}): {item.Value.EnglishName}");
+                                                        if (ImGui.BeginPopupContextItem("LevelingDuty" + item.Value.TerritoryType))
+                                                        {
+                                                            if (ImGui.MenuItem(DutyToolsUi.Text("Exclude")))
+                                                            {
+                                                                Configuration.DutyConfig.LevelingExcludedDuties.Add(item.Value.TerritoryType);
+                                                                LevelingHelper.ResetLevelingDuties();
+                                                                ConfigurationProfileV2.Save();
+                                                            }
+                                                            ImGui.EndPopup();
+                                                        }
                                                         using (ImRaii.Enabled())
                                                         {
                                                             if (LevelingHelper.levelingListExperimental.Contains(item.Value.TerritoryType))

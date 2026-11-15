@@ -72,6 +72,13 @@ namespace AutoDuty.Managers
                                     }
                                 }
 
+                    for (int i = 0; i < this.Paths.Count; i++)
+                        if (this.Paths[i].PathFile?.Meta.Jobs is { } jobs && jobs.HasJob(job.Value))
+                        {
+                            pathIndex = i;
+                            return this.Paths[i];
+                        }
+
                     //temporary while w2w gets integrated
                     if (!defaultPath.W2WFound && AutoDuty.Configuration.DutyConfig.W2WJobs.HasJob(job.Value))
                         for (int index = 0; index < this.Paths.Count; index++)

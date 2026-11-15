@@ -659,6 +659,7 @@ public static class ConfigTab
         if (dutyConfigHeaderSelected == true)
         {
             DutyToolsUi.ReliabilityConfig();
+            RouteOptionsUi.Leveling();
             ImGui.Columns(2, "##DutyConfigHeaderColumns");
             bool exitDuty = Configuration.DutyConfig.AutoExitDuty;
             if (ImGui.Checkbox(Loc.Get("ConfigTab.Duty.AutoLeaveDuty"), ref exitDuty))

@@ -787,6 +787,10 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private void DutyState_DutyStarted(IDutyStateEventArgs args)
     {
+        this.levelingFailureCounted = false;
+        this.attemptHistory.Clear();
+        this.currentAttempt = null;
+        this.currentFailure = null;
         this.dutyState         = DutyState.DutyStarted;
         this.lastDutyStart     = DateTime.UtcNow;
         DeathHelper.deathCount = 0;
@@ -812,6 +816,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
     {
         Svc.Log.Warning("Duty Done");
         this.dutyState = DutyState.DutyComplete;
+        if (this.LevelingEnabled) LevelingHelper.RecordSuccess(Svc.ClientState.TerritoryType);
         if(this.States is not (PluginState.None or PluginState.Paused))
         {
             TimeSpan timeSpan = DateTime.UtcNow.Subtract(this.lastDutyStart);

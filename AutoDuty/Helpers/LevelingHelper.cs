@@ -86,8 +86,40 @@ namespace AutoDuty.Helpers
 
                     levelingDuties = [.. ids.Select(id => ContentHelper.DictionaryContent.GetValueOrDefault(id)).Where(c => c != null).Cast<Content>().OrderBy(x => x.ClassJobLevelRequired).ThenBy(x => x.ItemLevelRequired).ThenBy(x => x.ExVersion).ThenBy(x => x.DawnIndex)];
                 }
-                return levelingDuties;
+                var config = Configuration.DutyConfig;
+                return levelingDuties.Concat(config.LevelingIncludedDuties.Select(id => ContentHelper.DictionaryContent.GetValueOrDefault(id)).OfType<Content>())
+                    .DistinctBy(c => c.TerritoryType).Where(c => IsAllowed(c.TerritoryType))
+                    .OrderBy(c => c.ClassJobLevelRequired).ThenBy(c => c.ItemLevelRequired).ThenBy(c => c.ExVersion).ThenBy(c => c.DawnIndex).ToArray();
             }
+        }
+
+        internal static bool IsAllowed(uint territory)
+        {
+            var config = Configuration.DutyConfig;
+            return !config.LevelingExcludedDuties.Contains(territory) && !config.LevelingAutoExcluded.Contains(territory)
+                && (!config.LevelingIncludedOnly || config.LevelingIncludedDuties.Contains(territory));
+        }
+
+        internal static void RecordFailure(uint territory)
+        {
+            var config = Configuration.DutyConfig;
+            int count = config.LevelingFailureCounts.GetValueOrDefault(territory) + 1;
+            config.LevelingFailureCounts[territory] = count;
+            if (config.LevelingAutoExcludeAfterFailures > 0 && count >= config.LevelingAutoExcludeAfterFailures && config.LevelingAutoExcluded.Add(territory))
+            {
+                Svc.Log.Warning($"Leveling duty {territory} auto-excluded after {count} failed runs");
+                Svc.Chat.Print($"[AutoDuty] Leveling duty {territory} auto-excluded after {count} failed runs.");
+            }
+            ResetLevelingDuties();
+            Configurations.ConfigurationProfileV2.Save();
+        }
+
+        internal static void RecordSuccess(uint territory)
+        {
+            var config = Configuration.DutyConfig;
+            config.LevelingFailureCounts.Remove(territory);
+            if (config.LevelingResetAutoExcludedOnSuccess) config.LevelingAutoExcluded.Remove(territory);
+            ResetLevelingDuties();
         }
 
         internal static Content? SelectHighestLevelingRelevantDuty(LevelingMode mode)
@@ -160,7 +192,7 @@ namespace AutoDuty.Helpers
             }
 
             LevelingDuties.Each(x => Svc.Log.Debug($"Leveling Mode: Duties: {x.Name} CanRun: {x.CanRun(lvl)}{(trust ? $" | CanTrustRun : {x.CanTrustRun()}" : "")}"));
-            curContent = LevelingDuties.LastOrDefault(x => x.CanRun(lvl, trust ? DutyMode.Trust : DutyMode.None));
+            curContent = LevelingDuties.LastOrDefault(x => IsAllowed(x.TerritoryType) && x.CanRun(lvl, trust ? DutyMode.Trust : DutyMode.None));
 
             Svc.Log.Debug($"Leveling Mode: We found {curContent?.Name ?? "no duty"} to run");
 

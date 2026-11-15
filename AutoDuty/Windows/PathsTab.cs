@@ -86,6 +86,7 @@ namespace AutoDuty.Windows
                 if (ImGuiEx.ButtonWrapped(Loc.Get("PathsTab.DownloadPaths"))) 
                     Patcher.Patch(ImGui.IsMouseClicked(ImGuiMouseButton.Right));
             }
+            if (_selectedDutyPath != null) RouteOptionsUi.Metadata(_selectedDutyPath);
             bool showJobSelection = _selectedDutyPath is { container.Paths.Count: > 1 };
             ImGui.BeginTable("##PathTabContent", _selectedDutyPath != null ? 2 : 1);
 
@@ -175,6 +176,11 @@ namespace AutoDuty.Windows
                             ImGui.TextColored(ImGuiHelper.VersionColor, $"(v{path.PathFile.Meta.LastUpdatedVersion})");
                             ImGui.SameLine(0, 2);
                             ImGuiHelper.ColoredText(path.ColoredNameRegex, path.Name);
+                            if (path.PathFile.Meta.Author != null || path.PathFile.Meta.Jobs != null)
+                            {
+                                ImGui.SameLine();
+                                ImGui.TextDisabled($"{path.PathFile.Meta.Author} {path.PathFile.Meta.Jobs}");
+                            }
 
                             if (multiple && pathSelections != null)
                                 if (pathSelections.TryGetValue(path.FileName, out JobWithRole jobs))

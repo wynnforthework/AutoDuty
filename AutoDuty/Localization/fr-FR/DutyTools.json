@@ -19,6 +19,22 @@
     "CopyStep": "Copy step JSON",
     "InsertAfter": "Insert position after",
     "NavmeshRebuildTimeoutMs": "Navmesh rebuild timeout (ms)",
-    "RebuildNavmeshOnFirstVisitThisSession": "Rebuild navmesh on first duty visit this session"
+    "RebuildNavmeshOnFirstVisitThisSession": "Rebuild navmesh on first duty visit this session",
+    "Leveling": "Leveling duty selection",
+    "IncludedOnly": "Only use explicitly included duties",
+    "AutoExcludeThreshold": "Auto-exclude after failed runs (0 = off)",
+    "ResetOnSuccess": "Clear auto-exclusion after successful completion",
+    "ClearAutoExcluded": "Clear automatic exclusions",
+    "Filter": "Filter duties",
+    "Exclude": "Exclude",
+    "Include": "Include",
+    "Restore": "Restore",
+    "Metadata": "Route metadata",
+    "Author": "Author",
+    "Description": "Description",
+    "Source": "Source URL",
+    "LimitJobs": "Limit to jobs / roles",
+    "JobConflict": "Another route matches these jobs; first match wins.",
+    "SaveMetadata": "Save metadata and protect from updates"
   }
 }

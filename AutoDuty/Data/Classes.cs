@@ -136,6 +136,12 @@ namespace AutoDuty.Data
 
         public class PathFileMetaData
         {
+            public JobWithRole? Jobs { get; set; }
+            public string? Author { get; set; }
+            public string? Description { get; set; }
+            public string? SourceUrl { get; set; }
+            public uint? Territory { get; set; }
+
             public int CreatedAt { get; set; }
 
             public List<PathFileChangelogEntry> Changelog { get; set; } = [];

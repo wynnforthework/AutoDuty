@@ -420,6 +420,14 @@ public class ConfigurationProfileV2
             return MultiboxUtility.Config.MultiBox || unsync.Value && this.TreatUnsyncAsW2W;
         }
 
+        public HashSet<uint> LevelingExcludedDuties { get; set; } = [];
+        public HashSet<uint> LevelingIncludedDuties { get; set; } = [];
+        public HashSet<uint> LevelingAutoExcluded { get; set; } = [];
+        public Dictionary<uint, int> LevelingFailureCounts { get; set; } = [];
+        public int LevelingAutoExcludeAfterFailures { get; set; } = 2;
+        public bool LevelingResetAutoExcludedOnSuccess { get; set; } = true;
+        public bool LevelingIncludedOnly { get; set; } = false;
+
         public bool LevelingListExperimentalEntries
         {
             get;

@@ -11,6 +11,7 @@ namespace AutoDuty;
 
 public partial class AutoDuty
 {
+    private bool levelingFailureCounted;
     internal StepAttempt? currentAttempt;
     internal StepFailure? currentFailure;
     internal readonly Dictionary<int, StepAttempt> attemptHistory = [];
@@ -69,6 +70,11 @@ public partial class AutoDuty
     {
         if (this.currentFailure != null) return;
         this.CancelStepWork();
+        if (this.LevelingEnabled && !this.levelingFailureCounted)
+        {
+            this.levelingFailureCounted = true;
+            LevelingHelper.RecordFailure(Svc.ClientState.TerritoryType);
+        }
         if (!Configuration.DutyConfig.PauseOnStepFailure)
         {
             Svc.Chat.Print($"[AutoDuty] Step {this.indexer + 1} failed: {reason}. Skipped by configuration.");
