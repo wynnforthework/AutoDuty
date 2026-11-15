@@ -1,6 +1,6 @@
 [submodule "ECommons"]
 	path = ECommons
-	url = https://github.com/ffxivcode/ECommons
+	url = https://github.com/NightmareXIV/ECommons
 [submodule "ECommons.IPC"]
 	path = ECommons.IPC
 	url = https://github.com/NightmareXIV/ECommons.IPC
