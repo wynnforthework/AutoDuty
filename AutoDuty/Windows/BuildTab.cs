@@ -118,7 +118,6 @@ namespace AutoDuty.Windows
         private static bool    _dragDrop           = false;
         private static bool    _comment            = false;
         private static Vector4 _argumentTextColor  = new(1, 1, 1, 1);
-        private static PathAction? pendingDelete;
         private static bool    _duplicateItem      = false;
         private static int     _duplicateItemIndex = -1;
 
@@ -337,33 +336,22 @@ namespace AutoDuty.Windows
 
                     foreach ((PathAction Value, int Index) item in Plugin.Actions.Select((value, index) => (Value: value, Index: index)))
                     {
+                        bool editing = ActionWindow.IsOpen && ReferenceEquals(editingOriginal, item.Value);
                         Vector4 v4 = item.Value.Name.StartsWith("<--", StringComparison.InvariantCultureIgnoreCase) ? new Vector4(0, 255, 0, 1) : new Vector4(255, 255, 255, 1);
 
                         ImGui.PushStyleColor(ImGuiCol.Text, v4);
-
-                        if (ImGui.Selectable($"{item.Index}: ###Text{item.Index}", item.Index == _buildListSelected))
+                        if (editing)
                         {
-                            if (_buildListSelected == item.Index)
-                            {
-                                ClearAll();
-                            }
-                            else
-                            {
-                                _comment = item.Value.Name.Equals($"<-- Comment -->", StringComparison.InvariantCultureIgnoreCase);
-                                _actionText = item.Value.Name;
-                                //_positionText      = _position.ToCustomString();
-                                _buildListSelected = item.Index;
-                                _addActionButton   = Loc.Get("BuildTab.Modify");
-
-                                editingOriginal = item.Value;
-                                _action = ActionWindow.EditAction(item.Value);
-                            }
+                            ImGui.PushStyleColor(ImGuiCol.Header, new Vector4(.15f, .4f, .65f, .8f));
+                            ImGui.PushStyleColor(ImGuiCol.HeaderHovered, new Vector4(.2f, .5f, .75f, .9f));
+                            ImGui.PushStyleColor(ImGuiCol.HeaderActive, new Vector4(.2f, .5f, .75f, 1f));
                         }
 
-                        if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
-                        {
-                            pendingDelete = item.Value;
-                        }
+                        // Track the edited object, not its index: inserting or reordering
+                        // other steps must not move the highlight to a different action.
+                        if (ImGui.Selectable($"{(editing ? "> " : "")}{item.Index}: ###Text{item.Index}", editing || item.Index == _buildListSelected))
+                            EditStep(item.Index);
+                        if (editing) ImGui.PopStyleColor(3);
 
                         if (ImGui.IsItemClicked(ImGuiMouseButton.Middle))
                         {
@@ -371,7 +359,7 @@ namespace AutoDuty.Windows
                             _duplicateItemIndex = item.Index;
                         }
 
-                        if (ImGui.IsItemActive() && !ImGui.IsItemHovered() && !_dragDrop)
+                        if (ImGui.IsItemActive() && !ImGui.IsItemHovered() && !_dragDrop && !ActionWindow.IsOpen)
                             _buildListSelected = item.Index;
 
                         if (_buildListSelected == item.Index && ImGui.IsMouseDown(ImGuiMouseButton.Left) && !ActionWindow.IsOpen)
@@ -406,12 +394,6 @@ namespace AutoDuty.Windows
                     {
                         _dragDrop          = false;
                         _buildListSelected = -1;
-                    }
-
-                    if (pendingDelete is { } deleteTarget)
-                    {
-                        pendingDelete = null;
-                        DeleteStep(deleteTarget);
                     }
 
                     if (_duplicateItem)
@@ -548,6 +530,7 @@ namespace AutoDuty.Windows
             {
                 this.action = null;
                 this.IsOpen = false;
+                ClearAll();
 
                 this.RequestFocus = false;
 
