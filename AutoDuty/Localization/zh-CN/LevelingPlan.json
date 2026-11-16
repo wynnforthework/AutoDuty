@@ -5,6 +5,9 @@
     }
   },
   "LevelingPlan": {
+    "RouteSaved": "已保存到文件",
+    "RouteSaveFailed": "保存失败：修改仅保留在内存，请重试保存",
+    "AutoSaveSteps": "确认修改、新增、删除或调整步骤后自动保存到当前文件。录制仍需单独保存；清空整条路线需点击保存路径。下方显示最近一次保存结果。",
     "Open": "打开练级编排",
     "Source": "副本目录来自游戏 ContentFinderCondition 数据，包含尚未安装脚本的副本。内置稳定名单只是默认方案，并非全部副本。",
     "Refresh": "刷新成绩",

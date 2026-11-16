@@ -97,6 +97,13 @@ namespace AutoDuty.Windows
         internal static unsafe void DrawBuildTab()
         {
             SetCurrentTabName("BuildTab");
+            ImGui.TextWrapped(Loc.Get("LevelingPlan.AutoSaveSteps"));
+            if (saveStatus.Length > 0)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, saveFailed ? new Vector4(1, .35f, .3f, 1) : new Vector4(.4f, 1, .6f, 1));
+                ImGui.TextWrapped(saveStatus);
+                ImGui.PopStyleColor();
+            }
             if (ImGui.Button(DutyToolsUi.Text("Recorder"))) Plugin.ShowRecorder();
             ImGui.SameLine();
             if (ImGui.Button(DutyToolsUi.Text("CopyPath"))) Plugin.PathCommand(["path", "copy"]);
@@ -269,53 +276,30 @@ namespace AutoDuty.Windows
             }
         }
 
+        private static string saveStatus = "";
+        private static bool saveFailed;
+
         internal static void SavePath()
         {
-                try
-                {
-                    if (Plugin.Actions.Count < 1)
-                    {
-                        Svc.Log.Error(Loc.Get("BuildTab.SavePathError"));
-                        return;
-                    }
-
-                    Svc.Log.Info(Loc.Get("BuildTab.SavingPath", Plugin.pathFile));
-
-                    PathFile? pathFile = null;
-
-                    if (DictionaryPaths.Values.FirstOrDefault(c => c.Paths.Any(p => p.FilePath == Plugin.pathFile)) is { } container)
-                    {
-                        DutyPath? dutyPath = container.Paths.FirstOrDefault(dp => dp.FilePath == Plugin.pathFile);
-                        if (dutyPath != null)
-                        {
-                            pathFile = dutyPath.PathFile;
-                            if (pathFile.Meta.LastUpdatedVersion < Plugin.Version || _changelog.Length > 0)
-                            {
-                                pathFile.Meta.Changelog.Add(new PathFileChangelogEntry
-                                                            {
-                                                                Version = Plugin.Version,
-                                                                Change  = _changelog
-                                                            });
-                                _changelog = string.Empty;
-                            }
-                        }
-                    }
-
-                    pathFile ??= File.Exists(Plugin.pathFile) ? PathJson.ReadFile(File.ReadAllText(Plugin.pathFile)) : new PathFile();
-
-                    pathFile.Actions = [.. Plugin.Actions];
-                    string json = PathJson.WriteFile(pathFile);
-                    File.WriteAllText(Plugin.pathFile, json);
-                    ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(Path.GetFileName(Plugin.pathFile));
-                    ConfigurationProfileV2.Save();
-                    Plugin.currentPath = 0;
-                }
-                catch (Exception e)
-                {
-                    Svc.Log.Error(e.ToString());
-                    //throw;
-                }
-
+            string destination = Plugin.pathFile;
+            try
+            {
+                PathFileStore.Save(destination, Plugin.Actions, _changelog, Plugin.Version);
+                _changelog = string.Empty;
+                ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(Path.GetFileName(destination));
+                ConfigurationProfileV2.Save();
+                LevelingHelper.ResetLevelingDuties();
+                saveFailed = false;
+                saveStatus = Loc.Get("LevelingPlan.RouteSaved") + $" ({DateTime.Now:HH:mm:ss}): {Path.GetFullPath(destination)}";
+                Svc.Log.Info(saveStatus);
+            }
+            catch (Exception ex)
+            {
+                saveFailed = true;
+                saveStatus = Loc.Get("LevelingPlan.RouteSaveFailed") + $": {destination}\n{ex.Message}";
+                Svc.Log.Error(ex.ToString());
+                Svc.Chat.PrintError("[AutoDuty] " + saveStatus);
+            }
         }
 
         private static void DrawBuildList()

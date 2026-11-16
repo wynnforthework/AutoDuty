@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using AutoDuty.Multibox;
 using ECommons.DalamudServices;
@@ -52,6 +52,8 @@ internal static class PathEditHelper
             MultiboxUtility.Server.SendPath();
             if (active && !paused) MultiboxUtility.Server.SendStepStart(true);
         }
+        if (PathFileStore.ShouldPersistEdit(reason, Plugin.Recorder.Recording))
+            Windows.BuildTab.SavePath();
         Svc.Log.Info($"Path edit: {reason}; step {oldIndex + 1} -> {relocated + 1}");
     }
 }

@@ -5,6 +5,9 @@
     }
   },
   "LevelingPlan": {
+    "RouteSaved": "Saved to file",
+    "RouteSaveFailed": "Save failed: edits remain in memory; retry saving",
+    "AutoSaveSteps": "Confirmed step edits, additions, deletions and reordering save to the current file automatically. Recordings still require saving; clearing a whole route requires Save Path. The latest save result appears below.",
     "ManageRoles": "Manage Tank / Healer / DPS routes",
     "Tank": "Tank",
     "Healer": "Healer",

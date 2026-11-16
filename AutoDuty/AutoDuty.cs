@@ -1,4 +1,4 @@
-global using AutoDuty.Managers;
+﻿global using AutoDuty.Managers;
 global using ECommons.GameHelpers;
 global using static AutoDuty.AutoDuty;
 global using static AutoDuty.Data.Classes;
@@ -904,7 +904,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
                 this.pathFile = path?.FilePath ?? "";
                 if (path?.Actions != null)
-                    this.Actions = [..path.Actions];
+                    this.Actions = PathJson.ReadFile(File.ReadAllText(path.FilePath)).Actions;
 
                 if(MultiboxUtility.Config.MultiBox && MultiboxUtility.Config.SynchronizePath && MultiboxUtility.Config.Host)
                     MultiboxUtility.Server.SendPath();

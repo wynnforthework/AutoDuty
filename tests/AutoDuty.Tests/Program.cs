@@ -29,6 +29,7 @@ static void Run()
     TestRunMetrics();
     TestAutomationReports();
     TestLevelingPlan();
+    TestPathPersistence();
     var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>
     {
         ["shared.json"] = AutoDuty.Data.Enums.JobWithRole.All,
@@ -205,4 +206,43 @@ static void TestRecording()
     var corner = new List<AutoDuty.Data.Classes.PathAction> { new() { Name="MoveTo", Position=new(0,0,0) }, new() { Name="MoveTo", Position=new(10,0,0) }, new() { Name="MoveTo", Position=new(10,0,10) } };
     Check(PathRecorder.Simplify(corner, 2.5f).Count == 3, "RDP corner preserved");
     Console.WriteLine("PASS: recorder jitter, endpoints, action boundaries and corners");
+}
+
+static void TestPathPersistence()
+{
+    string directory = Path.Combine(Path.GetTempPath(), "AutoDuty-persistence-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(directory);
+    try
+    {
+        string path = Path.Combine(directory, "(1036) role-route.json");
+        var original = AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(Directory.GetFiles("AutoDuty/Paths", "*.json")[0]));
+        original.Meta.Author = "Persistence test";
+        original.Meta.Jobs = AutoDuty.Data.Enums.JobWithRole.Tanks;
+        File.WriteAllText(path, AutoDuty.Data.PathJson.WriteFile(original));
+        var cached = AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(path));
+        var edited = new AutoDuty.Data.Classes.PathAction { Name = "Wait", Arguments = ["2345"], Note = "saved edit" };
+        PathFileStore.Save(path, [edited], "edited step", 999);
+        var reentered = AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(path));
+        Check(reentered.Actions.Count == 1 && reentered.Actions[0].Arguments[0] == "2345", "edits survive a fresh load from disk");
+        Check(reentered.Meta.Author == original.Meta.Author && reentered.Meta.Jobs == original.Meta.Jobs, "preserve role and author metadata");
+        Check(reentered.Meta.Changelog.Last().Change == "edited step", "persist changelog");
+        Check(cached.Actions[0].Note != "saved edit", "save does not rely on mutating an old catalog cache");
+        string saved = File.ReadAllText(path);
+        bool rejected = false;
+        try { PathFileStore.Save(path, [new() { Name = "MoveTo", Position = new(float.NaN, 0, 0) }]); }
+        catch { rejected = true; }
+        Check(rejected && File.ReadAllText(path) == saved, "failed validation leaves saved file intact");
+        PathFileStore.Save(path, []);
+        Check(AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(path)).Actions.Count == 0, "deleting last step persists an empty route");
+        Check(Directory.GetFiles(directory, "*.tmp").Length == 0, "no temporary files remain");
+        foreach (string reason in new[] { "replace action", "add action", "add MoveTo", "delete", "reorder", "duplicate", "insert after", "strict conditions" })
+        {
+            Check(PathFileStore.ShouldPersistEdit(reason, false), "autosave confirmed edit: " + reason);
+            Check(!PathFileStore.ShouldPersistEdit(reason, true), "recording edits do not overwrite existing route: " + reason);
+        }
+        foreach (string reason in new[] { "host path", "load route for editing", "start recording", "record MoveTo", "record undo", "simplify recording", "clear" })
+            Check(!PathFileStore.ShouldPersistEdit(reason, false), "loading and recording do not autosave: " + reason);
+        Console.WriteLine("PASS: route edits persist on reload, preserve metadata, reject invalid writes, save last-step deletion and isolate recording/loading");
+    }
+    finally { Directory.Delete(directory, true); }
 }
