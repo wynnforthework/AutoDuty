@@ -11,7 +11,6 @@ namespace AutoDuty.Windows;
 
 internal static class RouteOptionsUi
 {
-    private static string filter = "";
     internal static void Leveling()
     {
         if (!ImGui.CollapsingHeader(DutyToolsUi.Text("Leveling"))) return;
@@ -23,31 +22,7 @@ internal static class RouteOptionsUi
         bool reset = config.LevelingResetAutoExcludedOnSuccess;
         if (ImGui.Checkbox(DutyToolsUi.Text("ResetOnSuccess"), ref reset)) { config.LevelingResetAutoExcludedOnSuccess = reset; Save(); }
         if (ImGui.Button(DutyToolsUi.Text("ClearAutoExcluded"))) { config.LevelingAutoExcluded.Clear(); config.LevelingFailureCounts.Clear(); Save(); }
-        ImGui.InputText(DutyToolsUi.Text("Filter"), ref filter, 128);
-        if (ImGui.BeginChild("LevelingRoutes", new Vector2(0, ImGui.GetTextLineHeightWithSpacing() * 10)))
-        {
-            foreach (var pair in ContentPathsManager.DictionaryPaths.OrderBy(p => p.Value.Content.ClassJobLevelRequired))
-            {
-                if (!pair.Value.Content.DutyModes.HasFlag(DutyMode.Support) && !pair.Value.Content.DutyModes.HasFlag(DutyMode.Trust)) continue;
-                string label = $"{pair.Key}: {pair.Value.Content.Name}";
-                if (!label.Contains(filter, StringComparison.OrdinalIgnoreCase)) continue;
-                ImGui.PushID((int)pair.Key);
-                bool excluded = config.LevelingExcludedDuties.Contains(pair.Key);
-                bool included = config.LevelingIncludedDuties.Contains(pair.Key);
-                if (ImGui.Checkbox(DutyToolsUi.Text("Exclude"), ref excluded)) { if (excluded) config.LevelingExcludedDuties.Add(pair.Key); else config.LevelingExcludedDuties.Remove(pair.Key); Save(); }
-                ImGui.SameLine();
-                if (ImGui.Checkbox(DutyToolsUi.Text("Include"), ref included)) { if (included) config.LevelingIncludedDuties.Add(pair.Key); else config.LevelingIncludedDuties.Remove(pair.Key); Save(); }
-                ImGui.SameLine();
-                ImGui.TextDisabled(label + (config.LevelingAutoExcluded.Contains(pair.Key) ? " [AUTO]" : ""));
-                if (config.LevelingAutoExcluded.Contains(pair.Key))
-                {
-                    ImGui.SameLine();
-                    if (ImGui.SmallButton(DutyToolsUi.Text("Restore"))) { config.LevelingAutoExcluded.Remove(pair.Key); config.LevelingFailureCounts.Remove(pair.Key); Save(); }
-                }
-                ImGui.PopID();
-            }
-        }
-        ImGui.EndChild();
+        if (ImGui.Button(Loc.Get("LevelingPlan.Open"))) MainWindow.OpenTab("LevelingPlan");
     }
 
     internal static void Metadata(ContentPathsManager.DutyPath path)

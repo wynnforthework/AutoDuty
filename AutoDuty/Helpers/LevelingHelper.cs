@@ -15,8 +15,12 @@ namespace AutoDuty.Helpers
     {
         private static Content[] levelingDuties = [];
 
-        public static void ResetLevelingDuties() =>
+        internal static int PlanRevision { get; private set; }
+        public static void ResetLevelingDuties()
+        {
             levelingDuties = [];
+            PlanRevision++;
+        }
 
         public static readonly uint[] levelingList =
         [
@@ -94,9 +98,16 @@ namespace AutoDuty.Helpers
         }
 
         // Game catalog is deliberately independent of both the default list and installed scripts.
-        internal static Content[] Catalog => ContentHelper.DictionaryContent.Values
-            .Where(c => (c.ContentType == 2 || levelingList.Contains(c.TerritoryType) || LevelingDuties.Any(d => d.TerritoryType == c.TerritoryType)) && c.ClassJobLevelRequired < 100)
-            .OrderBy(c => c.ClassJobLevelRequired).ThenBy(c => c.TerritoryType).ToArray();
+        internal static Content[] Catalog
+        {
+            get
+            {
+                var planned = LevelingDuties.Select(c => c.TerritoryType).Concat(levelingList).ToHashSet();
+                return ContentHelper.DictionaryContent.Values
+                    .Where(c => c.ContentType == 2 || planned.Contains(c.TerritoryType))
+                    .OrderBy(c => c.ClassJobLevelRequired).ThenBy(c => c.TerritoryType).ToArray();
+            }
+        }
 
         internal static bool IsPlanned(uint territory) => LevelingDuties.Any(c => c.TerritoryType == territory);
 
@@ -106,6 +117,12 @@ namespace AutoDuty.Helpers
         {
             if (!ContentPathsManager.DictionaryPaths.TryGetValue(territory, out var container) || container.Paths.Count == 0) return null;
             var path = container.SelectPath(out _);
+            if (path?.PathFile?.Meta.Jobs is { } jobs && !jobs.HasJob(Player.Job))
+            {
+                bool explicitlySelected = Configuration.Meta.PathSelectionsByPath.TryGetValue(territory, out var selections)
+                    && selections != null && selections.TryGetValue(path.FileName, out var selectedJobs) && selectedJobs.HasJob(Player.Job);
+                if (!explicitlySelected) return null;
+            }
             return path?.PathFile?.Actions.Count > 0 ? path : null;
         }
 
@@ -122,6 +139,7 @@ namespace AutoDuty.Helpers
 
         internal static Content? SelectForLevel(short level, DutyMode mode)
         {
+            if (level < 15 || level >= 100 || mode is not (DutyMode.Support or DutyMode.Trust)) return null;
             var eligible = LevelingDuties.Where(c => Rule(c.TerritoryType).Allows(level) && c.DutyModes.HasFlag(mode)
                 && c.CanRun(level, mode) && SelectedRoute(c.TerritoryType) != null).ToArray();
             var config = Configuration.DutyConfig;

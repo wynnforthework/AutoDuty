@@ -1,0 +1,53 @@
+{
+  "MainWindow": {
+    "Tabs": {
+      "LevelingPlan": "Leveling plan"
+    }
+  },
+  "LevelingPlan": {
+    "Open": "Open leveling plan",
+    "Source": "Catalog: game ContentFinderCondition data, including dungeons without installed routes. The built-in stable list is only the default plan, not the full catalog.",
+    "Rules": "Use adds a duty to the plan; Skip excludes it; clearing both restores the default. Level intervals apply to your job level. Higher priority wins, then measured efficiency (if enabled), then highest eligible dungeon level.",
+    "Measured": "Prefer measured XP/hour within the highest priority",
+    "MinimumSamples": "Minimum clean samples",
+    "EfficiencyNote": "Efficiency requires the same starting job level, route version, job, duty mode, party size and multibox mode, with all samples clean. Old records without starting levels are not used. No qualifying measurements: fall back to the highest eligible dungeon level. XP/hour excludes queue time.",
+    "Refresh": "Refresh evidence",
+    "MissingNote": "Missing routes remain visible and cannot be queued automatically. Enter the duty manually to record a route, or import a shared route, then select Use. Script selection below applies to the current job.",
+    "PlannedOnly": "Show planned duties only",
+    "Login": "Log in on a combat job to edit and preview the plan.",
+    "Context": "Preview context",
+    "SelectMode": "Select Duty Support or Trust on the main page to preview the corresponding leveling mode.",
+    "Next": "Next duty for current job level",
+    "NoEligible": "No eligible duty: check plan, routes, unlocks, levels and equipment",
+    "Duty": "Dungeon / required level",
+    "Policy": "Use / Skip",
+    "Range": "Job level interval (min / max)",
+    "Priority": "Priority (higher first)",
+    "Script": "Route for current job",
+    "Completion": "Route completion / reliability",
+    "Efficiency": "XP/hour at current level",
+    "Status": "Eligibility / next selection",
+    "Use": "Use",
+    "Skip": "Skip",
+    "DefaultUsed": "Default: used",
+    "DefaultUnused": "Default: not planned",
+    "Explicit": "Explicit choice",
+    "Restore": "Restore after automatic exclusion",
+    "NoSamples": "No matching completed attempts",
+    "NoLevelSamples": "No samples at current job level",
+    "Mean": "Mean completion",
+    "Clean": "Clean runs",
+    "Samples": "Samples",
+    "Selected": "Selected next",
+    "Skipped": "Skipped by user",
+    "AutoSkipped": "Automatically excluded after failures",
+    "MissingScript": "Missing or invalid route",
+    "WrongMode": "Unsupported in current duty mode",
+    "Locked": "Duty not unlocked",
+    "NotPlanned": "Not in plan",
+    "OutsideRange": "Outside level interval / dungeon level",
+    "Ready": "Eligible",
+    "Unavailable": "Equipment / Trust requirements unmet",
+    "Timing": "Edits apply to the next duty selection; an active run keeps its current route."
+  }
+}

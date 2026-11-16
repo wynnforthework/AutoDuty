@@ -280,6 +280,7 @@ public sealed class MainWindow : Window, IDisposable
     private static (string, Action, Vector4?, bool)[] TabList =>
     [
         ("Main", MainTab.Draw, null, false),
+        ("LevelingPlan", LevelingPlanTab.Draw, null, false),
         ("Build", BuildTab.DrawBuildTab, null, false),
         ("Paths", PathsTab.Draw, null, false),
         ("Config", ConfigTab.Draw, null, false),

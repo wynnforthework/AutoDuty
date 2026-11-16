@@ -667,35 +667,8 @@ namespace AutoDuty.Windows
                                         else
                                         {
                                             ImGuiEx.TextWrapped(new Vector4(0, 1, 0, 1), Loc.Get("MainTab.LevelingModeStatus", Player.Level.ToString(), ilvl.ToString()));
-                                            foreach ((Content Value, int Index) item in LevelingHelper.LevelingDuties.Select((value, index) => (Value: value, Index: index)))
-                                            {
-                                                if (Configuration.Meta.DutyModeEnum == DutyMode.Trust && !item.Value.DutyModes.HasFlag(DutyMode.Trust))
-                                                    continue;
-                                                bool disabled = !item.Value.CanRun();
-                                                if (!Configuration.Meta.HideUnavailableDuties || !disabled)
-                                                    using (ImRaii.Disabled(disabled))
-                                                    {
-                                                        ImGuiEx.TextWrapped(item.Value == Plugin.CurrentTerritoryContent ? new Vector4(0, 1, 1, 1) : new Vector4(1, 1, 1, 1),
-                                                                            $"L{item.Value.ClassJobLevelRequired} (i{item.Value.ItemLevelRequired}): {item.Value.EnglishName}");
-                                                        if (ImGui.BeginPopupContextItem("LevelingDuty" + item.Value.TerritoryType))
-                                                        {
-                                                            if (ImGui.MenuItem(DutyToolsUi.Text("Exclude")))
-                                                            {
-                                                                Configuration.DutyConfig.LevelingExcludedDuties.Add(item.Value.TerritoryType);
-                                                                LevelingHelper.ResetLevelingDuties();
-                                                                ConfigurationProfileV2.Save();
-                                                            }
-                                                            ImGui.EndPopup();
-                                                        }
-                                                        using (ImRaii.Enabled())
-                                                        {
-                                                            if (LevelingHelper.levelingListExperimental.Contains(item.Value.TerritoryType))
-                                                                ImGuiEx.HelpMarker("This dungeon is currently in testing for reliability.\nDo report any issues with it", symbolOverride: FontAwesomeIcon.ExclamationTriangle.ToIconString(), color: EzColor.Yellow);
-                                                            if (item.Value.TerritoryType == 1048u)
-                                                                ImGuiEx.HelpMarker("CutsceneSkip detected. Please keep it actually on.", symbolOverride: FontAwesomeIcon.ExclamationTriangle.ToIconString(), color: EzColor.Blue);
-                                                        }
-                                                    }
-                                            }
+                                            ImGui.TextWrapped(Plugin.CurrentTerritoryContent?.Name ?? Loc.Get("LevelingPlan.NoEligible"));
+                                            if (ImGui.Button(Loc.Get("LevelingPlan.Open"))) MainWindow.OpenTab("LevelingPlan");
                                         }
                                     }
                                     else

@@ -17,6 +17,9 @@ internal static class MetricsDashboard
     private static bool sessionOnly = true, includeImported = true, currentJobOnly = true;
     private static int minimumSamples = 5;
     private static string message = "";
+    private static long coverageRefreshed;
+    private static int coverageRevision = -1;
+    private static readonly List<(int Start, int End, uint Territory)> coverageBands = [];
     private static string Text(string key) => Loc.Get("Metrics." + key);
     private static readonly Vector4 Good = new(.35f, .85f, .55f, 1), Attention = new(1, .7f, .3f, 1);
 
@@ -116,18 +119,22 @@ internal static class MetricsDashboard
         minimumSamples = Math.Clamp(minimumSamples, 1, 1000);
         if (!Player.Available) { ImGui.TextWrapped(Text("NoData")); return; }
         var groups = AutomationReports.Summarize(records.Where(r => r.JobId == (uint)Player.Job));
-        var duties = LevelingHelper.LevelingDuties;
-        var bands = new List<(int Start, int End, uint Territory)>();
-        for (int level = 16; level < 100; level++)
+        if (Environment.TickCount64 - coverageRefreshed > 5000 || coverageRevision != LevelingHelper.PlanRevision)
         {
-            uint territory = duties.LastOrDefault(c => c.CanRun((short)level))?.TerritoryType ?? 0;
-            if (bands.Count > 0 && bands[^1].Territory == territory) bands[^1] = (bands[^1].Start, level, territory);
-            else bands.Add((level, level, territory));
+            coverageBands.Clear();
+            for (int level = 16; level < 100; level++)
+            {
+                uint territory = LevelingHelper.SelectForLevel((short)level, Configuration.Meta.DutyModeEnum)?.TerritoryType ?? 0;
+                if (coverageBands.Count > 0 && coverageBands[^1].Territory == territory) coverageBands[^1] = (coverageBands[^1].Start, level, territory);
+                else coverageBands.Add((level, level, territory));
+            }
+            coverageRefreshed = Environment.TickCount64;
+            coverageRevision = LevelingHelper.PlanRevision;
         }
         if (!ImGui.BeginTable("LevelingCoverage", 4, ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollX)) return;
         foreach (string key in new[] { "LevelBand", "Route", "Samples", "Status" }) ImGui.TableSetupColumn(Text(key));
         ImGui.TableHeadersRow();
-        foreach (var band in bands)
+        foreach (var band in coverageBands)
         {
             ImGui.TableNextRow(); ImGui.TableNextColumn(); ImGui.TextUnformatted($"{band.Start}–{band.End}");
             ImGui.TableNextColumn();
