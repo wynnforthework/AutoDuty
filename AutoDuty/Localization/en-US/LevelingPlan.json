@@ -56,7 +56,7 @@
     "Rules": "Use game entry levels, with no manual level intervals. Switch to the highest-level enabled eligible dungeon as soon as its entry level is reached. Missing routes, locked duties or unmet requirements fall back to a lower eligible dungeon.",
     "SharedPlan": "Use / Skip settings are shared by all jobs in this configuration. Routes resolve automatically using existing job / role assignments. Manage assignments on the Paths page; changing jobs does not require replanning.",
     "AutoRole": "Automatically matched by job / role",
-    "Script": "Automatic route (read-only)",
+    "Script": "Role routes / management",
     "MissingNote": "Duties without routes remain visible but cannot queue automatically. Record or import routes on Build; manage job assignments on Paths.",
     "OutsideRange": "Below dungeon entry level"
   }

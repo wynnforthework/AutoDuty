@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using AutoDuty.Helpers;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
@@ -26,6 +26,17 @@ internal sealed class PathRecorderWindow : Window
             ImGui.SameLine();
         }
         ImGui.NewLine();
+        if (ImGui.Button(Loc.Get("LevelingPlan.ManualAction"))) ImGui.OpenPopup("RecorderAllActions");
+        if (ImGui.BeginPopup("RecorderAllActions"))
+        {
+            foreach (var item in Plugin.actions.actionsList)
+            {
+                if (ImGui.Selectable(item.actionName)) BuildTab.NewRecordedAction(item.actionName);
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip(item.actionHelp);
+            }
+            ImGui.EndPopup();
+        }
+        ImGui.TextWrapped(Loc.Get("LevelingPlan.RecordingLimits"));
         ImGui.Checkbox(DutyToolsUi.Text("DetectBoss"), ref recorder.DetectBoss);
         ImGui.Checkbox(DutyToolsUi.Text("DetectTreasure"), ref recorder.DetectTreasure);
         ImGui.Checkbox(DutyToolsUi.Text("DetectInteractions"), ref recorder.DetectInteractions);
