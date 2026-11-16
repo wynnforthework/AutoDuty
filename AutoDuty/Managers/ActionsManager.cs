@@ -40,6 +40,7 @@ namespace AutoDuty.Managers
         public readonly List<(string actionName, string actionHelp, string[] arguments)> actionsList =
         [
             ("MoveTo", "Adds a MoveTo step to the path; AutoDuty will move to the position specified.", ["Pathfinding?"]),
+            ("TeleportTo", "直接传送到步骤坐标，不进行寻路。使用与编辑窗口“传送到”相同的本地坐标设置方式。", []),
             ("<-- Comment -->", "Adds a Comment to the path; AutoDuty will do nothing but display them.", []),
             ("Wait", "Adds a Wait (for x milliseconds) step to the path; after moving to the position, AutoDuty will wait x milliseconds.", ["how long?"]),
             ("WaitFor","Adds a WaitFor (Condition) step to the path; after moving to the position, AutoDuty will wait for a condition from the following list:\nCombat - waits until in combat\nIsReady - waits until the player is ready\nIsValid - waits until the player is valid\nIsOccupied - waits until the player is occupied\nBNpcInRadius - waits until a battle npc either spawns or path's into the radius specified", ["for?"]),
@@ -94,6 +95,18 @@ namespace AutoDuty.Managers
                 Svc.Log.Error(ex.ToString());
                 Plugin.ReportTaskFailure("action-exception", ex.GetBaseException().Message);
             }
+        }
+
+        public unsafe void TeleportTo(PathAction action)
+        {
+            taskManager.Enqueue(() =>
+            {
+                if (!Player.Available) return false;
+                VNavmesh_IPCSubscriber.Path_Stop();
+                Chat.ExecuteCommand("/automove off");
+                Player.GameObject->SetPosition(action.Position.X, action.Position.Y, action.Position.Z);
+                return true;
+            }, "TeleportTo-SetPosition");
         }
 
         public static void Follow(PathAction action) => FollowHelper.SetFollow(GetObjectByName(action.Arguments[0]));

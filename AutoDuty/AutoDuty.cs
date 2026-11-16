@@ -1505,7 +1505,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (this.TryApplyNearbyCombatSwitch()) return;
 
-        if (this.pathAction.Position == Vector3.Zero)
+        // TeleportTo uses Position as its destination, never as a navigation prerequisite.
+        if (this.pathAction.Name == "TeleportTo" || this.pathAction.Position == Vector3.Zero)
         {
             this.Stage = Stage.Action;
             return;

@@ -220,6 +220,9 @@ namespace AutoDuty.Windows
 
                         switch (item.actionName)
                         {
+                            case "TeleportTo":
+                                _action.Position = Player.Position;
+                                break;
                             case "<-- Comment -->":
                                 _action.Tag = ActionTag.Comment;
                                 _action.Position = Vector3.Zero;
