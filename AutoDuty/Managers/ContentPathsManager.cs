@@ -163,7 +163,7 @@ namespace AutoDuty.Managers
                                                          });
 
                                 json = PathJson.WriteFile(field);
-                                File.WriteAllText(FilePath, json);
+                                if (!PathFileStore.IsOriginal(field)) File.WriteAllText(FilePath, json);
                             }
                         }
                         catch (Exception ex)

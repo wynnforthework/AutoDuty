@@ -31,12 +31,65 @@ namespace AutoDuty.Windows
     {
         private static string? managedEditFile;
         private static string copyName = "";
+        private static List<PathAction>? editActions;
+        private static string EditFile => managedEditFile ?? Plugin.pathFile;
+        private static bool EditingRunningFile => managedEditFile == null || string.Equals(managedEditFile, Plugin.pathFile, StringComparison.OrdinalIgnoreCase);
+        private static List<PathAction> EditActions => EditingRunningFile ? Plugin.Actions : editActions!;
+        private static bool ReadOnly => !Plugin.Recorder.Recording && PathFileStore.IsReadOnly(EditFile);
+
+        private static void MutateEdits(Action<List<PathAction>> mutate, string reason)
+        {
+            if (ReadOnly) { Svc.Chat.PrintError("[AutoDuty] " + DutyToolsUi.Text("OriginalReadOnly")); return; }
+            if (EditingRunningFile)
+            {
+                PathEditHelper.MutateActions(mutate, reason);
+                if (managedEditFile != null) editActions = [.. Plugin.Actions];
+            }
+            else { mutate(editActions!); SavePath(); }
+        }
+
+        internal static void ResetEditorToRunning()
+        {
+            ActionWindow.Close();
+            managedEditFile = null;
+            editActions = null;
+        }
+
+        private static void SelectEditFile(string path)
+        {
+            ActionWindow.Close();
+            managedEditFile = path;
+            editActions = PathJson.ReadFile(File.ReadAllText(path)).Actions;
+        }
 
         private static void DrawRouteFiles()
         {
-            if (!uint.TryParse(System.Text.RegularExpressions.Regex.Match(Path.GetFileName(Plugin.pathFile), @"^\((\d+)\)").Groups[1].Value, out uint territory)) return;
-            ImGui.TextWrapped(Loc.Get("LevelingPlan.EditingFile") + ": " + Plugin.pathFile);
-            using (ImRaii.Disabled(Plugin.Stage != Stage.Stopped || Plugin.Recorder.Recording))
+            string source = EditFile;
+            if (!uint.TryParse(System.Text.RegularExpressions.Regex.Match(Path.GetFileName(source), @"^\((\d+)\)").Groups[1].Value, out uint territory))
+            {
+                var initial = MainTab.DutySelected?.Paths.FirstOrDefault();
+                if (initial == null) return;
+                SelectEditFile(initial.FilePath);
+                source = EditFile;
+                territory = initial.container.ID;
+            }
+            ImGui.TextWrapped(Loc.Get("LevelingPlan.EditingFile") + ": " + source);
+            var files = Directory.GetFiles(Plugin.pathsDirectory.FullName, $"({territory})*.json", SearchOption.AllDirectories)
+                .Where(p => System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(p), $@"^\({territory}\)\s"))
+                .OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToArray();
+            ImGui.SetNextItemWidth(-1);
+            using (ImRaii.Disabled(Plugin.Recorder.Recording))
+            if (ImGui.BeginCombo("##BuildRouteVersion", Path.GetFileName(source)))
+            {
+                foreach (string file in files)
+                {
+                    string label = Path.GetFileName(file) + " / " + DutyToolsUi.Text(PathFileStore.IsReadOnly(file) ? "OriginalVersion" : "UserVersion");
+                    if (ImGui.Selectable(label, string.Equals(source, file, StringComparison.OrdinalIgnoreCase))) SelectEditFile(file);
+                }
+                ImGui.EndCombo();
+            }
+            if (ReadOnly) ImGui.TextWrapped(DutyToolsUi.Text(files.Length == 1 ? "OnlyOriginal" : "OriginalReadOnly"));
+            using (ImRaii.Disabled(Plugin.Recorder.Recording))
             {
                 ImGui.SetNextItemWidth(240);
                 ImGui.InputText(Loc.Get("LevelingPlan.CopyName"), ref copyName, 100);
@@ -45,10 +98,11 @@ namespace AutoDuty.Windows
                 {
                     try
                     {
-                        string destination = PathFileStore.CopyAs(Plugin.pathFile, Plugin.pathsDirectory.FullName, territory, copyName, Plugin.Actions);
+                        string name = string.IsNullOrWhiteSpace(copyName) ? $"Copy {DateTime.Now:yyyyMMdd-HHmmss-fff}" : copyName;
+                        string destination = PathFileStore.CopyAs(EditFile, Plugin.pathsDirectory.FullName, territory, name, EditActions);
                         ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(Path.GetFileName(destination));
                         ConfigurationProfileV2.Save();
-                        Plugin.pathFile = managedEditFile = destination;
+                        SelectEditFile(destination);
                         saveStatus = Loc.Get("LevelingPlan.RouteSaved") + ": " + destination;
                         saveFailed = false;
                         LevelingHelper.ResetLevelingDuties();
@@ -56,24 +110,18 @@ namespace AutoDuty.Windows
                     catch (Exception ex) { saveFailed = true; saveStatus = ex.Message; Svc.Chat.PrintError("[AutoDuty] " + ex.Message); }
                 }
             }
-            if (ContentPathsManager.DictionaryPaths.TryGetValue(territory, out var container) && ImGui.CollapsingHeader(Loc.Get("LevelingPlan.AllRouteFiles")))
-                RoleRoutesUi.DrawFiles(container);
         }
 
         internal static void LoadForEditing(ContentPathsManager.DutyPath path)
         {
-            if (Plugin.Stage != Stage.Stopped || Plugin.Recorder.Recording) return;
-            ClearAll();
-            ActionWindow.Close();
-            var file = PathJson.ReadFile(File.ReadAllText(path.FilePath));
-            PathEditHelper.MutateActions(list => { list.Clear(); list.AddRange(file.Actions); }, "load route for editing");
-            Plugin.pathFile = path.FilePath;
-            managedEditFile = path.FilePath;
+            if (Plugin.Recorder.Recording) return;
+            SelectEditFile(path.FilePath);
             MainWindow.OpenTab("Build");
         }
 
         internal static void NewRecordedAction(string name)
         {
+            if (ReadOnly) { Svc.Chat.PrintError("[AutoDuty] " + DutyToolsUi.Text("OriginalReadOnly")); return; }
             ClearAll();
             _action = new PathAction { Name = name, Position = Player.Available ? Player.Position : Vector3.Zero };
             if (name == "<-- Comment -->") { _comment = true; _action.Tag = ActionTag.Comment; }
@@ -87,14 +135,16 @@ namespace AutoDuty.Windows
         }
 
         private static PathAction? editingOriginal;
-        internal static void EditStep(int index)
+        internal static void EditStep(int index, bool fromBuild = false)
         {
-            if (index < 0 || index >= Plugin.Actions.Count) return;
+            if (!fromBuild) ResetEditorToRunning();
+            if (ReadOnly) { MainWindow.OpenTab("Build"); Svc.Chat.PrintError("[AutoDuty] " + DutyToolsUi.Text("OriginalReadOnly")); return; }
+            if (index < 0 || index >= EditActions.Count) return;
             ClearAll();
             _addActionButton = Loc.Get("BuildTab.Modify");
-            _comment = Plugin.Actions[index].Tag.HasFlag(ActionTag.Comment);
+            _comment = EditActions[index].Tag.HasFlag(ActionTag.Comment);
             _buildListSelected = index;
-            editingOriginal = Plugin.Actions[index];
+            editingOriginal = EditActions[index];
             _action = ActionWindow.EditAction(editingOriginal);
         }
 
@@ -137,9 +187,10 @@ namespace AutoDuty.Windows
             if (ImGui.Button(DutyToolsUi.Text("CopyPath"))) Plugin.PathCommand(["path", "copy"]);
             ImGui.SameLine();
             if (ImGui.Button(DutyToolsUi.Text("PastePath"))) Plugin.PathCommand(["path", "import"]);
-            if ((!InDungeon || managedEditFile == Plugin.pathFile) && !string.IsNullOrEmpty(Plugin.pathFile))
+            if ((!InDungeon || managedEditFile != null) && !string.IsNullOrEmpty(EditFile))
             {
-                ImGui.TextWrapped(Plugin.pathFile);
+                using var protectOriginal = ImRaii.Disabled(ReadOnly);
+                ImGui.TextWrapped(EditFile);
                 if (ImGui.Button(Loc.Get("BuildTab.SavePath"))) SavePath();
                 ImGui.SameLine();
                 if (ImGui.Button(Loc.Get("BuildTab.AddAction"))) ImGui.OpenPopup("OfflineAddAction");
@@ -150,9 +201,9 @@ namespace AutoDuty.Windows
                     ImGui.EndPopup();
                 }
             }
-            using (ImRaii.Disabled(false))
+            using (ImRaii.Disabled(ReadOnly))
             {
-                if (InDungeon && managedEditFile != Plugin.pathFile)
+                if (InDungeon && managedEditFile == null)
                 {
                     DrawPathElements();
                     DrawSeperator();
@@ -177,7 +228,7 @@ namespace AutoDuty.Windows
             ImGui.Text(Loc.Get("BuildTab.BuildPath", Svc.ClientState.TerritoryType,
                                ContentHelper.DictionaryContent.TryGetValue(Svc.ClientState.TerritoryType, out Classes.Content? content) ? content.Name : TerritoryName.GetTerritoryName(Svc.ClientState.TerritoryType)));
 
-            ImGui.TextWrapped(Path.GetFileName(Plugin.pathFile));
+            ImGui.TextWrapped(Path.GetFileName(EditFile));
 
 
             ImGui.AlignTextToFramePadding();
@@ -192,7 +243,7 @@ namespace AutoDuty.Windows
             if (ImGui.Button(Loc.Get("BuildTab.AddPos")))
             {
                 _scrollBottom = true;
-                PathEditHelper.MutateActions(list => list.Add(new PathAction { Name = "MoveTo", Position = Player.Position }), "add MoveTo");
+                MutateEdits(list => list.Add(new PathAction { Name = "MoveTo", Position = Player.Position }), "add MoveTo");
             }
 
             ImGui.SameLine(0, 5);
@@ -267,7 +318,7 @@ namespace AutoDuty.Windows
             ImGui.SameLine(0, 5);
             if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.ClearPath")) && Plugin.Stage == Stage.Stopped)
             {
-                PathEditHelper.MutateActions(list => list.Clear(), "clear");
+                MutateEdits(list => list.Clear(), "clear");
                 ClearAll();
             }
 
@@ -290,7 +341,7 @@ namespace AutoDuty.Windows
                 using (ImRaii.Disabled(Plugin.pathFile.IsNullOrEmpty()))
                 {
                     if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.OpenFile")))
-                        Process.Start("explorer", Plugin.pathFile ?? string.Empty);
+                        Process.Start("explorer", EditFile);
                 }
             }
         }
@@ -298,12 +349,12 @@ namespace AutoDuty.Windows
         private static string saveStatus = "";
         private static bool saveFailed;
 
-        internal static void SavePath()
+        internal static void SavePath(bool running = false)
         {
-            string destination = Plugin.pathFile;
+            string destination = running ? Plugin.pathFile : EditFile;
             try
             {
-                PathFileStore.Save(destination, Plugin.Actions, _changelog, Plugin.Version);
+                PathFileStore.Save(destination, running ? Plugin.Actions : EditActions, running ? "" : _changelog, Plugin.Version);
                 _changelog = string.Empty;
                 ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(Path.GetFileName(destination));
                 ConfigurationProfileV2.Save();
@@ -334,7 +385,7 @@ namespace AutoDuty.Windows
                     int? dragNext  = null;
 
 
-                    foreach ((PathAction Value, int Index) item in Plugin.Actions.Select((value, index) => (Value: value, Index: index)))
+                    foreach ((PathAction Value, int Index) item in EditActions.Select((value, index) => (Value: value, Index: index)))
                     {
                         bool editing = ActionWindow.IsOpen && ReferenceEquals(editingOriginal, item.Value);
                         Vector4 v4 = item.Value.Name.StartsWith("<--", StringComparison.InvariantCultureIgnoreCase) ? new Vector4(0, 255, 0, 1) : new Vector4(255, 255, 255, 1);
@@ -350,7 +401,7 @@ namespace AutoDuty.Windows
                         // Track the edited object, not its index: inserting or reordering
                         // other steps must not move the highlight to a different action.
                         if (ImGui.Selectable($"{(editing ? "> " : "")}{item.Index}: ###Text{item.Index}", editing || item.Index == _buildListSelected))
-                            EditStep(item.Index);
+                            EditStep(item.Index, fromBuild: true);
                         if (editing) ImGui.PopStyleColor(3);
 
                         if (ImGui.IsItemClicked(ImGuiMouseButton.Middle))
@@ -383,9 +434,9 @@ namespace AutoDuty.Windows
                         ImGui.PopStyleColor();
                     }
 
-                    if (dragIndex.HasValue && dragNext is >= 0 && dragNext < Plugin.Actions.Count)
+                    if (dragIndex.HasValue && dragNext is >= 0 && dragNext < EditActions.Count)
                     {
-                        PathEditHelper.MutateActions(list => (list[dragNext.Value], list[dragIndex.Value]) = (list[dragIndex.Value], list[dragNext.Value]), "reorder");
+                        MutateEdits(list => (list[dragNext.Value], list[dragIndex.Value]) = (list[dragIndex.Value], list[dragNext.Value]), "reorder");
 
                         _buildListSelected = dragNext.Value;
                         ImGui.ResetMouseDragDelta();
@@ -398,9 +449,9 @@ namespace AutoDuty.Windows
 
                     if (_duplicateItem)
                     {
-                        PathAction clone = Plugin.Actions[_duplicateItemIndex].JSONClone(ConfigurationMain.JsonSerializerSettings);
+                        PathAction clone = EditActions[_duplicateItemIndex].JSONClone(ConfigurationMain.JsonSerializerSettings);
                         if (clone != null)
-                            PathEditHelper.MutateActions(list => list.Insert(_duplicateItemIndex, clone), "duplicate");
+                            MutateEdits(list => list.Insert(_duplicateItemIndex, clone), "duplicate");
                         _duplicateItem = false;
                     }
                 }
@@ -425,9 +476,14 @@ namespace AutoDuty.Windows
 
         internal static void DeleteStep(PathAction? target)
         {
-            int index = PathEditHelper.FindReference(Plugin.Actions, target);
-            if (index < 0) return;
-            PathEditHelper.MutateActions(list => list.RemoveAt(index), "delete");
+            int index = PathEditHelper.FindReference(EditActions, target);
+            if (index < 0)
+            {
+                int runningIndex = PathEditHelper.FindReference(Plugin.Actions, target);
+                if (runningIndex >= 0) PathEditHelper.MutateActions(list => list.RemoveAt(runningIndex), "delete");
+                return;
+            }
+            MutateEdits(list => list.RemoveAt(index), "delete");
             if (ReferenceEquals(target, editingOriginal))
             {
                 ActionWindow.Close();
@@ -459,14 +515,14 @@ namespace AutoDuty.Windows
             
             if (_buildListSelected == -1)
             {
-                PathEditHelper.MutateActions(list => list.Add(_action), "add action");
+                MutateEdits(list => list.Add(_action), "add action");
                 _scrollBottom = true;
             }
             else
             {
-                int index = editingOriginal == null ? _buildListSelected : Plugin.Actions.IndexOf(editingOriginal);
+                int index = editingOriginal == null ? _buildListSelected : EditActions.IndexOf(editingOriginal);
                 if (index < 0) { Svc.Chat.PrintError("[AutoDuty] Edited step was deleted; reopen the editor."); return; }
-                PathEditHelper.MutateActions(list => list[index] = _action, "replace action");
+                MutateEdits(list => list[index] = _action, "replace action");
             }
             ActionWindow.Close();
 
@@ -541,6 +597,8 @@ namespace AutoDuty.Windows
             {
                 if (this.action == null)
                     return;
+
+                using var readOnlyScope = ImRaii.Disabled(ReadOnly);
 
                 using (ImRaii.Disabled(this.action.Arguments.Count == 0 && this.actionDefinition.arguments.Length != 0 && !_comment))
                 {

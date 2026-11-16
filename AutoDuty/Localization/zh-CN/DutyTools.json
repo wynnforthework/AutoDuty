@@ -61,6 +61,11 @@
     "ProtectImport": "保护导入路线不被更新覆盖",
     "ConfirmImport": "确认并保存",
     "Cancel": "取消",
-    "ImportSaved": "路线已保存"
+    "ImportSaved": "路线已保存",
+    "OriginalReadOnly": "原始脚本只读，请在构建页创建副本后编辑。",
+    "OriginalVersion": "原始版本（只读）",
+    "UserVersion": "用户版本",
+    "OnlyOriginal": "当前只有原始版本，请先在下方创建副本后编辑；名称留空可自动生成。",
+    "CurrentVersion": "当前脚本版本"
   }
 }

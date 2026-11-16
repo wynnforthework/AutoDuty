@@ -28,6 +28,12 @@ internal static class PathEditHelper
 
     internal static void MutateActions(Action<List<PathAction>> mutate, string reason)
     {
+        if (!Plugin.Recorder.Recording && (PathFileStore.ShouldPersistEdit(reason, false) || reason == "clear")
+            && PathFileStore.IsReadOnly(Plugin.pathFile))
+        {
+            Svc.Chat.PrintError("[AutoDuty] " + Windows.DutyToolsUi.Text("OriginalReadOnly"));
+            return;
+        }
         Plugin.combatCheckpoints.Reset();
         var before = Plugin.Actions.ToArray();
         int oldIndex = Plugin.indexer;
@@ -62,7 +68,7 @@ internal static class PathEditHelper
             if (active && !paused) MultiboxUtility.Server.SendStepStart(true);
         }
         if (PathFileStore.ShouldPersistEdit(reason, Plugin.Recorder.Recording))
-            Windows.BuildTab.SavePath();
+            Windows.BuildTab.SavePath(running: true);
         Svc.Log.Info($"Path edit: {reason}; step {oldIndex + 1} -> {relocated + 1}");
     }
 }

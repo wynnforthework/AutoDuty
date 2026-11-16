@@ -85,6 +85,9 @@ namespace AutoDuty.Windows
                     {
                         int                              curPath       = Math.Clamp(Plugin.currentPath, 0, curPaths.Count - 1);
 
+                        ImGui.TextWrapped(DutyToolsUi.Text("CurrentVersion") + ": " +
+                            (InDungeon && !string.IsNullOrEmpty(Plugin.pathFile) ? System.IO.Path.GetFileName(Plugin.pathFile) : curPaths[curPath].FileName));
+
                         Dictionary<string, JobWithRole>? pathSelection    = null;
                         JobWithRole                      curJob = Player.Job.JobToJobWithRole();
                         using (ImRaii.Disabled(curPath <= 0                                                                                           ||

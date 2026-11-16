@@ -229,6 +229,22 @@ static void TestPathPersistence()
     {
         string path = Path.Combine(directory, "(1036) role-route.json");
         var original = AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(Directory.GetFiles("AutoDuty/Paths", "*.json")[0]));
+        string protectedPath = Path.Combine(directory, "(1036) original.json");
+        original.Meta.IsUserVersion = false;
+        original.Meta.IsDraft = false;
+        string protectedJson = AutoDuty.Data.PathJson.WriteFile(original);
+        File.WriteAllText(protectedPath, protectedJson);
+        Check(PathFileStore.IsReadOnly(protectedPath), "unmarked original is protected");
+        bool originalRejected = false;
+        try { PathFileStore.Save(protectedPath, []); } catch (InvalidOperationException) { originalRejected = true; }
+        Check(originalRejected && File.ReadAllText(protectedPath) == protectedJson, "original save rejected without changing bytes");
+        string editableCopy = PathFileStore.CopyAs(protectedPath, directory, 1036, "editable-copy", original.Actions);
+        var enabledCopy = AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(editableCopy));
+        enabledCopy.Meta.IsDraft = false;
+        File.WriteAllText(editableCopy, AutoDuty.Data.PathJson.WriteFile(enabledCopy));
+        PathFileStore.Save(editableCopy, []);
+        Check(!PathFileStore.IsReadOnly(editableCopy) && File.ReadAllText(protectedPath) == protectedJson, "enabled user copy stays editable and preserves original");
+        original.Meta.IsUserVersion = true;
         original.Meta.Author = "Persistence test";
         original.Meta.Jobs = AutoDuty.Data.Enums.JobWithRole.Tanks;
         File.WriteAllText(path, AutoDuty.Data.PathJson.WriteFile(original));

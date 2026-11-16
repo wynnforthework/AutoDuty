@@ -80,21 +80,25 @@ internal static class RoleRoutesUi
             if (Configuration.Meta.PathSelectionsByPath.TryGetValue(container.ID, out var bindings) && bindings != null && bindings.TryGetValue(path.FileName, out var jobs))
                 ImGui.TextWrapped(jobs.ToString());
             ImGui.TableNextColumn();
-            ImGui.TextWrapped(Text(file.Meta.IsDraft ? "DraftRoute" : "EnabledRoute"));
+            ImGui.TextWrapped(PathFileStore.IsOriginal(file) ? DutyToolsUi.Text("OriginalVersion") : Text(file.Meta.IsDraft ? "DraftRoute" : "EnabledRoute"));
             ImGui.TableNextColumn();
             using (ImRaii.Disabled(Plugin.Stage != Stage.Stopped || Plugin.Recorder.Recording))
             {
                 if (ImGui.SmallButton(Text("EditRoute"))) BuildTab.LoadForEditing(path);
                 ImGui.SameLine();
                 if (ImGui.SmallButton(Text("CloneRoute"))) Create(container.ID, file.Meta.Jobs ?? JobWithRole.All, path);
+                using (ImRaii.Disabled(PathFileStore.IsOriginal(file)))
                 if (ImGui.SmallButton(Text(file.Meta.IsDraft ? "EnableRoute" : "MakeDraft")))
                 {
                     try
                     {
                         var updated = PathJson.ReadFile(File.ReadAllText(path.FilePath));
+                        PathFileStore.EnsureEditable(path.FilePath);
+                        updated.Meta.IsUserVersion = true;
                         updated.Meta.IsDraft = !updated.Meta.IsDraft;
                         File.WriteAllText(path.FilePath, PathJson.WriteFile(updated));
                         file.Meta.IsDraft = updated.Meta.IsDraft;
+                        file.Meta.IsUserVersion = true;
                         ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(path.FileName);
                         ConfigurationProfileV2.Save();
                         LevelingHelper.ResetLevelingDuties();
@@ -127,6 +131,7 @@ internal static class RoleRoutesUi
                 : PathJson.ReadFile(File.ReadAllText(source.FilePath));
             file.Meta.Jobs = mask;
             file.Meta.IsDraft = true;
+            file.Meta.IsUserVersion = true;
             using (var stream = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             using (var writer = new StreamWriter(stream)) writer.Write(PathJson.WriteFile(file));
             ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(name);

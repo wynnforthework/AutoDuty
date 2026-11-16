@@ -28,6 +28,7 @@ internal sealed class PathRecorder
     {
         if (!PlayerHelper.IsReady || !InDungeon) throw new InvalidOperationException("Enter a duty before recording");
         Plugin.Stage = Stage.Stopped;
+        Windows.BuildTab.ResetEditorToRunning();
         this.Territory = Svc.ClientState.TerritoryType;
         this.author = Player.Name ?? "";
         this.job = Player.Job.ToString();
@@ -89,6 +90,7 @@ internal sealed class PathRecorder
 
     internal void Add(string name)
     {
+        if (!this.Recording) PathFileStore.EnsureEditable(Plugin.pathFile);
         if (!Player.Available) return;
         var target = Svc.Targets.Target;
         var action = new PathAction { Name = name, Position = Player.Position };
@@ -115,6 +117,7 @@ internal sealed class PathRecorder
 
     internal void Undo()
     {
+        if (!this.Recording) PathFileStore.EnsureEditable(Plugin.pathFile);
         if (Plugin.Actions.Count > 0) PathEditHelper.MutateActions(list => list.RemoveAt(list.Count - 1), "record undo");
     }
 
@@ -128,6 +131,7 @@ internal sealed class PathRecorder
         if (append)
         {
             if (!File.Exists(path)) throw new InvalidOperationException("Append target does not exist");
+            PathFileStore.EnsureEditable(path);
             file = PathJson.ReadFile(File.ReadAllText(path));
             file.Actions.AddRange(Plugin.Actions);
         }
@@ -137,6 +141,7 @@ internal sealed class PathRecorder
             file = new() { Actions = [.. Plugin.Actions], Meta = new() { CreatedAt = Plugin.Version, Territory = this.Territory, IsDraft = true, Author = this.author, Notes = [$"Recorded job: {this.job}"] } };
         }
         PathValidator.ValidateStructure(file);
+        file.Meta.IsUserVersion = true;
         File.WriteAllText(path, PathJson.WriteFile(file));
         if (append)
             PathEditHelper.MutateActions(list => { list.Clear(); list.AddRange(file.Actions); }, "load appended recording");

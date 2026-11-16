@@ -136,6 +136,7 @@ namespace AutoDuty.Data
 
         public class PathFileMetaData
         {
+            public bool IsUserVersion { get; set; }
             public bool IsDraft { get; set; }
             public JobWithRole? Jobs { get; set; }
             public string? Author { get; set; }

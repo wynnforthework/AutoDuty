@@ -41,6 +41,7 @@ internal sealed class PathImportWindow : Window
                 string path = Path.Combine(Plugin.pathsDirectory.FullName, $"({this.territory}) {PathRecorder.SafeName(this.name)}.json");
                 if (File.Exists(path)) throw new IOException("File already exists; choose a new route name");
                 this.file.Meta.Territory = (uint)this.territory;
+                this.file.Meta.IsUserVersion = true;
                 using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write))
                 using (var writer = new StreamWriter(stream)) writer.Write(PathJson.WriteFile(this.file));
                 if (this.protect) ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(Path.GetFileName(path));

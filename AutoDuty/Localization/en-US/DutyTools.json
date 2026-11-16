@@ -61,6 +61,11 @@
     "ProtectImport": "Protect imported route from updates",
     "ConfirmImport": "Confirm and save",
     "Cancel": "Cancel",
-    "ImportSaved": "Route saved"
+    "ImportSaved": "Route saved",
+    "OriginalReadOnly": "Original route is read-only. Create a copy on Build before editing.",
+    "OriginalVersion": "Original (read-only)",
+    "UserVersion": "User version",
+    "OnlyOriginal": "Only the original version exists. Create a copy below before editing; leave the name blank to generate one.",
+    "CurrentVersion": "Current route version"
   }
 }
