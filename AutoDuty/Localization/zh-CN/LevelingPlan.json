@@ -5,6 +5,12 @@
     }
   },
   "LevelingPlan": {
+    "ProgressState": "当前执行状态",
+    "ProgressMoving": "前往坐标",
+    "ProgressAction": "执行动作 / 等待任务",
+    "ProgressCombat": "等待当前战斗结束",
+    "ProgressPaused": "已暂停",
+    "ProgressDistance": "距步骤坐标",
     "EditingFile": "当前编辑文件",
     "CopyName": "新路径名称",
     "SaveCopy": "另存为测试路径",

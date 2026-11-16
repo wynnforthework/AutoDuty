@@ -40,6 +40,7 @@ static void Run()
     Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Waiting_For_Combat, true) == AutoDuty.Data.Enums.Stage.Waiting_For_Combat, "combat wait restores its state");
     Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Looping, false) == AutoDuty.Data.Enums.Stage.Looping, "queue loop preserves work");
     Console.WriteLine("PASS: movement, action, combat and loop resume policies; no duplicate action invocation");
+    TestCombatCheckpoint();
     TestLevelingPlan();
     TestPathPersistence();
     var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>
@@ -275,4 +276,43 @@ static void TestPathPersistence()
         Console.WriteLine("PASS: route edits persist on reload, preserve metadata, reject invalid writes, save last-step deletion and isolate recording/loading");
     }
     finally { Directory.Delete(directory, true); }
+}
+
+static void TestCombatCheckpoint()
+{
+    var move = new AutoDuty.Data.Classes.PathAction { Name = "MoveTo", Position = new(44.74f, -20.54f, 198.37f) };
+    var stop = new AutoDuty.Data.Classes.PathAction { Name = "StopForCombat", Position = new(41.68f, -19.10f, 196.76f), Arguments = ["True"] };
+    var boss = new AutoDuty.Data.Classes.PathAction { Name = "Boss", Position = stop.Position };
+    AutoDuty.Data.Classes.PathAction[] actions = [move, stop, boss];
+    var evidence = new CombatCheckpointProgress();
+    evidence.Observe(actions, 0, move.Position, false, true);
+    Check(!evidence.CanApply(stop, move.Position, false), "absence of enemies is not combat evidence");
+    evidence.Observe(actions, 0, move.Position, true, true);
+    Check(!evidence.CanApply(stop, move.Position, true), "ongoing early battle must not be treated as ended");
+    evidence.Observe(actions, 0, move.Position, false, true);
+    evidence.Observe(actions, 1, move.Position, false, true);
+    Check(evidence.CanApply(stop, move.Position, false), "screenshot: battle at step 2 satisfies nearby switch at step 3");
+    Check(!evidence.CanApply(boss, move.Position, false), "completed trash fight never satisfies a boss step");
+    Check(!evidence.CanApply(stop, move.Position + new System.Numerics.Vector3(50, 0, 0), false), "cannot use local battle evidence from far away");
+    Check(!evidence.CanApply(new() { Name = stop.Name, Position = stop.Position, Arguments = ["True"] }, move.Position, false), "evidence bound to original step identity");
+    evidence.Observe(actions, 1, stop.Position, true, true);
+    Check(!evidence.CanApply(stop, stop.Position, false), "new enemy wave clears prior ended-battle evidence");
+    evidence.Observe(actions, 1, stop.Position, false, true);
+    evidence.Observe(actions, 1, stop.Position, false, false);
+    Check(!evidence.CanApply(stop, stop.Position, false), "death or invalid player invalidates combat evidence");
+    evidence.Observe(actions, 0, move.Position, true, true);
+    evidence.Observe(actions, 0, move.Position, false, true);
+    evidence.Reset();
+    Check(!evidence.CanApply(stop, stop.Position, false), "manual seek and route editing cannot reuse stale evidence");
+    var farMove = new AutoDuty.Data.Classes.PathAction { Name = "MoveTo", Position = move.Position + new System.Numerics.Vector3(100, 0, 0) };
+    evidence.Observe([farMove, stop], 0, stop.Position, true, true);
+    evidence.Observe([farMove, stop], 1, stop.Position, false, true);
+    Check(!evidence.CanApply(stop, stop.Position, false), "non-adjacent combat not associated with switch");
+    var off = new AutoDuty.Data.Classes.PathAction { Name = "StopForCombat", Position = stop.Position, Arguments = ["False"] };
+    evidence.Observe([move, off], 0, move.Position, true, true);
+    evidence.Observe([move, off], 1, move.Position, false, true);
+    Check(!evidence.CanApply(off, move.Position, false), "pull continuation switch remains unchanged");
+    Check(CombatCheckpointProgress.ArrivalRadius(stop, 0) == 1.5f && CombatCheckpointProgress.ArrivalRadius(move, 0) == .25f, "switch arrival tolerance does not relax MoveTo");
+    Check(CombatCheckpointProgress.ArrivalRadius(boss, 0) == .25f, "boss navigation remains precise");
+    Console.WriteLine("PASS: adjacent early-combat switch, no empty-area guessing, no boss/remote reuse, new waves, death/reset and scoped arrival tolerance");
 }

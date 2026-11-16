@@ -11,6 +11,7 @@ namespace AutoDuty;
 
 public partial class AutoDuty
 {
+    internal readonly CombatCheckpointProgress combatCheckpoints = new();
     private bool levelingFailureCounted;
     internal StepAttempt? currentAttempt;
     internal StepFailure? currentFailure;
@@ -113,6 +114,7 @@ public partial class AutoDuty
 
     internal void SeekToStep(int index, bool resume = true, bool broadcast = true, bool manual = true)
     {
+        this.combatCheckpoints.Reset();
         if (manual) this.MetricsProblem("manual-seek", true);
         this.CancelStepWork();
         this.pendingStepFailure = null;
@@ -138,6 +140,15 @@ public partial class AutoDuty
             MultiboxUtility.Server.SendStepStart(manual);
         }
         Svc.Log.Info($"Seek to step {this.indexer + 1}; resume={resume}");
+    }
+
+    private bool TryApplyNearbyCombatSwitch()
+    {
+        if (!Player.Available || !this.combatCheckpoints.CanApply(this.pathAction, Player.Position, PartyHelper.PartyInCombat())) return false;
+        VNavmesh_IPCSubscriber.Path_Stop();
+        Svc.Log.Info($"Step {this.indexer + 1}: applying nearby StopForCombat after observed combat ended; executing switch without waiting for another fight.");
+        this.Stage = Stage.Action;
+        return true;
     }
 
     private bool UpdateStepAttempt()

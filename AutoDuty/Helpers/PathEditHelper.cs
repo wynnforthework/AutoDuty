@@ -28,6 +28,7 @@ internal static class PathEditHelper
 
     internal static void MutateActions(Action<List<PathAction>> mutate, string reason)
     {
+        Plugin.combatCheckpoints.Reset();
         var before = Plugin.Actions.ToArray();
         int oldIndex = Plugin.indexer;
         var running = oldIndex >= 0 && oldIndex < before.Length ? before[oldIndex] : null;

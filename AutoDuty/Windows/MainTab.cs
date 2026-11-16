@@ -242,6 +242,7 @@ namespace AutoDuty.Windows
                         }
 
                         DrawTerminationNotice();
+                        DutyToolsUi.ExecutionStatus();
                         DutyToolsUi.FailureBanner();
                         bool followCurrentStep = !DutyToolsUi.ManualSelection;
                         if (ImGui.Checkbox(Loc.Get("DutyTools.FollowCurrentStep"), ref followCurrentStep))

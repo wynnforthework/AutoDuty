@@ -50,6 +50,24 @@ internal static class DutyToolsUi
 
     internal static string Text(string key) => Loc.Get("DutyTools." + key);
 
+    internal static void ExecutionStatus()
+    {
+        if (Plugin.Stage == Stage.Stopped || Plugin.indexer < 0 || Plugin.indexer >= Plugin.Actions.Count) return;
+        var step = Plugin.Actions[Plugin.indexer];
+        string phase = Plugin.Stage switch
+        {
+            Stage.Moving => Loc.Get("LevelingPlan.ProgressMoving"),
+            Stage.Action => Loc.Get("LevelingPlan.ProgressAction"),
+            Stage.Waiting_For_Combat => Loc.Get("LevelingPlan.ProgressCombat"),
+            Stage.Paused => Loc.Get("LevelingPlan.ProgressPaused"),
+            _ => Plugin.Stage.ToString(),
+        };
+        string distance = Player.Available && step.Position != Vector3.Zero
+            ? $" / {Loc.Get("LevelingPlan.ProgressDistance")}: {Vector3.Distance(Player.Position, step.Position):F2}m" : "";
+        string task = Plugin.taskManager.CurrentTask?.Name is { } name ? " / " + name : "";
+        ImGui.TextWrapped($"{Loc.Get("LevelingPlan.ProgressState")}: {phase} / #{Plugin.indexer + 1}{distance}{task}");
+    }
+
     internal static void FailureBanner(bool compact = false)
     {
         if (Plugin.currentFailure is not { } failure) return;

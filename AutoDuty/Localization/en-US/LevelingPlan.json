@@ -5,6 +5,12 @@
     }
   },
   "LevelingPlan": {
+    "ProgressState": "Execution state",
+    "ProgressMoving": "Moving to position",
+    "ProgressAction": "Action / queued task",
+    "ProgressCombat": "Waiting for current combat to end",
+    "ProgressPaused": "Paused",
+    "ProgressDistance": "Distance to step",
     "EditingFile": "Editing file",
     "CopyName": "New route name",
     "SaveCopy": "Save as test route",

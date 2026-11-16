@@ -1503,6 +1503,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if(MultiboxUtility.Config.Host)
             MultiboxUtility.MultiboxBlockingNextStep = false;
 
+        if (this.TryApplyNearbyCombatSwitch()) return;
+
         if (this.pathAction.Position == Vector3.Zero)
         {
             this.Stage = Stage.Action;
@@ -1514,7 +1516,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         Chat.ExecuteCommand("/automove off");
         if (this.currentAttempt == null) this.BeginAttempt(this.indexer);
-        VNavmesh_IPCSubscriber.Path_SetTolerance(this.currentAttempt?.Attempts > 0 ? 0.5f : 0.25f);
+        VNavmesh_IPCSubscriber.Path_SetTolerance(CombatCheckpointProgress.ArrivalRadius(this.pathAction, this.currentAttempt?.Attempts ?? 0));
         if (this.pathAction is { Name: "MoveTo", Arguments.Count: > 0 } && bool.TryParse(this.pathAction.Arguments[0], out bool useMesh) && !useMesh)
             VNavmesh_IPCSubscriber.Path_MoveTo([this.pathAction.Position], false);
         else if (!VNavmesh_IPCSubscriber.SimpleMove_PathfindAndMoveTo(this.pathAction.Position, false))
@@ -1533,6 +1535,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
 
         this.action = $"{Plugin.Actions[this.indexer].ToCustomString()}";
+        if (this.TryApplyNearbyCombatSwitch()) return;
 
         if (EzThrottler.Throttle("BossChecker", 25) && this.pathAction.Name.Equals("Boss") && this.pathAction.Position != Vector3.Zero && ObjectHelper.BelowDistanceToPlayer(this.pathAction.Position, 50, 10))
         {
@@ -1619,7 +1622,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             }
         }
         // An exhausted/empty path is not proof of arrival; it may have been rejected or cancelled.
-        if (ObjectHelper.GetDistanceToPlayer(this.pathAction.Position) <= (this.pathAction.Name.EqualsIgnoreCase("Interactable") ? 2f : this.currentAttempt?.Attempts > 0 ? 0.5f : 0.25f)
+        if (ObjectHelper.GetDistanceToPlayer(this.pathAction.Position) <= CombatCheckpointProgress.ArrivalRadius(this.pathAction, this.currentAttempt?.Attempts ?? 0)
             && EzThrottler.Throttle("AdvanceStep" + this.indexer, 100))
         {
             if (this.pathAction.Name.IsNullOrEmpty() || this.pathAction.Name.Equals("MoveTo") || this.pathAction.Name.Equals("TreasureCoffer") || this.pathAction.Name.Equals("Revival"))
@@ -2180,6 +2183,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (this.Stage == Stage.Stopped)
             return;
 
+        if (this.Stage != Stage.Paused && this.States.HasFlag(PluginState.Navigating))
+            this.combatCheckpoints.Observe(this.Actions, this.indexer, Player.Available ? Player.Position : default,
+                PartyHelper.PartyInCombat(), PlayerHelper.IsValid && DeathHelper.DeathState == PlayerLifeState.Alive);
         if (!this.UpdateStepAttempt() || this.Stage == Stage.Paused) return;
         this.PreStageChecks();
 
@@ -2260,6 +2266,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private void StopAndResetAll()
     {
+        this.combatCheckpoints.Reset();
         this.EndMetricsSession();
         this.currentAttempt = null;
         this.currentFailure = null;
