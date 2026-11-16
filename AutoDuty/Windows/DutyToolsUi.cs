@@ -38,6 +38,7 @@ internal static class DutyToolsUi
             if (ImGui.MenuItem(Text("Previous"))) Plugin.SeekToStep(index - 1);
             if (ImGui.MenuItem(Text("Skip"))) Plugin.SeekToStep(index + 1);
             if (ImGui.MenuItem(Text("Edit"))) BuildTab.EditStep(index);
+            if (ImGui.MenuItem(Loc.Get("BuildTab.Delete"))) BuildTab.DeleteStep(action);
             if (ImGui.MenuItem(Text("CopyStep"))) ImGui.SetClipboardText(Newtonsoft.Json.JsonConvert.SerializeObject(action, ConfigurationMain.JsonSerializerSettings));
             if (ImGui.MenuItem(Text("InsertAfter"))) Helpers.PathEditHelper.MutateActions(list => list.Insert(index + 1, new PathAction { Name = "MoveTo", Position = Player.Position }), "insert after");
             if (ImGui.MenuItem(Text("StrictConditions"), "", action.Flags.HasFlag(PathActionFlags.StrictConditions)))

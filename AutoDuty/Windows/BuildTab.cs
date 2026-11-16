@@ -118,8 +118,7 @@ namespace AutoDuty.Windows
         private static bool    _dragDrop           = false;
         private static bool    _comment            = false;
         private static Vector4 _argumentTextColor  = new(1, 1, 1, 1);
-        private static bool    _deleteItem         = false;
-        private static int     _deleteItemIndex    = -1;
+        private static PathAction? pendingDelete;
         private static bool    _duplicateItem      = false;
         private static int     _duplicateItemIndex = -1;
 
@@ -360,8 +359,7 @@ namespace AutoDuty.Windows
 
                         if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
                         {
-                            _deleteItem      = true;
-                            _deleteItemIndex = item.Index;
+                            pendingDelete = item.Value;
                         }
 
                         if (ImGui.IsItemClicked(ImGuiMouseButton.Middle))
@@ -407,11 +405,10 @@ namespace AutoDuty.Windows
                         _buildListSelected = -1;
                     }
 
-                    if (_deleteItem)
+                    if (pendingDelete is { } deleteTarget)
                     {
-                        PathEditHelper.MutateActions(list => list.RemoveAt(_deleteItemIndex), "delete");
-                        _deleteItemIndex = -1;
-                        _deleteItem      = false;
+                        pendingDelete = null;
+                        DeleteStep(deleteTarget);
                     }
 
                     if (_duplicateItem)
@@ -439,6 +436,18 @@ namespace AutoDuty.Windows
             }
 
             ImGui.EndListBox();
+        }
+
+        internal static void DeleteStep(PathAction? target)
+        {
+            int index = PathEditHelper.FindReference(Plugin.Actions, target);
+            if (index < 0) return;
+            PathEditHelper.MutateActions(list => list.RemoveAt(index), "delete");
+            if (ReferenceEquals(target, editingOriginal))
+            {
+                ActionWindow.Close();
+                ClearAll();
+            }
         }
 
         private static void ClearAll()
@@ -567,9 +576,8 @@ namespace AutoDuty.Windows
                 {
                     if (ImGuiEx.ButtonWrapped(Loc.Get("BuildTab.Delete")))
                     {
-                        _deleteItem = true;
-                        _deleteItemIndex = _buildListSelected;
-                        ClearAll();
+                        DeleteStep(editingOriginal);
+                        return;
                     }
 
                     ImGui.SameLine();

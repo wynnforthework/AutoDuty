@@ -22,7 +22,11 @@ static void Run()
     Check(PathEditHelper.Relocate(before, new[]{a,b,c,x}, 3) == 4, "end sentinel");
     Check(PathEditHelper.Relocate(before, Array.Empty<object>(), 2) == 0, "delete all");
     Check(PathEditHelper.Relocate(before, new[]{a,b,c}, -1) == -1, "unselected");
-    Console.WriteLine("PASS: 9 action relocation cases");
+    Check(PathEditHelper.FindReference(new[] {x, a, b, c}, b) == 2, "delete resolves edited step after insertion");
+    Check(PathEditHelper.FindReference(new[] {c, b, a}, b) == 1, "delete resolves edited step after reorder");
+    Check(PathEditHelper.FindReference(new[] {a, c}, b) == -1, "stale editor never deletes a different step");
+    Check(PathEditHelper.FindReference<object>(new[] {a}, null) == -1, "new action editor cannot delete an unrelated step");
+    Console.WriteLine("PASS: action relocation and identity-based deletion after insertion, reorder and removal");
     TestPaths();
     TestRecording();
     TestValidation();

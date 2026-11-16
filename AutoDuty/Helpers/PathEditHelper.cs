@@ -7,6 +7,14 @@ namespace AutoDuty.Helpers;
 
 internal static class PathEditHelper
 {
+    internal static int FindReference<T>(IReadOnlyList<T> actions, T? target) where T : class
+    {
+        if (target != null)
+            for (int i = 0; i < actions.Count; i++)
+                if (ReferenceEquals(actions[i], target)) return i;
+        return -1;
+    }
+
     // Reference identity preserves the running action across insert/delete/reorder operations.
     internal static int Relocate<T>(IReadOnlyList<T> before, IReadOnlyList<T> after, int index) where T : class
     {
