@@ -1,6 +1,7 @@
 {
   "DutyTools": {
     "Failed": "Step failed; paused",
+    "FollowCurrentStep": "Follow current step (cyan > marks the executing step)",
     "Retry": "Retry",
     "Skip": "Skip",
     "Previous": "Previous step",

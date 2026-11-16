@@ -240,6 +240,12 @@ namespace AutoDuty.Windows
 
                         DrawTerminationNotice();
                         DutyToolsUi.FailureBanner();
+                        bool followCurrentStep = !DutyToolsUi.ManualSelection;
+                        if (ImGui.Checkbox(Loc.Get("DutyTools.FollowCurrentStep"), ref followCurrentStep))
+                        {
+                            DutyToolsUi.ManualSelection = !followCurrentStep;
+                            currentStepIndex = -1;
+                        }
 
                         if (!ImGui.BeginListBox("##MainList", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetContentRegionAvail().Y))) return;
 
@@ -247,21 +253,11 @@ namespace AutoDuty.Windows
                             (BossMod_IPCSubscriber.IsEnabled  || Configuration.DutyConfig.UsingAlternativeBossPlugin)     &&
                             (RSR_IPCSubscriber.IsEnabled      || BossMod_IPCSubscriber.IsEnabled || Configuration.DutyConfig.UsingAlternativeRotationPlugin))
                         {
-                            foreach ((PathAction Value, int Index) item in Plugin.Actions.ToArray().Select((Value, Index) => (Value, Index))) DutyToolsUi.StepRow(item.Value, item.Index);
-                            //var text = item.Value.Name.StartsWith("<--", StringComparison.InvariantCultureIgnoreCase) ? item.Value.Note : $"{item.Value.ToCustomString()}";
-                            ////////////////////////////////////////////////////////////////
-                            if (!DutyToolsUi.ManualSelection && currentStepIndex != Plugin.indexer && currentStepIndex > -1 && Plugin.Stage > 0)
-                            {
-                                float lineHeight = ImGui.GetTextLineHeightWithSpacing();
-                                currentStepIndex = Plugin.indexer;
-                                if (currentStepIndex > 1)
-                                    ImGui.SetScrollY((currentStepIndex - 1) * lineHeight);
-                            }
-                            else if (currentStepIndex == -1 && Plugin.Stage > 0)
-                            {
-                                currentStepIndex = 0;
-                                ImGui.SetScrollY(currentStepIndex);
-                            }
+                            bool scrollToCurrent = !DutyToolsUi.ManualSelection && (DutyToolsUi.ScrollToCurrentRequested || currentStepIndex != Plugin.indexer) && Plugin.Stage != Stage.Stopped;
+                            foreach ((PathAction Value, int Index) item in Plugin.Actions.ToArray().Select((Value, Index) => (Value, Index)))
+                                DutyToolsUi.StepRow(item.Value, item.Index, scrollToCurrent);
+                            currentStepIndex = Plugin.indexer;
+                            if (scrollToCurrent && Plugin.indexer >= 0 && Plugin.indexer < Plugin.Actions.Count) DutyToolsUi.ScrollToCurrentRequested = false;
 
                             if (InDungeon && Plugin is { Actions.Count: < 1 } && !ContentPathsManager.DictionaryPaths.ContainsKey(Plugin.CurrentTerritoryContent.TerritoryType))
                                 ImGui.TextColored(new Vector4(0, 255, 0, 1),
@@ -2064,4 +2060,4 @@ namespace AutoDuty.Windows
         internal static void PathsUpdated() => 
             DutySelected = null;
     }
-}   
+}

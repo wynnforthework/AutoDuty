@@ -865,7 +865,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     internal void LoadPath()
     {
-        DutyToolsUi.ManualSelection = false;
+        DutyToolsUi.ResetSelection();
         try
         {
             if (this.CurrentTerritoryContent == null || (this.CurrentTerritoryContent != null && this.CurrentTerritoryContent.TerritoryType != Svc.ClientState.TerritoryType))
@@ -1823,6 +1823,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.Overlay.IsOpen = true;
 
         this.mainListClicked =  false;
+        DutyToolsUi.ResetSelection();
         this.Stage           =  Stage.Reading_Path;
         this.States          |= PluginState.Navigating;
 

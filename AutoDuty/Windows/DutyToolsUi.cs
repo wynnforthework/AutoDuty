@@ -8,25 +8,30 @@ namespace AutoDuty.Windows;
 internal static class DutyToolsUi
 {
     internal static bool ManualSelection;
+    internal static bool ScrollToCurrentRequested = true;
     private static int selectedStep = -1;
-    internal static void StepRow(PathAction action, int index)
+    internal static void ResetSelection() { ManualSelection = false; selectedStep = -1; ScrollToCurrentRequested = true; }
+
+    internal static void StepRow(PathAction action, int index, bool scrollToCurrent = false)
     {
         ImGui.PushID(index);
         bool failed = Plugin.currentFailure?.Index == index;
+        bool current = index == Plugin.indexer && Plugin.Stage != Stage.Stopped;
         if (Plugin.attemptHistory.TryGetValue(index, out var attempt) && attempt.SkippedReason is { } skipped)
         {
             ImGui.TextColored(new Vector4(1, .65f, .25f, 1), $"[!] {skipped}");
             ImGui.SameLine();
         }
-        if (failed) ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, .35f, .3f, 1));
-        bool selected = ImGui.Selectable($"{index + 1}. {action.ToCustomString()}", selectedStep == index, ImGuiSelectableFlags.AllowDoubleClick);
+        if (failed || current) ImGui.PushStyleColor(ImGuiCol.Text, failed ? new Vector4(1, .35f, .3f, 1) : new Vector4(0, 1, 1, 1));
+        bool selected = ImGui.Selectable($"{(current ? "> " : "")}{index + 1}. {action.ToCustomString()}###StepRow", current || selectedStep == index, ImGuiSelectableFlags.AllowDoubleClick);
         if (selected)
         {
             selectedStep = index;
             ManualSelection = true;
             if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) Plugin.SeekToStep(index);
         }
-        if (failed) ImGui.PopStyleColor();
+        if (current && scrollToCurrent && !ManualSelection) ImGui.SetScrollHereY(.25f);
+        if (failed || current) ImGui.PopStyleColor();
         if (ImGui.BeginPopupContextItem("StepMenu"))
         {
             if (ImGui.MenuItem(Text("RunHere"))) Plugin.SeekToStep(index);

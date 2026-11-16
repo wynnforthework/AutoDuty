@@ -1,6 +1,7 @@
 {
   "DutyTools": {
     "Failed": "步驟失敗，已暫停",
+    "FollowCurrentStep": "跟隨目前步驟（青色 > 標記正在執行的步驟）",
     "Retry": "重試",
     "Skip": "跳過",
     "Previous": "上一步",

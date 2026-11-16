@@ -60,6 +60,7 @@
     "ProtectImport": "Protect imported route from updates",
     "ConfirmImport": "Confirm and save",
     "Cancel": "Cancel",
-    "ImportSaved": "Route saved"
+    "ImportSaved": "Route saved",
+    "FollowCurrentStep": "Follow current step (cyan > marks the executing step)"
   }
 }
