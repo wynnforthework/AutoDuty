@@ -141,6 +141,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         get;
         set
         {
+            if (value == Stage.Paused && field == Stage.Paused) return;
             switch (value)
             {
                 case Stage.Stopped:
@@ -149,14 +150,15 @@ public sealed partial class AutoDuty : IDalamudPlugin
                 case Stage.Paused:
                     if (this.currentFailure == null) this.MetricsProblem("manual-pause", true);
                     this.previousStage = this.Stage;
+                    SchedulerHelper.DescheduleAction("ConditionChangeStageReadingPath");
                     if (VNavmesh_IPCSubscriber.Path_NumWaypoints > 0)
                         VNavmesh_IPCSubscriber.Path_Stop();
                     FollowHelper.SetFollow(null);
-                    this.taskManager.StepMode =  true;
+                    if (!this.taskManager.StepMode) this.taskManager.StepMode = true;
                     this.States               |= PluginState.Paused;
                     break;
                 case Stage.Action:
-                    this.ActionInvoke();
+                    if (PauseResumePolicy.ShouldInvokeAction(field)) this.ActionInvoke();
                     break;
                 case Stage.Condition:
                     this.action = $"ConditionChange";
@@ -188,7 +190,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
             if (value is not Stage.Paused)
             {
-                this.taskManager.StepMode =  false;
+                if (this.taskManager.StepMode) this.taskManager.StepMode = false;
                 this.States               &= ~PluginState.Paused;
             }
 
@@ -2178,7 +2180,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (this.Stage == Stage.Stopped)
             return;
 
-        if (!this.UpdateStepAttempt()) return;
+        if (!this.UpdateStepAttempt() || this.Stage == Stage.Paused) return;
         this.PreStageChecks();
 
         if (this.Stage == Stage.Stopped)

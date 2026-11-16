@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using AutoDuty.Helpers;
 using AutoDuty.IPC;
@@ -100,8 +100,14 @@ public partial class AutoDuty
             this.SeekToStep(this.indexer);
             return;
         }
-        this.taskManager.StepMode = false;
-        this.Stage = this.previousStage;
+        var target = PauseResumePolicy.Target(this.previousStage, this.States.HasFlag(PluginState.Navigating));
+        if (this.previousStage is Stage.Moving or Stage.Interactable)
+        {
+            // Pausing stops navmesh; reading the same step again must issue a new navigation request.
+            this.SeekToStep(this.indexer, manual: false);
+            return;
+        }
+        this.Stage = target;
         if (this.currentAttempt != null) this.currentAttempt.LastTickAt = Environment.TickCount64;
     }
 

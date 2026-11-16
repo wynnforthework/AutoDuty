@@ -32,6 +32,14 @@ static void Run()
     TestValidation();
     TestRunMetrics();
     TestAutomationReports();
+    Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Moving, true) == AutoDuty.Data.Enums.Stage.Reading_Path, "resume movement restarts navigation instead of waiting on stopped path");
+    Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Action, true) == AutoDuty.Data.Enums.Stage.Action, "resume action preserves task queue");
+    Check(!PauseResumePolicy.ShouldInvokeAction(AutoDuty.Data.Enums.Stage.Paused), "resume never invokes completed action twice");
+    Check(PauseResumePolicy.ShouldInvokeAction(AutoDuty.Data.Enums.Stage.Moving), "normal action entry still invokes action");
+    Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Paused, true) == AutoDuty.Data.Enums.Stage.Reading_Path, "recover nested paused navigation state");
+    Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Waiting_For_Combat, true) == AutoDuty.Data.Enums.Stage.Waiting_For_Combat, "combat wait restores its state");
+    Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Looping, false) == AutoDuty.Data.Enums.Stage.Looping, "queue loop preserves work");
+    Console.WriteLine("PASS: movement, action, combat and loop resume policies; no duplicate action invocation");
     TestLevelingPlan();
     TestPathPersistence();
     var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>
