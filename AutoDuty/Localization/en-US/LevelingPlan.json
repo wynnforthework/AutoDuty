@@ -7,12 +7,7 @@
   "LevelingPlan": {
     "Open": "Open leveling plan",
     "Source": "Catalog: game ContentFinderCondition data, including dungeons without installed routes. The built-in stable list is only the default plan, not the full catalog.",
-    "Rules": "Use adds a duty to the plan; Skip excludes it; clearing both restores the default. Level intervals apply to your job level. Higher priority wins, then measured efficiency (if enabled), then highest eligible dungeon level.",
-    "Measured": "Prefer measured XP/hour within the highest priority",
-    "MinimumSamples": "Minimum clean samples",
-    "EfficiencyNote": "Efficiency requires the same starting job level, route version, job, duty mode, party size and multibox mode, with all samples clean. Old records without starting levels are not used. No qualifying measurements: fall back to the highest eligible dungeon level. XP/hour excludes queue time.",
     "Refresh": "Refresh evidence",
-    "MissingNote": "Missing routes remain visible and cannot be queued automatically. Enter the duty manually to record a route, or import a shared route, then select Use. Script selection below applies to the current job.",
     "PlannedOnly": "Show planned duties only",
     "Login": "Log in on a combat job to edit and preview the plan.",
     "Context": "Preview context",
@@ -21,9 +16,6 @@
     "NoEligible": "No eligible duty: check plan, routes, unlocks, levels and equipment",
     "Duty": "Dungeon / required level",
     "Policy": "Use / Skip",
-    "Range": "Job level interval (min / max)",
-    "Priority": "Priority (higher first)",
-    "Script": "Route for current job",
     "Completion": "Route completion / reliability",
     "Efficiency": "XP/hour at current level",
     "Status": "Eligibility / next selection",
@@ -45,9 +37,14 @@
     "WrongMode": "Unsupported in current duty mode",
     "Locked": "Duty not unlocked",
     "NotPlanned": "Not in plan",
-    "OutsideRange": "Outside level interval / dungeon level",
     "Ready": "Eligible",
     "Unavailable": "Equipment / Trust requirements unmet",
-    "Timing": "Edits apply to the next duty selection; an active run keeps its current route."
+    "Timing": "Edits apply to the next duty selection; an active run keeps its current route.",
+    "Rules": "Use game entry levels, with no manual level intervals. Switch to the highest-level enabled eligible dungeon as soon as its entry level is reached. Missing routes, locked duties or unmet requirements fall back to a lower eligible dungeon.",
+    "SharedPlan": "Use / Skip settings are shared by all jobs in this configuration. Routes resolve automatically using existing job / role assignments. Manage assignments on the Paths page; changing jobs does not require replanning.",
+    "AutoRole": "Automatically matched by job / role",
+    "Script": "Automatic route (read-only)",
+    "MissingNote": "Duties without routes remain visible but cannot queue automatically. Record or import routes on Build; manage job assignments on Paths.",
+    "OutsideRange": "Below dungeon entry level"
   }
 }

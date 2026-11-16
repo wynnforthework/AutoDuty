@@ -16,6 +16,7 @@ internal static class LevelingPlanTab
     private static string search = "";
     private static bool plannedOnly;
     private static long refreshed;
+    private static (ulong Character, uint Job, short Level, DutyMode Mode, int Revision) context;
     private static Content? nextDuty;
     private static readonly Dictionary<uint, (ContentPathsManager.DutyPath? Path, RouteMetricSummary? All, RouteMetricSummary? Level)> evidence = [];
     private static readonly Vector4 Warning = new(1, .7f, .3f, 1);
@@ -26,19 +27,10 @@ internal static class LevelingPlanTab
     {
         ImGui.TextWrapped(Text("Source"));
         ImGui.TextWrapped(Text("Rules"));
+        ImGui.TextWrapped(Text("SharedPlan"));
         var config = Configuration.DutyConfig;
         bool only = config.LevelingIncludedOnly;
         if (ImGui.Checkbox(DutyToolsUi.Text("IncludedOnly"), ref only)) { config.LevelingIncludedOnly = only; Save(); }
-        bool measured = config.LevelingPreferMeasuredEfficiency;
-        if (ImGui.Checkbox(Text("Measured"), ref measured)) { config.LevelingPreferMeasuredEfficiency = measured; Save(); }
-        ImGui.SetNextItemWidth(120);
-        int samples = config.LevelingEfficiencyMinimumSamples;
-        if (ImGui.InputInt(Text("MinimumSamples"), ref samples)) { config.LevelingEfficiencyMinimumSamples = Math.Clamp(samples, 1, 1000); Save(); }
-        ImGui.TextWrapped(Text("EfficiencyNote"));
-        if (ImGui.Button(DutyToolsUi.Text("Recorder"))) Plugin.ShowRecorder();
-        ImGui.SameLine();
-        if (ImGui.Button(DutyToolsUi.Text("PastePath"))) Plugin.PathCommand(["path", "import"]);
-        ImGui.SameLine();
         if (ImGui.Button(Text("Refresh"))) refreshed = 0;
         ImGui.TextWrapped(Text("MissingNote"));
         ImGui.SetNextItemWidth(260);
@@ -48,14 +40,14 @@ internal static class LevelingPlanTab
         short level = PlayerHelper.GetCurrentLevelFromSheet();
         ImGui.TextWrapped($"{Text("Context")}: {Player.Job} / L{level} / {Mode}");
         if (Mode is not (DutyMode.Support or DutyMode.Trust)) ImGui.TextColored(Warning, Text("SelectMode"));
-        if (Environment.TickCount64 - refreshed > 2000 || refreshed == 0) Refresh(level);
+        EnsureFresh(level);
         var next = nextDuty;
         ImGui.TextWrapped(Text("Next") + ": " + (next?.Name ?? Text("NoEligible")));
         var catalog = LevelingHelper.Catalog;
         var planned = LevelingHelper.LevelingDuties.Select(c => c.TerritoryType).ToHashSet();
-        if (!ImGui.BeginTable("LevelingPlan", 8, ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollX | ImGuiTableFlags.ScrollY,
+        if (!ImGui.BeginTable("LevelingPlan", 6, ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollX | ImGuiTableFlags.ScrollY,
             new Vector2(0, Math.Max(180, ImGui.GetContentRegionAvail().Y - ImGui.GetTextLineHeightWithSpacing() * 2)))) return;
-        foreach (var key in new[] { "Duty", "Policy", "Range", "Priority", "Script", "Completion", "Efficiency", "Status" })
+        foreach (var key in new[] { "Duty", "Policy", "Script", "Completion", "Efficiency", "Status" })
             ImGui.TableSetupColumn(Text(key), ImGuiTableColumnFlags.WidthFixed, key == "Duty" ? 210 : key == "Script" ? 220 : key == "Status" ? 175 : 145);
         ImGui.TableSetupScrollFreeze(1, 1); ImGui.TableHeadersRow();
         foreach (var duty in catalog)
@@ -74,15 +66,6 @@ internal static class LevelingPlanTab
             ImGui.TextDisabled(Text(policy == 0 ? planned.Contains(id) ? "DefaultUsed" : "DefaultUnused" : "Explicit"));
             if (config.LevelingAutoExcluded.Contains(id) && ImGui.SmallButton(Text("Restore")))
             { config.LevelingAutoExcluded.Remove(id); config.LevelingFailureCounts.Remove(id); Save(); }
-            var rule = LevelingHelper.Rule(id);
-            ImGui.TableNextColumn();
-            int start = rule.MinimumLevel, end = rule.MaximumLevel;
-            ImGui.SetNextItemWidth(65); bool changed = ImGui.InputInt("##min", ref start, 0);
-            ImGui.SameLine(); ImGui.SetNextItemWidth(65); changed |= ImGui.InputInt("##max", ref end, 0);
-            if (changed) { rule.MinimumLevel = Math.Clamp(start, 15, 99); rule.MaximumLevel = Math.Clamp(end, rule.MinimumLevel, 99); config.LevelingDutyRules[id] = rule; Save(); }
-            ImGui.TableNextColumn(); int priority = rule.Priority;
-            ImGui.SetNextItemWidth(110);
-            if (ImGui.InputInt("##priority", ref priority)) { rule.Priority = Math.Clamp(priority, -1000, 1000); config.LevelingDutyRules[id] = rule; Save(); }
             ImGui.TableNextColumn(); DrawScript(id, row.Path);
             ImGui.TableNextColumn();
             if (row.All == null) ImGui.TextDisabled(Text("NoSamples"));
@@ -118,7 +101,7 @@ internal static class LevelingPlanTab
         if (!duty.DutyModes.HasFlag(Mode)) return Text("WrongMode");
         if (!UIState.IsInstanceContentUnlocked(duty.Id)) return Text("Locked");
         if (!planned) return Text("NotPlanned");
-        if (!LevelingHelper.Rule(id).Allows(level) || duty.ClassJobLevelRequired > level) return Text("OutsideRange");
+        if (duty.ClassJobLevelRequired > level) return Text("OutsideRange");
         return duty.CanRun(level, Mode) ? Text("Ready") : Text("Unavailable");
     }
 
@@ -126,21 +109,33 @@ internal static class LevelingPlanTab
     {
         if (!ContentPathsManager.DictionaryPaths.TryGetValue(id, out var container) || container.Paths.Count == 0)
         { ImGui.TextColored(Warning, Text("MissingScript")); return; }
-        ImGui.SetNextItemWidth(210);
-        if (ImGui.BeginCombo("##route", selected?.FileName ?? Text("MissingScript")))
+        ImGui.TextWrapped(selected?.FileName ?? Text("MissingScript"));
+        ImGui.TextDisabled(Text("AutoRole"));
+    }
+
+    internal static void DrawSummary()
+    {
+        ImGui.TextWrapped(Text("SharedPlan"));
+        if (!Player.Available) return;
+        short level = PlayerHelper.GetCurrentLevelFromSheet();
+        EnsureFresh(level);
+        var planned = LevelingHelper.LevelingDuties;
+        if (!ImGui.BeginTable("MainLevelingPlan", 4, ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY,
+            new Vector2(0, ImGui.GetTextLineHeightWithSpacing() * 11))) return;
+        foreach (var key in new[] { "Duty", "Script", "Completion", "Status" }) ImGui.TableSetupColumn(Text(key));
+        ImGui.TableSetupScrollFreeze(0, 1); ImGui.TableHeadersRow();
+        foreach (var duty in planned)
         {
-            foreach (var path in container.Paths.ToArray())
-                if (ImGui.Selectable(path.FileName, path == selected))
-                {
-                    if (!Configuration.Meta.PathSelectionsByPath.TryGetValue(id, out var selections) || selections == null)
-                        Configuration.Meta.PathSelectionsByPath[id] = selections = [];
-                    var job = Player.Job.JobToJobWithRole();
-                    foreach (var name in selections.Keys.ToArray()) selections[name] &= ~job;
-                    selections[path.FileName] = selections.GetValueOrDefault(path.FileName) | job;
-                    Save();
-                }
-            ImGui.EndCombo();
+            evidence.TryGetValue(duty.TerritoryType, out var row);
+            ImGui.TableNextRow(); ImGui.TableNextColumn();
+            bool current = Plugin.CurrentTerritoryContent?.TerritoryType == duty.TerritoryType;
+            ImGui.TextWrapped($"{(current ? "> " : "")}L{duty.ClassJobLevelRequired} {duty.Name}");
+            ImGui.TableNextColumn(); ImGui.TextWrapped(row.Path?.FileName ?? Text("MissingScript"));
+            ImGui.TableNextColumn(); ImGui.TextUnformatted(row.All == null ? Text("NoSamples") : $"{row.All.MeanCompletion:F1}% ({row.All.CleanRuns}/{row.All.Samples})");
+            ImGui.TableNextColumn(); ImGui.TextWrapped((current ? Text("Selected") + " / " : "") + Status(duty, level, true, row.Path != null));
         }
+        ImGui.EndTable();
+        if (planned.Length == 0) ImGui.TextWrapped(Text("NoEligible"));
     }
 
     private static void SetPolicy(uint id, int policy)
@@ -163,6 +158,16 @@ internal static class LevelingPlanTab
                 : (path, LevelingHelper.Evidence(path, Mode), LevelingHelper.Evidence(path, Mode, level));
         }
         refreshed = Environment.TickCount64;
+    }
+
+    private static void EnsureFresh(short level)
+    {
+        var current = (Player.CID, (uint)Player.Job, level, Mode, LevelingHelper.PlanRevision);
+        if (current != context || Environment.TickCount64 - refreshed > 2000 || refreshed == 0)
+        {
+            context = current;
+            Refresh(level);
+        }
     }
 
     private static void Save()

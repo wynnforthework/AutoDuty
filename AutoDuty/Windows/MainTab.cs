@@ -664,6 +664,7 @@ namespace AutoDuty.Windows
                                         {
                                             ImGuiEx.TextWrapped(new Vector4(0, 1, 0, 1), Loc.Get("MainTab.LevelingModeStatus", Player.Level.ToString(), ilvl.ToString()));
                                             ImGui.TextWrapped(Plugin.CurrentTerritoryContent?.Name ?? Loc.Get("LevelingPlan.NoEligible"));
+                                            LevelingPlanTab.DrawSummary();
                                             if (ImGui.Button(Loc.Get("LevelingPlan.Open"))) MainWindow.OpenTab("LevelingPlan");
                                         }
                                     }

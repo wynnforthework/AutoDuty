@@ -140,16 +140,10 @@ namespace AutoDuty.Helpers
         internal static Content? SelectForLevel(short level, DutyMode mode)
         {
             if (level < 15 || level >= 100 || mode is not (DutyMode.Support or DutyMode.Trust)) return null;
-            var eligible = LevelingDuties.Where(c => Rule(c.TerritoryType).Allows(level) && c.DutyModes.HasFlag(mode)
+            var eligible = LevelingDuties.Where(c => c.DutyModes.HasFlag(mode)
                 && c.CanRun(level, mode) && SelectedRoute(c.TerritoryType) != null).ToArray();
-            var config = Configuration.DutyConfig;
-            var candidates = eligible.Select(c =>
-            {
-                var evidence = config.LevelingPreferMeasuredEfficiency ? Evidence(SelectedRoute(c.TerritoryType)!, mode, level) : null;
-                return new LevelingCandidate(c.TerritoryType, c.ClassJobLevelRequired, Rule(c.TerritoryType).Priority,
-                    evidence?.Samples ?? 0, evidence?.CleanRuns ?? 0, evidence?.ExperiencePerHour ?? 0);
-            });
-            uint? selected = LevelingPlanRanking.Choose(candidates, config.LevelingPreferMeasuredEfficiency, config.LevelingEfficiencyMinimumSamples);
+            var candidates = eligible.Select(c => new LevelingCandidate(c.TerritoryType, c.ClassJobLevelRequired));
+            uint? selected = LevelingPlanRanking.Choose(candidates);
             return eligible.FirstOrDefault(c => c.TerritoryType == selected);
         }
 

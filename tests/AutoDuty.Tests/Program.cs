@@ -32,20 +32,17 @@ static void Run()
 }
 static void TestLevelingPlan()
 {
-    var choices = new[] { new LevelingCandidate(1, 16, 0, 5, 5, 100), new LevelingCandidate(2, 24, 0, 5, 5, 80) };
-    Check(LevelingPlanRanking.Choose(choices, false, 5) == 2, "default leveling fallback chooses highest eligible level");
-    Check(LevelingPlanRanking.Choose(choices, true, 5) == 1, "same-level measured efficiency can prefer a lower dungeon");
-    Check(LevelingPlanRanking.Choose([choices[0] with { CleanRuns = 4 }, choices[1]], true, 5) == 2, "failed samples cannot win efficiency selection");
-    Check(LevelingPlanRanking.Choose([choices[0] with { Samples = 1, CleanRuns = 1 }, choices[1]], true, 5) == 2, "insufficient samples cannot win selection");
-    Check(LevelingPlanRanking.Choose([choices[0] with { Priority = 1 }, choices[1]], false, 5) == 1, "operator priority overrides dungeon level");
-    Check(LevelingPlanRanking.Choose([choices[0] with { Priority = 1, Samples = 0 }, choices[1]], true, 5) == 1, "operator priority overrides automatic efficiency preference");
-    Check(LevelingPlanRanking.Choose([], true, 5) == null, "empty plan has no implicit fallback outside selection");
-    var rule = new AutoDuty.Data.LevelingDutyRule { MinimumLevel = 24, MaximumLevel = 31, Priority = 10 };
-    Check(!rule.Allows(23) && rule.Allows(24) && rule.Allows(31) && !rule.Allows(32), "configured leveling interval boundaries");
-    var restored = Newtonsoft.Json.JsonConvert.DeserializeObject<AutoDuty.Data.LevelingDutyRule>(Newtonsoft.Json.JsonConvert.SerializeObject(rule))!;
-    Check(restored.Priority == 10 && restored.Allows(24) && !restored.Allows(32), "leveling rule persistence");
-    Console.WriteLine("PASS: leveling priorities, measured efficiency, reliability/sample requirements, fallback and interval boundaries");
+    var choices = new[] { new LevelingCandidate(1, 20), new LevelingCandidate(2, 23), new LevelingCandidate(3, 24) };
+    uint? At(int level) => LevelingPlanRanking.Choose(choices.Where(c => c.RequiredLevel <= level));
+    Check(At(15) == null, "cannot enter a dungeon before its entry level");
+    Check(At(20) == 1 && At(22) == 1, "use level 20 dungeon until next enabled entry level");
+    Check(At(23) == 2 && At(24) == 3, "switch at each enabled dungeon entry level");
+    Check(LevelingPlanRanking.Choose(choices.Where(c => c.RequiredLevel <= 23 && c.Territory != 2)) == 1, "fall back when higher dungeon is skipped or ineligible");
+    Check(LevelingPlanRanking.Choose([]) == null, "empty plan does not select outside the plan");
+    Check(LevelingPlanRanking.Choose([new(9, 23), new(2, 23)]) == 2, "same-level choice is deterministic");
+    Console.WriteLine("PASS: entry-level progression, skipped/unavailable fallback, empty plan and deterministic selection");
 }
+
 static void Check(bool value, string name)
 {
     if (!value) throw new Exception("FAILED: " + name);
