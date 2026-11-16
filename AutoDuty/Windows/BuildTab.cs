@@ -29,10 +29,41 @@ namespace AutoDuty.Windows
 
     internal static class BuildTab
     {
+        private static string? managedEditFile;
+
+        internal static void LoadForEditing(ContentPathsManager.DutyPath path)
+        {
+            if (Plugin.Stage != Stage.Stopped || Plugin.Recorder.Recording) return;
+            ClearAll();
+            ActionWindow.Close();
+            var file = PathJson.ReadFile(File.ReadAllText(path.FilePath));
+            PathEditHelper.MutateActions(list => { list.Clear(); list.AddRange(file.Actions); }, "load route for editing");
+            Plugin.pathFile = path.FilePath;
+            managedEditFile = path.FilePath;
+            MainWindow.OpenTab("Build");
+        }
+
+        internal static void NewRecordedAction(string name)
+        {
+            ClearAll();
+            _action = new PathAction { Name = name, Position = Player.Available ? Player.Position : Vector3.Zero };
+            if (name == "<-- Comment -->") { _comment = true; _action.Tag = ActionTag.Comment; }
+            if (name == "Revival") _action.Tag = ActionTag.Revival;
+            if (name == "TreasureCoffer") _action.Tag = ActionTag.Treasure;
+            if (name == "SelectYesno") _action.Arguments = ["Yes"];
+            if (name == "Wait") _action.Arguments = ["1000"];
+            if (name is "Interactable" or "Target" or "MoveToObject" && Svc.Targets.Target is { } target)
+                _action.Arguments = [target.BaseId.ToString()];
+            ActionWindow.NewAction(_action);
+        }
+
         private static PathAction? editingOriginal;
         internal static void EditStep(int index)
         {
             if (index < 0 || index >= Plugin.Actions.Count) return;
+            ClearAll();
+            _addActionButton = Loc.Get("BuildTab.Modify");
+            _comment = Plugin.Actions[index].Tag.HasFlag(ActionTag.Comment);
             _buildListSelected = index;
             editingOriginal = Plugin.Actions[index];
             _action = ActionWindow.EditAction(editingOriginal);
@@ -71,9 +102,22 @@ namespace AutoDuty.Windows
             if (ImGui.Button(DutyToolsUi.Text("CopyPath"))) Plugin.PathCommand(["path", "copy"]);
             ImGui.SameLine();
             if (ImGui.Button(DutyToolsUi.Text("PastePath"))) Plugin.PathCommand(["path", "import"]);
+            if ((!InDungeon || managedEditFile == Plugin.pathFile) && !string.IsNullOrEmpty(Plugin.pathFile))
+            {
+                ImGui.TextWrapped(Plugin.pathFile);
+                if (ImGui.Button(Loc.Get("BuildTab.SavePath"))) SavePath();
+                ImGui.SameLine();
+                if (ImGui.Button(Loc.Get("BuildTab.AddAction"))) ImGui.OpenPopup("OfflineAddAction");
+                if (ImGui.BeginPopup("OfflineAddAction"))
+                {
+                    foreach (var item in Plugin.actions.actionsList)
+                        if (ImGui.Selectable(item.actionName)) NewRecordedAction(item.actionName);
+                    ImGui.EndPopup();
+                }
+            }
             using (ImRaii.Disabled(false))
             {
-                if (InDungeon)
+                if (InDungeon && managedEditFile != Plugin.pathFile)
                 {
                     DrawPathElements();
                     DrawSeperator();
@@ -239,7 +283,7 @@ namespace AutoDuty.Windows
 
                     PathFile? pathFile = null;
 
-                    if (DictionaryPaths.TryGetValue(Svc.ClientState.TerritoryType, out ContentPathContainer? container))
+                    if (DictionaryPaths.Values.FirstOrDefault(c => c.Paths.Any(p => p.FilePath == Plugin.pathFile)) is { } container)
                     {
                         DutyPath? dutyPath = container.Paths.FirstOrDefault(dp => dp.FilePath == Plugin.pathFile);
                         if (dutyPath != null)
@@ -257,11 +301,13 @@ namespace AutoDuty.Windows
                         }
                     }
 
-                    pathFile ??= new PathFile();
+                    pathFile ??= File.Exists(Plugin.pathFile) ? PathJson.ReadFile(File.ReadAllText(Plugin.pathFile)) : new PathFile();
 
                     pathFile.Actions = [.. Plugin.Actions];
                     string json = PathJson.WriteFile(pathFile);
                     File.WriteAllText(Plugin.pathFile, json);
+                    ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(Path.GetFileName(Plugin.pathFile));
+                    ConfigurationProfileV2.Save();
                     Plugin.currentPath = 0;
                 }
                 catch (Exception e)
@@ -279,7 +325,7 @@ namespace AutoDuty.Windows
 
             try
             {
-                if (InDungeon)
+                if (InDungeon || !string.IsNullOrEmpty(Plugin.pathFile))
                 {
                     int? dragIndex = null;
                     int? dragNext  = null;

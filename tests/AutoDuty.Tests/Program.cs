@@ -1,4 +1,4 @@
-using System.Runtime.Loader;
+﻿using System.Runtime.Loader;
 using AutoDuty.Helpers;
 
 // Load game API managed assemblies for model tests; no game services are initialized.
@@ -29,6 +29,18 @@ static void Run()
     TestRunMetrics();
     TestAutomationReports();
     TestLevelingPlan();
+    var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>
+    {
+        ["shared.json"] = AutoDuty.Data.Enums.JobWithRole.All,
+    };
+    PathSelectionHelper.AssignRole(bindings, AutoDuty.Data.Enums.JobWithRole.Tanks, "tank.json");
+    Check(bindings["shared.json"] == (AutoDuty.Data.Enums.JobWithRole.Healers | AutoDuty.Data.Enums.JobWithRole.DPS), "assign tank preserves healer and DPS");
+    Check(bindings["tank.json"] == AutoDuty.Data.Enums.JobWithRole.Tanks, "all tank jobs share override");
+    PathSelectionHelper.AssignRole(bindings, AutoDuty.Data.Enums.JobWithRole.Tanks, "shared.json");
+    Check(bindings.Count == 1 && bindings["shared.json"] == AutoDuty.Data.Enums.JobWithRole.All, "reassignment removes stale role binding");
+    PathSelectionHelper.AssignRole(bindings, AutoDuty.Data.Enums.JobWithRole.Healers, null);
+    Check((bindings["shared.json"] & AutoDuty.Data.Enums.JobWithRole.Healers) == 0, "remove role restores automatic matching");
+    Console.WriteLine("PASS: role assignment, reassignment and removal preserve other roles");
 }
 static void TestLevelingPlan()
 {

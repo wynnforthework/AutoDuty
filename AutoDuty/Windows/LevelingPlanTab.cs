@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -108,9 +108,20 @@ internal static class LevelingPlanTab
     private static void DrawScript(uint id, ContentPathsManager.DutyPath? selected)
     {
         if (!ContentPathsManager.DictionaryPaths.TryGetValue(id, out var container) || container.Paths.Count == 0)
-        { ImGui.TextColored(Warning, Text("MissingScript")); return; }
+        {
+            ImGui.TextColored(Warning, Text("MissingScript"));
+            using (Dalamud.Interface.Utility.Raii.ImRaii.Disabled(Plugin.Stage != Stage.Stopped || Plugin.Recorder.Recording))
+                if (ImGui.SmallButton(Text("CreateRoute"))) RoleRoutesUi.Create(id, JobWithRole.All, null);
+            return;
+        }
         ImGui.TextWrapped(selected?.FileName ?? Text("MissingScript"));
         ImGui.TextDisabled(Text("AutoRole"));
+        if (ImGui.SmallButton(Text("ManageRoles"))) ImGui.OpenPopup("RoleRoutes");
+        if (ImGui.BeginPopup("RoleRoutes"))
+        {
+            RoleRoutesUi.Draw(container);
+            ImGui.EndPopup();
+        }
     }
 
     internal static void DrawSummary()

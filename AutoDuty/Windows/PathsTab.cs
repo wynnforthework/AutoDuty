@@ -86,7 +86,11 @@ namespace AutoDuty.Windows
                 if (ImGuiEx.ButtonWrapped(Loc.Get("PathsTab.DownloadPaths"))) 
                     Patcher.Patch(ImGui.IsMouseClicked(ImGuiMouseButton.Right));
             }
-            if (_selectedDutyPath != null) RouteOptionsUi.Metadata(_selectedDutyPath);
+            if (_selectedDutyPath != null)
+            {
+                if (ImGui.CollapsingHeader(Loc.Get("LevelingPlan.ManageRoles"))) RoleRoutesUi.Draw(_selectedDutyPath.container);
+                RouteOptionsUi.Metadata(_selectedDutyPath);
+            }
             bool showJobSelection = _selectedDutyPath is { container.Paths.Count: > 1 };
             ImGui.BeginTable("##PathTabContent", _selectedDutyPath != null ? 2 : 1);
 

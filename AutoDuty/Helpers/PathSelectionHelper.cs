@@ -8,6 +8,20 @@
 
     public static class PathSelectionHelper
     {
+        internal static void AssignRole(Dictionary<string, JobWithRole> bindings, JobWithRole mask, string? file)
+        {
+            foreach (string key in new List<string>(bindings.Keys))
+            {
+                bindings[key] &= ~mask;
+                if (bindings[key] == JobWithRole.None) bindings.Remove(key);
+            }
+            if (file != null)
+            {
+                bindings.TryGetValue(file, out var jobs);
+                bindings[file] = jobs | mask;
+            }
+        }
+
         public static void AddPathSelectionEntry(uint territoryId)
         {
             if (!AutoDuty.Configuration.Meta.PathSelectionsByPath.ContainsKey(territoryId))
