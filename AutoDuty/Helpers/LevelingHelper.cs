@@ -147,6 +147,20 @@ namespace AutoDuty.Helpers
             return eligible.FirstOrDefault(c => c.TerritoryType == selected);
         }
 
+        internal static unsafe string EligibilityDetail(Content duty, short level, DutyMode mode)
+        {
+            uint id = duty.TerritoryType;
+            if (Configuration.DutyConfig.LevelingExcludedDuties.Contains(id)) return "manually-excluded";
+            if (Configuration.DutyConfig.LevelingAutoExcluded.Contains(id)) return "auto-excluded-after-failures";
+            if (!IsPlanned(id)) return "not-in-plan";
+            if (!duty.DutyModes.HasFlag(mode)) return "unsupported-mode";
+            if (duty.ClassJobLevelRequired > level) return $"requires-level-{duty.ClassJobLevelRequired}";
+            if (!FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.IsInstanceContentUnlocked(duty.Id)) return "not-unlocked";
+            if (SelectedRoute(id) == null) return "no-enabled-route-for-job";
+            if (InventoryHelper.CurrentItemLevel < duty.ItemLevelRequired) return $"requires-ilvl-{duty.ItemLevelRequired}-current-{InventoryHelper.CurrentItemLevel}";
+            return duty.CanRun(level, mode) ? "eligible" : "trust-or-entry-requirements-unmet";
+        }
+
         internal static bool IsAllowed(uint territory)
         {
             var config = Configuration.DutyConfig;
@@ -247,6 +261,11 @@ namespace AutoDuty.Helpers
 
             LevelingDuties.Each(x => Svc.Log.Debug($"Leveling Mode: Duties: {x.Name} CanRun: {x.CanRun(lvl)}{(trust ? $" | CanTrustRun : {x.CanTrustRun()}" : "")}"));
             curContent = SelectForLevel(lvl, trust ? DutyMode.Trust : Configuration.Meta.DutyModeEnum);
+
+            var queueMode = trust ? DutyMode.Trust : Configuration.Meta.DutyModeEnum;
+            Svc.Log.Info($"Leveling selection: job={Player.Job}, level={lvl}, ilvl={InventoryHelper.CurrentItemLevel}, mode={queueMode}, selected={curContent?.TerritoryType.ToString() ?? "none"}");
+            foreach (var candidate in Catalog.Where(c => c.ClassJobLevelRequired <= lvl && c.ClassJobLevelRequired > (curContent?.ClassJobLevelRequired ?? 0)))
+                Svc.Log.Info($"Leveling candidate {candidate.TerritoryType} ({candidate.Name}): {EligibilityDetail(candidate, lvl, queueMode)}");
 
             Svc.Log.Debug($"Leveling Mode: We found {curContent?.Name ?? "no duty"} to run");
 

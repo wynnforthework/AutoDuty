@@ -66,6 +66,10 @@ static void TestLevelingPlan()
     Check(LevelingPlanRanking.Choose(choices.Where(c => c.RequiredLevel <= 23 && c.Territory != 2)) == 1, "fall back when higher dungeon is skipped or ineligible");
     Check(LevelingPlanRanking.Choose([]) == null, "empty plan does not select outside the plan");
     Check(LevelingPlanRanking.Choose([new(9, 23), new(2, 23)]) == 2, "same-level choice is deterministic");
+    var dawntrail = new[] { new LevelingCandidate(1193, 93), new LevelingCandidate(1194, 95), new LevelingCandidate(1198, 97) };
+    Check(LevelingPlanRanking.Choose(dawntrail.Where(c => c.RequiredLevel <= 93)) == 1193, "93 queues Worqor Zormor");
+    Check(LevelingPlanRanking.Choose(dawntrail.Where(c => c.RequiredLevel <= 95)) == 1194, "95 reselects Skydeep Cenote from the current plan");
+    Check(LevelingPlanRanking.Choose(dawntrail.Where(c => c.RequiredLevel <= 95 && c.Territory != 1194)) == 1193, "95 falls back only when Skydeep Cenote is ineligible");
     Console.WriteLine("PASS: entry-level progression, skipped/unavailable fallback, empty plan and deterministic selection");
 }
 

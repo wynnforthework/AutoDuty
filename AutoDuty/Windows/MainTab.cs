@@ -71,6 +71,13 @@ namespace AutoDuty.Windows
 
             static void DrawPathSelection()
             {
+                string version = InDungeon && !string.IsNullOrEmpty(Plugin.pathFile)
+                    ? System.IO.Path.GetFileName(Plugin.pathFile) : Loc.Get("MainTab.None");
+                if (!InDungeon && Plugin.CurrentTerritoryContent is { } selectedDuty
+                    && ContentPathsManager.DictionaryPaths.TryGetValue(selectedDuty.TerritoryType, out var selectedPaths)
+                    && selectedPaths.Paths.Count > 0)
+                    version = selectedPaths.Paths[Math.Clamp(Plugin.currentPath, 0, selectedPaths.Paths.Count - 1)].FileName;
+                ImGui.TextWrapped(DutyToolsUi.Text("CurrentVersion") + ": " + version);
                 if (Plugin.CurrentTerritoryContent == null)
                     return;
 
@@ -84,9 +91,6 @@ namespace AutoDuty.Windows
                     if (curPaths.Count > 0)
                     {
                         int                              curPath       = Math.Clamp(Plugin.currentPath, 0, curPaths.Count - 1);
-
-                        ImGui.TextWrapped(DutyToolsUi.Text("CurrentVersion") + ": " +
-                            (InDungeon && !string.IsNullOrEmpty(Plugin.pathFile) ? System.IO.Path.GetFileName(Plugin.pathFile) : curPaths[curPath].FileName));
 
                         Dictionary<string, JobWithRole>? pathSelection    = null;
                         JobWithRole                      curJob = Player.Job.JobToJobWithRole();
@@ -663,11 +667,6 @@ namespace AutoDuty.Windows
                                         {
                                             Svc.Log.Debug($"You are on a non-compatible job: {Player.Job.GetCombatRole()}, or your doing trust and your iLvl({ilvl}) is below 370, or your iLvl has changed, Disabling Leveling Mode");
                                             Plugin.LevelingModeEnum = LevelingMode.None;
-                                        }
-                                        else if (ilvl > 0 && ilvl != Plugin.currentPlayerItemLevelAndClassJob.Key)
-                                        {
-                                            Svc.Log.Debug($"Your iLvl has changed, Selecting new Duty.");
-                                            Plugin.CurrentTerritoryContent = LevelingHelper.SelectHighestLevelingRelevantDuty(Plugin.LevelingModeEnum);
                                         }
                                         else
                                         {
@@ -2067,7 +2066,10 @@ namespace AutoDuty.Windows
             }
         }
 
-        internal static void PathsUpdated() => 
-            DutySelected = null;
+        internal static void PathsUpdated()
+        {
+            if (DutySelected != null)
+                DutySelected = ContentPathsManager.DictionaryPaths.GetValueOrDefault(DutySelected.ID);
+        }
     }
 }

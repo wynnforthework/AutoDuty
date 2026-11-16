@@ -16,7 +16,7 @@ internal static class LevelingPlanTab
     private static string search = "";
     private static bool plannedOnly;
     private static long refreshed;
-    private static (ulong Character, uint Job, short Level, DutyMode Mode, int Revision) context;
+    private static (ulong Character, uint Job, short Level, ushort ItemLevel, DutyMode Mode, int Revision) context;
     private static Content? nextDuty;
     private static readonly Dictionary<uint, (ContentPathsManager.DutyPath? Path, RouteMetricSummary? All, RouteMetricSummary? Level)> evidence = [];
     private static readonly Vector4 Warning = new(1, .7f, .3f, 1);
@@ -25,6 +25,7 @@ internal static class LevelingPlanTab
 
     internal static void Draw()
     {
+        MainWindow.CurrentTabName = "LevelingPlan";
         ImGui.TextWrapped(Text("Source"));
         ImGui.TextWrapped(Text("Rules"));
         ImGui.TextWrapped(Text("SharedPlan"));
@@ -102,6 +103,8 @@ internal static class LevelingPlanTab
         if (!UIState.IsInstanceContentUnlocked(duty.Id)) return Text("Locked");
         if (!planned) return Text("NotPlanned");
         if (duty.ClassJobLevelRequired > level) return Text("OutsideRange");
+        if (InventoryHelper.CurrentItemLevel < duty.ItemLevelRequired)
+            return $"{Text("Unavailable")} (i{InventoryHelper.CurrentItemLevel} / i{duty.ItemLevelRequired})";
         return duty.CanRun(level, Mode) ? Text("Ready") : Text("Unavailable");
     }
 
@@ -173,8 +176,10 @@ internal static class LevelingPlanTab
 
     private static void EnsureFresh(short level)
     {
-        var current = (Player.CID, (uint)Player.Job, level, Mode, LevelingHelper.PlanRevision);
-        if (current != context || Environment.TickCount64 - refreshed > 2000 || refreshed == 0)
+        var current = (Player.CID, (uint)Player.Job, level, InventoryHelper.CurrentItemLevel, Mode, LevelingHelper.PlanRevision);
+        // Keep row content and popup layout stable while browsing. Refresh only
+        // for an explicit refresh, route/plan change, or player context change.
+        if (current != context || refreshed == 0)
         {
             context = current;
             Refresh(level);

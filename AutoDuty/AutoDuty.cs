@@ -1259,7 +1259,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
                                                                this.taskManager.Enqueue(() => Svc.Log.Debug($"StartNavigation"));
                                                                this.taskManager.Enqueue(() => this.EnsureNavmeshForTerritory(Svc.ClientState.TerritoryType), "Loop-EnsureNavmesh", new TaskManagerConfiguration(int.MaxValue));
                                                                this.taskManager.Enqueue(() => this.StartNavigation(true), "Loop-StartNavigation");
-                                                           }, () => !MultiboxUtility.MultiboxBlockingNextStep);
+                                                           }, () => !MultiboxUtility.MultiboxBlockingNextStep && !this.taskManager.IsBusy && !InDungeon && PlayerHelper.IsReadyFull);
     }
 
     private void LoopsCompleteActions()
@@ -2107,10 +2107,17 @@ public sealed partial class AutoDuty : IDalamudPlugin
         }
     }
 
+    private (Job Job, short Level, ushort ItemLevel, int Revision)? levelingSelectionContext;
+
     private void GetJobAndLevelingCheck()
     {
         Job curJob = Player.Job;
-        if (curJob != this.jobLastKnown)
+        var context = (curJob, PlayerHelper.GetCurrentLevelFromSheet(), InventoryHelper.CurrentItemLevel, LevelingHelper.PlanRevision);
+        // Active loops select after between-run tasks, immediately before queueing.
+        if (this.States.HasFlag(PluginState.Looping) || !PlayerHelper.IsReadyFull) return;
+        if (this.levelingSelectionContext != context)
+        {
+            this.levelingSelectionContext = context;
             if (this.LevelingEnabled)
             {
                 Svc.Log.Info($"{(Configuration.Meta.DutyModeEnum == DutyMode.Support || Configuration.Meta.DutyModeEnum == DutyMode.Trust) && (Configuration.Meta.DutyModeEnum == DutyMode.Support || this.SupportLevelingEnabled) && (Configuration.Meta.DutyModeEnum != DutyMode.Trust || this.TrustLevelingEnabled)} ({Configuration.Meta.DutyModeEnum == DutyMode.Support} || {Configuration.Meta.DutyModeEnum == DutyMode.Trust}) && ({Configuration.Meta.DutyModeEnum == DutyMode.Support} || {this.SupportLevelingEnabled}) && ({Configuration.Meta.DutyModeEnum != DutyMode.Trust} || {this.TrustLevelingEnabled})");
@@ -2127,6 +2134,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
                     this.currentPath               = -1;
                 }
             }
+        }
 
         this.jobLastKnown = curJob;
     }
@@ -2204,6 +2212,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     public void Framework_Update(IFramework framework)
     {
+        FileHelper.Tick();
+        if (Player.Available && !InDungeon) this.GetJobAndLevelingCheck();
         this.TickMetrics();
         this.Recorder.Tick();
         if (this.Stage == Stage.Stopped)
