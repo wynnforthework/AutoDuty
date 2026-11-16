@@ -57,6 +57,7 @@ public partial class AutoDuty
         this.pendingStepFailure = null;
         if (attempt.Attempts < Math.Max(1, Configuration.DutyConfig.MaxStepRetries))
         {
+            Svc.Chat.Print("[AutoDuty] " + Loc.Get("DutyTools.AutoRetryDetail", this.indexer + 1, reason, attempt.Attempts + 1, Math.Max(1, Configuration.DutyConfig.MaxStepRetries)));
             attempt.StartedAt = attempt.LastTickAt = Environment.TickCount64;
             attempt.ActionStartedAt = 0;
             attempt.MovementStarted = false;

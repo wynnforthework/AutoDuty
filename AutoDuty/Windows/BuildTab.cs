@@ -174,6 +174,7 @@ namespace AutoDuty.Windows
         internal static unsafe void DrawBuildTab()
         {
             SetCurrentTabName("BuildTab");
+            DutyToolsUi.ExecutionStatus();
             DrawRouteFiles();
             ImGui.TextWrapped(Loc.Get("LevelingPlan.AutoSaveSteps"));
             if (saveStatus.Length > 0)

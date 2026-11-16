@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Numerics;
 using AutoDuty.Configurations;
+using AutoDuty.IPC;
 using Dalamud.Bindings.ImGui;
 
 namespace AutoDuty.Windows;
@@ -66,6 +67,16 @@ internal static class DutyToolsUi
             ? $" / {Loc.Get("LevelingPlan.ProgressDistance")}: {Vector3.Distance(Player.Position, step.Position):F2}m" : "";
         string task = Plugin.taskManager.CurrentTask?.Name is { } name ? " / " + name : "";
         ImGui.TextWrapped($"{Loc.Get("LevelingPlan.ProgressState")}: {phase} / #{Plugin.indexer + 1}{distance}{task}");
+        if (Plugin.Stage == Stage.Moving && Plugin.currentAttempt is { } moving && Player.Available)
+        {
+            Vector3 delta = Player.Position - step.Position;
+            string navigation = Text(VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress ? "NavFinding" : VNavmesh_IPCSubscriber.Path_IsRunning ? "NavMoving" : "NavStopped");
+            ImGui.TextWrapped(Loc.Get("DutyTools.MoveDetail", navigation, moving.Attempts + 1, Math.Max(1, Configuration.DutyConfig.MaxStepRetries),
+                Math.Max(0, Environment.TickCount64 - moving.StartedAt) / 1000, Math.Max(1000, Configuration.DutyConfig.MoveToStepTimeoutMs) / 1000,
+                MathF.Sqrt(delta.X * delta.X + delta.Z * delta.Z).ToString("F2"), MathF.Abs(delta.Y).ToString("F2"),
+                Helpers.CombatCheckpointProgress.ArrivalRadius(step, moving.Attempts).ToString("F2")));
+            if (moving.LastFailReason is { } lastReason) ImGui.TextWrapped(Text("LastMoveFailure") + ": " + lastReason);
+        }
     }
 
     internal static void FailureBanner(bool compact = false)

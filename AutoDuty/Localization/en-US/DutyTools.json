@@ -66,6 +66,12 @@
     "OriginalVersion": "Original (read-only)",
     "UserVersion": "User version",
     "OnlyOriginal": "Only the original version exists. Create a copy below before editing; leave the name blank to generate one.",
-    "CurrentVersion": "Current route version"
+    "CurrentVersion": "Current route version",
+    "NavFinding": "Calculating path",
+    "NavMoving": "Following path",
+    "NavStopped": "Navigation stopped; checking arrival (up to 2 seconds if short)",
+    "MoveDetail": "Navigation: {0} / attempt {1}/{2} / elapsed {3}s, limit {4}s / horizontal {5}m / height {6}m / arrival radius {7}m",
+    "LastMoveFailure": "Last failure",
+    "AutoRetryDetail": "Step {0} failed: {1}; starting attempt {2}/{3}."
   }
 }

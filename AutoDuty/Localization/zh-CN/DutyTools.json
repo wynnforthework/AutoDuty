@@ -66,6 +66,12 @@
     "OriginalVersion": "原始版本（只读）",
     "UserVersion": "用户版本",
     "OnlyOriginal": "当前只有原始版本，请先在下方创建副本后编辑；名称留空可自动生成。",
-    "CurrentVersion": "当前脚本版本"
+    "CurrentVersion": "当前脚本版本",
+    "NavFinding": "正在计算路径",
+    "NavMoving": "正在沿路径移动",
+    "NavStopped": "导航已停止，正在核对到达位置（未到达时最多等待2秒）",
+    "MoveDetail": "导航：{0} / 第 {1}/{2} 次尝试 / 已用 {3}s，上限 {4}s / 水平距离 {5}m / 高差 {6}m / 到达范围 {7}m",
+    "LastMoveFailure": "上次失败原因",
+    "AutoRetryDetail": "第 {0} 步失败：{1}，开始第 {2}/{3} 次尝试。"
   }
 }

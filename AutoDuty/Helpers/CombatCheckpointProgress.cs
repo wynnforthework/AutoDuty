@@ -45,4 +45,17 @@ internal sealed class CombatCheckpointProgress
 
     internal static float ArrivalRadius(PathAction step, int retries) => step.Name == "StopForCombat"
         ? SwitchArrivalRadius : step.Name == "Interactable" ? 2f : retries > 0 ? .5f : .25f;
+
+    internal static bool HasArrived(PathAction step, Vector3 position, int retries)
+    {
+        float radius = ArrivalRadius(step, retries);
+        Vector3 delta = position - step.Position;
+        // A combat switch is a ground location, not a precise 3D waypoint.
+        // Slopes must not leave navmesh stopped within its horizontal tolerance
+        // while AutoDuty waits forever for a smaller 3D distance. Bound height
+        // separately so another floor cannot satisfy this checkpoint.
+        return step.Name == "StopForCombat"
+            ? delta.X * delta.X + delta.Z * delta.Z <= radius * radius && MathF.Abs(delta.Y) <= 2f
+            : delta.LengthSquared() <= radius * radius;
+    }
 }

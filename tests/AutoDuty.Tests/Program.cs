@@ -330,5 +330,19 @@ static void TestCombatCheckpoint()
     Check(!evidence.CanApply(off, move.Position, false), "pull continuation switch remains unchanged");
     Check(CombatCheckpointProgress.ArrivalRadius(stop, 0) == 1.5f && CombatCheckpointProgress.ArrivalRadius(move, 0) == .25f, "switch arrival tolerance does not relax MoveTo");
     Check(CombatCheckpointProgress.ArrivalRadius(boss, 0) == .25f, "boss navigation remains precise");
+    var slopeSwitch = new AutoDuty.Data.Classes.PathAction { Name = "StopForCombat", Arguments = ["True"], Position = new(41.68471f, -19.103832f, 196.75746f) };
+    var stoppedOnSlope = new System.Numerics.Vector3(43.124752f, -19.920034f, 196.42093f);
+    Check(System.Numerics.Vector3.Distance(stoppedOnSlope, slopeSwitch.Position) > 1.5f, "reported failure reproduces 3D distance exceeding tolerance");
+    Check(CombatCheckpointProgress.HasArrived(slopeSwitch, stoppedOnSlope, 0), "reported slope endpoint is inside horizontal switch tolerance");
+    Check(CombatCheckpointProgress.HasArrived(slopeSwitch, stoppedOnSlope, 2), "retry at reached switch does not need new navigation");
+    Check(!CombatCheckpointProgress.HasArrived(slopeSwitch, slopeSwitch.Position + new System.Numerics.Vector3(0, 3, 0), 0), "another floor cannot satisfy switch arrival");
+    Check(!CombatCheckpointProgress.HasArrived(slopeSwitch, slopeSwitch.Position + new System.Numerics.Vector3(1.6f, 0, 0), 0), "outside horizontal tolerance still requires navigation");
+    Check(!CombatCheckpointProgress.HasArrived(move, move.Position + new System.Numerics.Vector3(0, 1, 0), 0), "precise movement is not relaxed by switch slope handling");
+    var navStop = new NavigationStopProgress();
+    Check(!navStop.StoppedShort(false, 1000) && !navStop.StoppedShort(false, 2999), "idle navigation allows asynchronous path startup grace");
+    Check(navStop.StoppedShort(false, 3000), "stopped short is detected after 2 seconds, not 60");
+    Check(!navStop.StoppedShort(true, 4000) && !navStop.StoppedShort(false, 10000), "active pathfinding clears idle grace");
+    navStop.Reset();
+    Check(!navStop.StoppedShort(false, 100000), "retry and combat resume start fresh idle observation");
     Console.WriteLine("PASS: adjacent early-combat switch, no empty-area guessing, no boss/remote reuse, new waves, death/reset and scoped arrival tolerance");
 }

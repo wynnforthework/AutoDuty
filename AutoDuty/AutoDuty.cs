@@ -1512,6 +1512,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
         }
 
+        if (this.TryAdvanceAtDestination()) return;
+
         if (VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress || VNavmesh_IPCSubscriber.Path_IsRunning)
             VNavmesh_IPCSubscriber.Path_Stop();
 
@@ -1527,6 +1529,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         }
 
         this.currentAttempt!.StartedAt = Environment.TickCount64;
+        this.currentAttempt.NavigationStop.Reset();
         this.Stage = Stage.Moving;
     }
 
@@ -1554,6 +1557,17 @@ public sealed partial class AutoDuty : IDalamudPlugin
                 this.SetRotationPluginSettings(true);
             VNavmesh_IPCSubscriber.Path_Stop();
             this.Stage = Stage.Waiting_For_Combat;
+            return;
+        }
+
+        // Arrival wins over stuck detection, exhausted-path handling and timeout.
+        if (this.TryAdvanceAtDestination()) return;
+
+        if (this.currentAttempt != null && this.currentAttempt.NavigationStop.StoppedShort(
+                VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress || VNavmesh_IPCSubscriber.Path_IsRunning,
+                Environment.TickCount64))
+        {
+            this.RegisterStepFailure("navigation-stopped-short", this.MovementFailureDetail());
             return;
         }
 
@@ -1618,14 +1632,19 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.currentAttempt.MovementStarted |= VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress || VNavmesh_IPCSubscriber.Path_IsRunning || VNavmesh_IPCSubscriber.Path_NumWaypoints > 0;
             if (Environment.TickCount64 - this.currentAttempt.StartedAt > Math.Max(1000, Configuration.DutyConfig.MoveToStepTimeoutMs))
             {
-                this.RegisterStepFailure(this.currentAttempt.MovementStarted ? "move-timeout" : "no-path", this.pathAction.Position.ToString());
+                this.RegisterStepFailure(this.currentAttempt.MovementStarted ? "move-timeout" : "no-path", this.MovementFailureDetail());
                 return;
             }
         }
-        // An exhausted/empty path is not proof of arrival; it may have been rejected or cancelled.
-        if (ObjectHelper.GetDistanceToPlayer(this.pathAction.Position) <= CombatCheckpointProgress.ArrivalRadius(this.pathAction, this.currentAttempt?.Attempts ?? 0)
-            && EzThrottler.Throttle("AdvanceStep" + this.indexer, 100))
+    }
+
+    private bool TryAdvanceAtDestination()
+    {
+        if (!Player.Available || (PartyHelper.PartyInCombat() && (this.DutyData?.StopForCombat ?? true))
+            || !CombatCheckpointProgress.HasArrived(this.pathAction, Player.Position, this.currentAttempt?.Attempts ?? 0)) return false;
+        if (EzThrottler.Throttle("AdvanceStep" + this.indexer, 100))
         {
+            VNavmesh_IPCSubscriber.Path_Stop();
             if (this.pathAction.Name.IsNullOrEmpty() || this.pathAction.Name.Equals("MoveTo") || this.pathAction.Name.Equals("TreasureCoffer") || this.pathAction.Name.Equals("Revival"))
             {
                 this.Stage = Stage.Reading_Path;
@@ -1641,8 +1660,14 @@ public sealed partial class AutoDuty : IDalamudPlugin
                 this.Stage = Stage.Action;
             }
 
-            return;
         }
+        return true;
+    }
+
+    private string MovementFailureDetail()
+    {
+        Vector3 delta = Player.Position - this.pathAction.Position;
+        return $"target={this.pathAction.Position}; position={Player.Position}; horizontal={MathF.Sqrt(delta.X * delta.X + delta.Z * delta.Z):F2}m; vertical={MathF.Abs(delta.Y):F2}m; distance={delta.Length():F2}m; arrival={CombatCheckpointProgress.ArrivalRadius(this.pathAction, this.currentAttempt?.Attempts ?? 0):F2}m; pathfinding={VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress}; running={VNavmesh_IPCSubscriber.Path_IsRunning}; waypoints={VNavmesh_IPCSubscriber.Path_NumWaypoints}";
     }
 
     private void StageAction()
