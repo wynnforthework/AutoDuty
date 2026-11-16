@@ -136,6 +136,7 @@ namespace AutoDuty.Data
 
         public class PathFileMetaData
         {
+            public bool IsDraft { get; set; }
             public JobWithRole? Jobs { get; set; }
             public string? Author { get; set; }
             public string? Description { get; set; }
@@ -302,7 +303,7 @@ namespace AutoDuty.Data
 
             public string Path
             {
-                get => field ??= ContentPathsManager.DictionaryPaths[this.id].SelectPath(out _)!.FileName;
+                get => field ??= ContentPathsManager.DictionaryPaths[this.id].SelectPath(out _)?.FileName ?? string.Empty;
                 set;
             }
 

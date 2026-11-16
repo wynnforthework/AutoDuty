@@ -31,7 +31,9 @@
                 if (ContentPathsManager.DictionaryPaths.TryGetValue(territoryId, out ContentPathsManager.ContentPathContainer? container))
                     foreach (Job job in Enum.GetValues<Job>())
                     {
-                        string path = container.SelectPath(out _, job)!.FileName;
+                        var selected = container.SelectPath(out _, job);
+                        if (selected == null) continue;
+                        string path = selected.FileName;
                         jobs.TryAdd(path, JobWithRole.None);
                         jobs[path] |= job.JobToJobWithRole();
                     }
@@ -55,7 +57,9 @@
 
                 foreach (Job job in jwr.ContainedJobs())
                 {
-                    string path = container.SelectPath(out _, job)!.FileName;
+                    var selected = container.SelectPath(out _, job);
+                    if (selected == null) continue;
+                    string path = selected.FileName;
                     pathJobConfigs.TryAdd(path, JobWithRole.None);
                     pathJobConfigs[path] |= job.JobToJobWithRole();
                 }

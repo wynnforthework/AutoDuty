@@ -30,6 +30,35 @@ namespace AutoDuty.Windows
     internal static class BuildTab
     {
         private static string? managedEditFile;
+        private static string copyName = "";
+
+        private static void DrawRouteFiles()
+        {
+            if (!uint.TryParse(System.Text.RegularExpressions.Regex.Match(Path.GetFileName(Plugin.pathFile), @"^\((\d+)\)").Groups[1].Value, out uint territory)) return;
+            ImGui.TextWrapped(Loc.Get("LevelingPlan.EditingFile") + ": " + Plugin.pathFile);
+            using (ImRaii.Disabled(Plugin.Stage != Stage.Stopped || Plugin.Recorder.Recording))
+            {
+                ImGui.SetNextItemWidth(240);
+                ImGui.InputText(Loc.Get("LevelingPlan.CopyName"), ref copyName, 100);
+                ImGui.SameLine();
+                if (ImGui.Button(Loc.Get("LevelingPlan.SaveCopy")))
+                {
+                    try
+                    {
+                        string destination = PathFileStore.CopyAs(Plugin.pathFile, Plugin.pathsDirectory.FullName, territory, copyName, Plugin.Actions);
+                        ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(Path.GetFileName(destination));
+                        ConfigurationProfileV2.Save();
+                        Plugin.pathFile = managedEditFile = destination;
+                        saveStatus = Loc.Get("LevelingPlan.RouteSaved") + ": " + destination;
+                        saveFailed = false;
+                        LevelingHelper.ResetLevelingDuties();
+                    }
+                    catch (Exception ex) { saveFailed = true; saveStatus = ex.Message; Svc.Chat.PrintError("[AutoDuty] " + ex.Message); }
+                }
+            }
+            if (ContentPathsManager.DictionaryPaths.TryGetValue(territory, out var container) && ImGui.CollapsingHeader(Loc.Get("LevelingPlan.AllRouteFiles")))
+                RoleRoutesUi.DrawFiles(container);
+        }
 
         internal static void LoadForEditing(ContentPathsManager.DutyPath path)
         {
@@ -97,6 +126,7 @@ namespace AutoDuty.Windows
         internal static unsafe void DrawBuildTab()
         {
             SetCurrentTabName("BuildTab");
+            DrawRouteFiles();
             ImGui.TextWrapped(Loc.Get("LevelingPlan.AutoSaveSteps"));
             if (saveStatus.Length > 0)
             {
@@ -149,20 +179,8 @@ namespace AutoDuty.Windows
             ImGui.Text(Loc.Get("BuildTab.BuildPath", Svc.ClientState.TerritoryType,
                                ContentHelper.DictionaryContent.TryGetValue(Svc.ClientState.TerritoryType, out Classes.Content? content) ? content.Name : TerritoryName.GetTerritoryName(Svc.ClientState.TerritoryType)));
 
-            ImGui.AlignTextToFramePadding();
-            string idText = $"({Svc.ClientState.TerritoryType}) ";
-            ImGui.Text(idText);
-            ImGui.SameLine();
-            string path    = Path.GetFileName(Plugin.pathFile).Replace(idText, string.Empty).Replace(".json", string.Empty);
-            string pathOrg = path;
+            ImGui.TextWrapped(Path.GetFileName(Plugin.pathFile));
 
-            Vector2 textL = ImGui.CalcTextSize(".json");
-            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - textL.Length());
-            if (ImGui.InputText("##BuildPathFileName", ref path, 100) && !path.Equals(pathOrg))
-                Plugin.pathFile = $"{Plugin.pathsDirectory.FullName}{Path.DirectorySeparatorChar}{idText}{path}.json";
-
-            ImGui.SameLine(0);
-            ImGui.Text(Loc.Get("BuildTab.JsonExtension"));
 
             ImGui.AlignTextToFramePadding();
             ImGui.Text(Loc.Get("BuildTab.Changelog"));

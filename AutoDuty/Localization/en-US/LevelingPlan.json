@@ -5,6 +5,17 @@
     }
   },
   "LevelingPlan": {
+    "EditingFile": "Editing file",
+    "CopyName": "New route name",
+    "SaveCopy": "Save as test route",
+    "AllRouteFiles": "All route files for this duty",
+    "RouteState": "State",
+    "RouteOperations": "Actions",
+    "DraftRoute": "Test draft (manual selection only)",
+    "EnabledRoute": "Available for automatic matching",
+    "EnableRoute": "Allow automatic matching after validation",
+    "MakeDraft": "Mark as test draft",
+    "VariantsHelp": "Keep separate test, validation and role routes for a duty. New routes, copies and recordings are drafts and do not replace role assignments. Select drafts manually on Main to test them. Enable after validation, then assign a file per role. Edits save only to the current file.",
     "RouteSaved": "Saved to file",
     "RouteSaveFailed": "Save failed: edits remain in memory; retry saving",
     "AutoSaveSteps": "Confirmed step edits, additions, deletions and reordering save to the current file automatically. Recordings still require saving; clearing a whole route requires Save Path. The latest save result appears below.",

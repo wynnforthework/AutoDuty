@@ -43,58 +43,38 @@ namespace AutoDuty.Managers
 
             public DutyPath? SelectPath(out int pathIndex, Job? job = null)
             {
-                if (this.Paths.Count == 0) { pathIndex = -1; return null; }
+                pathIndex = -1;
+                // Drafts remain available for manual testing but never enter automatic matching.
+                var available = this.Paths.ToArray().Select((path, index) => (Path: path, Index: index))
+                    .Where(p => PathFileStore.CanAutoSelect(p.Path.PathFile)).ToArray();
+                if (available.Length == 0) return null;
                 job ??= PlayerHelper.GetJob();
-
-                DutyPath defaultPath = this.Paths[0];
-
-                if (job == null)
+                var selected = available[0];
+                if (job != null)
                 {
-                    pathIndex = 0;
-                    return defaultPath;
-                }
-
-                if (this.Paths.Count > 1)
-                {
-                    if (AutoDuty.Configuration.Meta.PathSelectionsByPath.TryGetValue(this.Content.TerritoryType, out Dictionary<string, JobWithRole>? jobConfig))
-                        if(jobConfig != null)
-                            foreach ((string? pathName, JobWithRole pathJobs) in jobConfig)
-                                if (pathJobs.HasJob((Job)job))
-                                {
-                                    int pInx = this.Paths.IndexOf(dp => dp.FileName.Equals(pathName));
-
-                                    if (pInx >= 0 && pInx < this.Paths.Count)
-                                    {
-                                        pathIndex = pInx;
-
-                                        Svc.Log.Debug($"Selecting path {pathIndex} from {this.Paths.Count}");
-
-                                        return this.Paths[pathIndex];
-                                    }
-                                }
-
-                    for (int i = 0; i < this.Paths.Count; i++)
-                        if (this.Paths[i].PathFile?.Meta.Jobs is { } jobs && jobs.HasJob(job.Value))
-                        {
-                            pathIndex = i;
-                            return this.Paths[i];
-                        }
-
-                    //temporary while w2w gets integrated
-                    if (!defaultPath.W2WFound && AutoDuty.Configuration.DutyConfig.W2WJobs.HasJob(job.Value))
-                        for (int index = 0; index < this.Paths.Count; index++)
-                        {
-                            string curPath = this.Paths[index].Name;
-                            if (curPath.Contains(PathIdentifiers.W2W))
+                    if (AutoDuty.Configuration.Meta.PathSelectionsByPath.TryGetValue(this.ID, out var bindings) && bindings != null)
+                        foreach (var item in available)
+                            if (bindings.TryGetValue(item.Path.FileName, out var jobs) && jobs.HasJob(job.Value))
                             {
-                                pathIndex = index;
-                                return this.Paths[index];
+                                pathIndex = item.Index;
+                                return item.Path;
                             }
+                    foreach (var item in available)
+                        if (item.Path.PathFile.Meta.Jobs is { } jobs && jobs.HasJob(job.Value))
+                        {
+                            pathIndex = item.Index;
+                            return item.Path;
                         }
+                    if (!selected.Path.W2WFound && AutoDuty.Configuration.DutyConfig.W2WJobs.HasJob(job.Value))
+                        foreach (var item in available)
+                            if (item.Path.Name.Contains(PathIdentifiers.W2W))
+                            {
+                                pathIndex = item.Index;
+                                return item.Path;
+                            }
                 }
-
-                pathIndex = 0;
-                return defaultPath;
+                pathIndex = selected.Index;
+                return selected.Path;
             }
 
             public void AddPath(string name) => 

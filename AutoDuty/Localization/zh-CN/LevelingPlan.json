@@ -5,6 +5,17 @@
     }
   },
   "LevelingPlan": {
+    "EditingFile": "当前编辑文件",
+    "CopyName": "新路径名称",
+    "SaveCopy": "另存为测试路径",
+    "AllRouteFiles": "本副本的全部路径文件",
+    "RouteState": "用途状态",
+    "RouteOperations": "操作",
+    "DraftRoute": "测试草稿（仅手动选择）",
+    "EnabledRoute": "允许自动匹配",
+    "EnableRoute": "验证后允许自动匹配",
+    "MakeDraft": "设为测试草稿",
+    "VariantsHelp": "同一副本可保留多份测试、验证和职能路径。新建、复制、另存和新录制均为测试草稿，不替换已有职能分配；草稿只能从主页手动选择测试。验证后启用，再从职能下拉框指定使用哪个文件。编辑只保存到当前文件。",
     "RouteSaved": "已保存到文件",
     "RouteSaveFailed": "保存失败：修改仅保留在内存，请重试保存",
     "AutoSaveSteps": "确认修改、新增、删除或调整步骤后自动保存到当前文件。录制仍需单独保存；清空整条路线需点击保存路径。下方显示最近一次保存结果。",

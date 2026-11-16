@@ -79,7 +79,7 @@ namespace AutoDuty.Windows
                 if (ContentPathsManager.DictionaryPaths.TryGetValue(Plugin.CurrentTerritoryContent.TerritoryType, out ContentPathsManager.ContentPathContainer? container))
                 {
                     List<ContentPathsManager.DutyPath> curPaths = container.Paths;
-                    if (curPaths.Count > 1)
+                    if (curPaths.Count > 0)
                     {
                         int                              curPath       = Math.Clamp(Plugin.currentPath, 0, curPaths.Count - 1);
 
@@ -107,9 +107,11 @@ namespace AutoDuty.Windows
                         {
                             foreach ((ContentPathsManager.DutyPath Value, int Index) path in curPaths.Select((value, index) => (Value: value, Index: index)))
                             {
-                                if (ImGui.Selectable(path.Value.Name))
+                                if (ImGui.Selectable(path.Value.Name + (path.Value.PathFile.Meta.IsDraft ? " (" + Loc.Get("LevelingPlan.DraftRoute") + ")" : "")))
                                 {
                                     curPath = path.Index;
+                                    if (!path.Value.PathFile.Meta.IsDraft)
+                                    {
                                     PathSelectionHelper.AddPathSelectionEntry(Plugin.CurrentTerritoryContent!.TerritoryType);
                                     Dictionary<string, JobWithRole> pathJobs = Configuration.Meta.PathSelectionsByPath[Plugin.CurrentTerritoryContent.TerritoryType]!;
                                     pathJobs.TryAdd(path.Value.FileName, JobWithRole.None);
@@ -122,6 +124,7 @@ namespace AutoDuty.Windows
                                     PathSelectionHelper.RebuildDefaultPaths(Plugin.CurrentTerritoryContent.TerritoryType);
 
                                     ConfigurationProfileV2.Save();
+                                    }
                                     Plugin.currentPath = curPath;
                                     Plugin.LoadPath();
                                 }

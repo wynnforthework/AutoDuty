@@ -227,6 +227,24 @@ static void TestPathPersistence()
         Check(reentered.Meta.Author == original.Meta.Author && reentered.Meta.Jobs == original.Meta.Jobs, "preserve role and author metadata");
         Check(reentered.Meta.Changelog.Last().Change == "edited step", "persist changelog");
         Check(cached.Actions[0].Note != "saved edit", "save does not rely on mutating an old catalog cache");
+        string sourceBeforeCopy = File.ReadAllText(path);
+        string copyA = PathFileStore.CopyAs(path, directory, 1036, "tank-test-A", [edited]);
+        string copyB = PathFileStore.CopyAs(path, directory, 1036, "tank-test-B", [edited]);
+        Check(copyA != copyB && File.ReadAllText(path) == sourceBeforeCopy, "multiple variants never overwrite the source");
+        var draft = AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(copyA));
+        Check(draft.Meta.IsDraft && !PathFileStore.CanAutoSelect(draft), "test copies excluded from automatic matching");
+        Check(PathFileStore.CanAutoSelect(reentered), "existing stable routes remain eligible");
+        Check(draft.Meta.Jobs == original.Meta.Jobs && draft.Meta.Territory == 1036, "copies preserve role and map identity");
+        var sharedDraft = PathCodec.Decode(PathCodec.Encode(draft), out _);
+        Check(sharedDraft?.Meta.IsDraft == true, "sharing preserves draft state");
+        PathFileStore.Save(copyA, [new() { Name = "Wait", Arguments = ["9876"] }]);
+        Check(File.ReadAllText(path) == sourceBeforeCopy && AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(copyB)).Actions[0].Arguments[0] == "2345", "editing one variant leaves original and other variants intact");
+        bool duplicateRejected = false;
+        try { PathFileStore.CopyAs(path, directory, 1036, "tank-test-A", [edited]); } catch (IOException) { duplicateRejected = true; }
+        Check(duplicateRejected && AutoDuty.Data.PathJson.ReadFile(File.ReadAllText(copyA)).Actions[0].Arguments[0] == "9876", "duplicate copy names cannot overwrite existing variants");
+        bool traversalRejected = false;
+        try { PathFileStore.CopyAs(path, directory, 1036, "../escape", [edited]); } catch (ArgumentException) { traversalRejected = true; }
+        Check(traversalRejected, "copy filename cannot escape route directory");
         string saved = File.ReadAllText(path);
         bool rejected = false;
         try { PathFileStore.Save(path, [new() { Name = "MoveTo", Position = new(float.NaN, 0, 0) }]); }

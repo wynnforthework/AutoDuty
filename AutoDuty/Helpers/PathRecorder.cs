@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -134,7 +134,7 @@ internal sealed class PathRecorder
         else
         {
             if (File.Exists(path)) throw new InvalidOperationException("File exists; choose another name or use append");
-            file = new() { Actions = [.. Plugin.Actions], Meta = new() { CreatedAt = Plugin.Version, Territory = this.Territory, Author = this.author, Notes = [$"Recorded job: {this.job}"] } };
+            file = new() { Actions = [.. Plugin.Actions], Meta = new() { CreatedAt = Plugin.Version, Territory = this.Territory, IsDraft = true, Author = this.author, Notes = [$"Recorded job: {this.job}"] } };
         }
         PathValidator.ValidateStructure(file);
         File.WriteAllText(path, PathJson.WriteFile(file));

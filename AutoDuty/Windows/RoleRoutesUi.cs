@@ -37,7 +37,8 @@ internal static class RoleRoutesUi
             {
                 if (ImGui.Selectable(Text("Automatic"), assigned == null)) Assign(container.ID, mask, null);
                 foreach (var path in container.Paths.ToArray())
-                    if (ImGui.Selectable(path.FileName, assigned == path.FileName)) Assign(container.ID, mask, path.FileName);
+                    using (ImRaii.Disabled(path.PathFile.Meta.IsDraft))
+                        if (ImGui.Selectable(path.FileName + (path.PathFile.Meta.IsDraft ? " (" + Text("DraftRoute") + ")" : ""), assigned == path.FileName)) Assign(container.ID, mask, path.FileName);
                 ImGui.EndCombo();
             }
             if (ImGui.SmallButton(Text("RemoveBinding"))) Assign(container.ID, mask, null);
@@ -57,6 +58,53 @@ internal static class RoleRoutesUi
             }
             ImGui.PopID();
         }
+        DrawFiles(container);
+    }
+
+    internal static void DrawFiles(ContentPathsManager.ContentPathContainer container)
+    {
+        ImGui.Separator();
+        ImGui.TextWrapped(Text("VariantsHelp"));
+        if (!ImGui.BeginTable("RouteVariants", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY, new System.Numerics.Vector2(650, 220))) return;
+        ImGui.TableSetupColumn(Text("EditingFile"));
+        ImGui.TableSetupColumn(Text("RouteState"));
+        ImGui.TableSetupColumn(Text("RouteOperations"));
+        ImGui.TableHeadersRow();
+        foreach (var path in container.Paths.ToArray())
+        {
+            var file = path.PathFile;
+            if (file == null) continue;
+            ImGui.PushID(path.FilePath);
+            ImGui.TableNextRow(); ImGui.TableNextColumn();
+            ImGui.TextWrapped(path.FileName);
+            if (Configuration.Meta.PathSelectionsByPath.TryGetValue(container.ID, out var bindings) && bindings != null && bindings.TryGetValue(path.FileName, out var jobs))
+                ImGui.TextWrapped(jobs.ToString());
+            ImGui.TableNextColumn();
+            ImGui.TextWrapped(Text(file.Meta.IsDraft ? "DraftRoute" : "EnabledRoute"));
+            ImGui.TableNextColumn();
+            using (ImRaii.Disabled(Plugin.Stage != Stage.Stopped || Plugin.Recorder.Recording))
+            {
+                if (ImGui.SmallButton(Text("EditRoute"))) BuildTab.LoadForEditing(path);
+                ImGui.SameLine();
+                if (ImGui.SmallButton(Text("CloneRoute"))) Create(container.ID, file.Meta.Jobs ?? JobWithRole.All, path);
+                if (ImGui.SmallButton(Text(file.Meta.IsDraft ? "EnableRoute" : "MakeDraft")))
+                {
+                    try
+                    {
+                        var updated = PathJson.ReadFile(File.ReadAllText(path.FilePath));
+                        updated.Meta.IsDraft = !updated.Meta.IsDraft;
+                        File.WriteAllText(path.FilePath, PathJson.WriteFile(updated));
+                        file.Meta.IsDraft = updated.Meta.IsDraft;
+                        ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(path.FileName);
+                        ConfigurationProfileV2.Save();
+                        LevelingHelper.ResetLevelingDuties();
+                    }
+                    catch (Exception ex) { Svc.Chat.PrintError("[AutoDuty] " + ex.Message); }
+                }
+            }
+            ImGui.PopID();
+        }
+        ImGui.EndTable();
     }
 
     private static void Assign(uint id, JobWithRole mask, string? file)
@@ -75,12 +123,15 @@ internal static class RoleRoutesUi
         {
             string name = $"({id}) {mask} {DateTime.Now:yyyyMMdd-HHmmss-fff}.json";
             string destination = Path.Combine(Plugin.pathsDirectory.FullName, name);
-            var file = source == null ? new PathFile { Actions = [], Meta = new() { Territory = id } }
+            var file = source == null ? new PathFile { Actions = [], Meta = new() { Territory = id, IsDraft = true } }
                 : PathJson.ReadFile(File.ReadAllText(source.FilePath));
             file.Meta.Jobs = mask;
-            File.WriteAllText(destination, PathJson.WriteFile(file));
+            file.Meta.IsDraft = true;
+            using (var stream = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream)) writer.Write(PathJson.WriteFile(file));
             ConfigurationMain.Instance.DoNotUpdatePathFiles.Add(name);
-            Assign(id, mask, name);
+            ConfigurationProfileV2.Save();
+            LevelingHelper.ResetLevelingDuties();
             if (!ContentHelper.DictionaryContent.TryGetValue(id, out var content)) return;
             BuildTab.LoadForEditing(new ContentPathsManager.DutyPath(destination, new(content)));
         }
