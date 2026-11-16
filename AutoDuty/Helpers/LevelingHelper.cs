@@ -93,6 +93,48 @@ namespace AutoDuty.Helpers
             }
         }
 
+        // Game catalog is deliberately independent of both the default list and installed scripts.
+        internal static Content[] Catalog => ContentHelper.DictionaryContent.Values
+            .Where(c => (c.ContentType == 2 || levelingList.Contains(c.TerritoryType) || LevelingDuties.Any(d => d.TerritoryType == c.TerritoryType)) && c.ClassJobLevelRequired < 100)
+            .OrderBy(c => c.ClassJobLevelRequired).ThenBy(c => c.TerritoryType).ToArray();
+
+        internal static bool IsPlanned(uint territory) => LevelingDuties.Any(c => c.TerritoryType == territory);
+
+        internal static LevelingDutyRule Rule(uint territory) => Configuration.DutyConfig.LevelingDutyRules.GetValueOrDefault(territory) ?? new();
+
+        internal static ContentPathsManager.DutyPath? SelectedRoute(uint territory)
+        {
+            if (!ContentPathsManager.DictionaryPaths.TryGetValue(territory, out var container) || container.Paths.Count == 0) return null;
+            var path = container.SelectPath(out _);
+            return path?.PathFile?.Actions.Count > 0 ? path : null;
+        }
+
+        internal static RouteMetricSummary? Evidence(ContentPathsManager.DutyPath path, DutyMode mode, int? level = null)
+        {
+            string hash = AutomationReports.Fingerprint(path.Actions);
+            string runMode = mode + (QueueHelper.ShouldBeUnSynced() ? "/Unsynced" : "/Synced");
+            return AutomationReports.Summarize(Configurations.ConfigurationMain.Instance.stats.routeRuns.Where(r =>
+                r.TerritoryId == path.container.ID && r.RouteHash == hash && r.JobId == (uint)Player.Job
+                && r.Mode == runMode && r.PartySize == Math.Max(1, Svc.Party.Length)
+                && r.Multibox == Multibox.MultiboxUtility.Config.MultiBox && (!level.HasValue || r.StartingLevel == level)))
+                .FirstOrDefault();
+        }
+
+        internal static Content? SelectForLevel(short level, DutyMode mode)
+        {
+            var eligible = LevelingDuties.Where(c => Rule(c.TerritoryType).Allows(level) && c.DutyModes.HasFlag(mode)
+                && c.CanRun(level, mode) && SelectedRoute(c.TerritoryType) != null).ToArray();
+            var config = Configuration.DutyConfig;
+            var candidates = eligible.Select(c =>
+            {
+                var evidence = config.LevelingPreferMeasuredEfficiency ? Evidence(SelectedRoute(c.TerritoryType)!, mode, level) : null;
+                return new LevelingCandidate(c.TerritoryType, c.ClassJobLevelRequired, Rule(c.TerritoryType).Priority,
+                    evidence?.Samples ?? 0, evidence?.CleanRuns ?? 0, evidence?.ExperiencePerHour ?? 0);
+            });
+            uint? selected = LevelingPlanRanking.Choose(candidates, config.LevelingPreferMeasuredEfficiency, config.LevelingEfficiencyMinimumSamples);
+            return eligible.FirstOrDefault(c => c.TerritoryType == selected);
+        }
+
         internal static bool IsAllowed(uint territory)
         {
             var config = Configuration.DutyConfig;
@@ -192,7 +234,7 @@ namespace AutoDuty.Helpers
             }
 
             LevelingDuties.Each(x => Svc.Log.Debug($"Leveling Mode: Duties: {x.Name} CanRun: {x.CanRun(lvl)}{(trust ? $" | CanTrustRun : {x.CanTrustRun()}" : "")}"));
-            curContent = LevelingDuties.LastOrDefault(x => IsAllowed(x.TerritoryType) && x.CanRun(lvl, trust ? DutyMode.Trust : DutyMode.None));
+            curContent = SelectForLevel(lvl, trust ? DutyMode.Trust : Configuration.Meta.DutyModeEnum);
 
             Svc.Log.Debug($"Leveling Mode: We found {curContent?.Name ?? "no duty"} to run");
 

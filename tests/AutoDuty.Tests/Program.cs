@@ -28,6 +28,23 @@ static void Run()
     TestValidation();
     TestRunMetrics();
     TestAutomationReports();
+    TestLevelingPlan();
+}
+static void TestLevelingPlan()
+{
+    var choices = new[] { new LevelingCandidate(1, 16, 0, 5, 5, 100), new LevelingCandidate(2, 24, 0, 5, 5, 80) };
+    Check(LevelingPlanRanking.Choose(choices, false, 5) == 2, "default leveling fallback chooses highest eligible level");
+    Check(LevelingPlanRanking.Choose(choices, true, 5) == 1, "same-level measured efficiency can prefer a lower dungeon");
+    Check(LevelingPlanRanking.Choose([choices[0] with { CleanRuns = 4 }, choices[1]], true, 5) == 2, "failed samples cannot win efficiency selection");
+    Check(LevelingPlanRanking.Choose([choices[0] with { Samples = 1, CleanRuns = 1 }, choices[1]], true, 5) == 2, "insufficient samples cannot win selection");
+    Check(LevelingPlanRanking.Choose([choices[0] with { Priority = 1 }, choices[1]], false, 5) == 1, "operator priority overrides dungeon level");
+    Check(LevelingPlanRanking.Choose([choices[0] with { Priority = 1, Samples = 0 }, choices[1]], true, 5) == 1, "operator priority overrides automatic efficiency preference");
+    Check(LevelingPlanRanking.Choose([], true, 5) == null, "empty plan has no implicit fallback outside selection");
+    var rule = new AutoDuty.Data.LevelingDutyRule { MinimumLevel = 24, MaximumLevel = 31, Priority = 10 };
+    Check(!rule.Allows(23) && rule.Allows(24) && rule.Allows(31) && !rule.Allows(32), "configured leveling interval boundaries");
+    var restored = Newtonsoft.Json.JsonConvert.DeserializeObject<AutoDuty.Data.LevelingDutyRule>(Newtonsoft.Json.JsonConvert.SerializeObject(rule))!;
+    Check(restored.Priority == 10 && restored.Allows(24) && !restored.Allows(32), "leveling rule persistence");
+    Console.WriteLine("PASS: leveling priorities, measured efficiency, reliability/sample requirements, fallback and interval boundaries");
 }
 static void Check(bool value, string name)
 {

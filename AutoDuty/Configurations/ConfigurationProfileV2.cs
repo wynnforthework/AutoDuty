@@ -427,6 +427,9 @@ public class ConfigurationProfileV2
         public int LevelingAutoExcludeAfterFailures { get; set; } = 2;
         public bool LevelingResetAutoExcludedOnSuccess { get; set; } = true;
         public bool LevelingIncludedOnly { get; set; } = false;
+        public Dictionary<uint, global::AutoDuty.Data.LevelingDutyRule> LevelingDutyRules { get; set; } = [];
+        public bool LevelingPreferMeasuredEfficiency { get; set; } = false;
+        public int LevelingEfficiencyMinimumSamples { get; set; } = 5;
 
         public bool LevelingListExperimentalEntries
         {

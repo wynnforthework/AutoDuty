@@ -15,6 +15,7 @@ public sealed class RouteRunRecord
     public string RouteName { get; set; } = "";
     public string RouteHash { get; set; } = "";
     public uint JobId { get; set; }
+    public int StartingLevel { get; set; }
     public string Mode { get; set; } = "";
     public int PartySize { get; set; } = 1;
     public bool Multibox { get; set; }

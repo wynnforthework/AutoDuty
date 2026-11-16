@@ -57,6 +57,7 @@ public sealed partial class AutoDuty
             CharacterId = Player.CID, TerritoryId = Svc.ClientState.TerritoryType,
             RouteName = Path.GetFileName(this.pathFile), RouteHash = AutomationReports.Fingerprint(this.Actions),
             JobId = (uint)Player.Job, Mode = Configuration.Meta.DutyModeEnum + (QueueHelper.ShouldBeUnSynced() ? "/Unsynced" : "/Synced"),
+            StartingLevel = PlayerHelper.GetCurrentLevelFromSheet(),
             PartySize = Math.Max(1, Svc.Party.Length), Multibox = MultiboxUtility.Config.MultiBox,
             StartedAt = this.lastDutyStart >= this.MetricsSession.StartedAt && this.lastDutyStart <= now ? this.lastDutyStart : now,
             UpdatedAt = now, TotalSteps = this.Actions.Count, StartedAtFirstStep = this.indexer == 0,

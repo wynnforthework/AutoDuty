@@ -43,6 +43,7 @@ namespace AutoDuty.Managers
 
             public DutyPath? SelectPath(out int pathIndex, Job? job = null)
             {
+                if (this.Paths.Count == 0) { pathIndex = -1; return null; }
                 job ??= PlayerHelper.GetJob();
 
                 DutyPath defaultPath = this.Paths[0];

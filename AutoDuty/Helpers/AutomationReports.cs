@@ -66,7 +66,7 @@ internal static class AutomationReports
                 || run.CompletedSteps < 0 || run.CompletedSteps > run.TotalSteps || run.AutonomousSteps < 0 || run.AutonomousSteps > run.CompletedSteps
                 || run.ExecutedSteps < 0 || run.PolicySkippedSteps < 0 || (long)run.ExecutedSteps + run.PolicySkippedSteps != run.CompletedSteps
                 || run.Failures is < 0 or > 100000 || run.Interventions is < 0 or > 100000 || run.Experience is < 0 or > 1000000000000
-                || run.LevelsGained is < 0 or > 1000 || run.PartySize is < 1 or > 24 || run.JobId > 99 || run.TerritoryId == 0
+                || run.LevelsGained is < 0 or > 1000 || run.StartingLevel is < 0 or > 100 || run.PartySize is < 1 or > 24 || run.JobId > 99 || run.TerritoryId == 0
                 || run.RouteHash is not { Length: 64 } || run.RouteHash.Any(c => !Uri.IsHexDigit(c))
                 || run.RouteName is not { Length: <= 512 } || run.Mode is not { Length: <= 100 }
                 || run.FirstProblem is not { Length: <= 256 } || run.Outcome is not { Length: <= 100 }
