@@ -1,51 +1,102 @@
 # [Bug] Boss steps miss localized or already defeated bosses
 
-### What happened?
+## What happened?
 
 A Boss action can fail to identify its target on a localized client or wait for a boss killed before the Boss step. Conversely, disappearance or a wipe alone should not count as a kill.
 
-These symptoms were reported while testing a downstream integration. A reproduction against the released upstream binary has not yet been recorded. This proposal is adapted independently to the upstream source below.
+Expected behavior: the acceptance criteria below are met without requiring the other first-round patches.
 
-### Version Number
+This was reported during local fork testing. A reproduction on an unmodified upstream installation has not yet been recorded; the upstream source version below is a reference, not a claim of released-binary reproduction.
 
-Source baseline: AutoDuty 0.0.0.399, upstream `master` at `ee4eced8`. Build environment: .NET 10, Dalamud API 15, Windows x64. The exact downstream binary version used for the original report was not preserved.
+## Version Number
 
-### Steps to reproduce the error
+| Item | Version / revision |
+|---|---|
+| Upstream source baseline | AutoDuty `0.0.0.399`, tag at commit `ee4eced8` |
+| Build where the behavior was reported | Local development fork; exact window-title version was not captured |
+| Parent of the isolated patch | Upstream `ee4eced8` |
+| Isolated upstream PR commit | `9f3f13a5`, branch `fix/boss-identification-and-completion` |
+| Build environment | Windows x64, .NET 10, Dalamud API 15 |
 
-Use an English-named Boss note on a localized client; kill a boss before reaching its Boss action. Also test a wipe, temporary phase disappearance, a later boss, an unnamed Boss action and a fresh run of the same duty.
+The upstream baseline version is a source reference, not a claim that the bug has been reproduced on the released `0.0.0.399` binary.
 
-### Scope
+## Steps to reproduce the error
 
-ObjectHelper boss matching, BossIdentity/BossProgress helpers, a partial AutoDuty observer, and Boss tasks in ActionsManager; plus isolated BossProgress.Tests.
+1. On a localized client, select a route with an English boss name in the Boss step note.
+2. Fight the boss before the route reaches that Boss step; then allow execution to reach it.
+3. Observe whether the action waits for an already defeated boss or selects an unrelated nearby enemy.
+4. Repeat after a wipe, a temporary phase disappearance and a later boss encounter; these must not inherit unconfirmed completion.
+5. Test an unnamed Boss step, a fresh run of the same duty, and a search/approach/engagement timeout.
+6. Verify that a timeout pauses the same step and Resume retries that step instead of advancing.
 
-### Proposed change
-
-Resolve route names through BNpcName, use localized identity before ranked/module fallback, and cache confirmed defeat evidence per territory/name/position. Observe death or a matching completed game objective; live candidates invalidate stale evidence. Reacquire objects during approach, wait for party combat to finish, and pause the same route step when completion/search/approach/engagement cannot be confirmed instead of treating timeout as success.
-
-### Why change this / expected benefit
+## Why change this?
 
 Boss identification and completion evidence must work across duties rather than rely on a dungeon-specific exception. Retaining confirmed evidence also lets an already defeated boss action complete after retracing the route. Only the existing upstream pause mechanism is used; the larger retry/recovery framework is not included.
 
-### Testing performed and results
+The reported symptom and intended behavior are distinguished from the automated checks below. The isolated branch has not yet been exercised in the running game.
 
-Independent Release/x64 build from the common upstream base: passed, 0 errors. Full rebuild reports the same 70 warnings as an unmodified upstream rebuild; normalized warning messages add none.
+## Scope of the proposed change
+
+ObjectHelper boss matching, BossIdentity/BossProgress helpers, a partial AutoDuty observer, and Boss tasks in ActionsManager; plus isolated BossProgress.Tests.
+
+| Area | Proposed change | Reason / expected benefit |
+|---|---|---|
+| Identity | Resolve route boss names through BNpcName and localized names before existing ranked/module fallback | Match the intended boss across supported client languages |
+| Object lifetime | Reacquire the boss from the current object table during approach | Avoid relying on a despawned object wrapper |
+| Completion evidence | Observe a matching death or a matching completed game objective | Handle bosses killed before their route action |
+| Evidence isolation | Key evidence by territory, note and route position; live candidates invalidate stale evidence | Prevent unrelated encounters, respawns and new duties from inheriting a kill |
+| Combat completion | Wait for party combat to finish and require completion evidence | Do not treat disappearance or leaving combat alone as victory |
+| Unconfirmed encounter | Pause the existing route step through upstream pause support after timeout | Prevent queue timeout from silently advancing the route; no P06 dependency |
+
+This patch is based directly on upstream and introduces no configuration migration, unrelated development features or dependency on another first-round PR.
+
+## What improves after the change?
+
+- Localized and named Boss steps select the intended encounter.
+- A confirmed early kill can satisfy its later Boss action.
+- Missing objects, wipes and temporary disappearances do not automatically count as victory.
+- An unconfirmed encounter pauses the current step instead of silently advancing.
+
+These are the intended acceptance criteria. Runtime results are listed separately below.
+
+## Testing performed
+
+| Check | How it was checked | Result |
+|---|---|---|
+| Independent branch build | Full Release/x64 rebuild of `fix/boss-identification-and-completion` at `9f3f13a5`, based directly on `ee4eced8` | Passed: 0 errors, 70 warnings |
+| Warning baseline | Compare normalized warning messages with a full rebuild of unmodified upstream `ee4eced8` | No added warning messages |
+| Automated regression | Exercise linked production source with isolated service stubs where needed | Passed; method and limits described below |
+| Merge order | All 120 orders of P01–P05 | No conflicts; identical final tree |
+| Build independence | All 31 nonempty subsets of P01–P05 | Every subset compiled successfully |
+| Combined regression | Run the four isolated regression projects again after merging P01–P05 | Passed |
+| Post-fix in-game behavior | Not yet verified for this isolated branch | Pending |
 
 dotnet run --project tests/BossProgress.Tests/BossProgress.Tests.csproj -c Release: all assertions passed against linked production helpers and the actual partial lifecycle source with mocked game services. Covers missing/early-killed/despawned bosses, phase disappearance, respawn precedence, wipe, encounter isolation, objective names/counts, fresh-duty reset, localized name matching and deferred pause despite upstream clearing pathAction. Real Lumina/object-table and NeoTaskManager timing require game verification.
 
-All five first-round patches were also tested in all 120 merge orders (no conflicts, identical resulting tree). Every one of the 26 multi-patch subsets compiled successfully; each of the five single patches compiled independently. No application dependency on another first-round PR.
+The isolated-branch build result above is not borrowed from the integrated development branch. The automated results do not establish that the running game behaves correctly.
 
-### Remaining validation
+## Planned runtime verification
 
-Not yet tested in the running game for this isolated branch. In-game localized clients, BossMod/ranked fallback, early kills, corpses/objectives, phase transitions, wipes, fresh duty reset, timeout pause and Resume on the same step.
+Before presenting the PR as fully validated:
 
-### Relevant log output
+1. Record the affected runtime version and reproduce the problem on the unmodified target version.
+2. Build and load this isolated PR branch.
+3. Repeat the reproduction steps above and check each intended improvement.
+4. Verify the following specific cases: In-game localized clients, BossMod/ranked fallback, early kills, corpses/objectives, phase transitions, wipes, fresh duty reset, timeout pause and Resume on the same step.
+5. Record actual results and relevant logs, including failures; only then update the Draft readiness status.
 
-No sanitized log from an isolated upstream-binary reproduction is attached.
+## Relevant log output
 
-### Other relevant plugins installed
+No sanitized game log from an isolated upstream-binary reproduction is attached. Compiler and automated-test logs establish their respective results only, not the game-runtime fix. The local evidence index is `docs/pr-first-round/README.md`.
 
-Original exact plugin versions were not captured. vnavmesh/BossMod are relevant to navigation/combat validation; no exact versions are claimed here.
+## Other relevant plugins installed
 
-### Plugin config file
+Exact versions were not captured for the original report. No exact external plugin versions are claimed. Actual runtime verification must record relevant vnavmesh/BossMod versions where navigation or combat is involved.
 
-No personal configuration attached. No schema migration or new user setting is introduced by this patch.
+## Plugin config file
+
+No personal configuration is attached. No configuration migration is introduced. If reproduction requires configuration, provide a minimal example with character identifiers and unrelated settings removed.
+
+## Readiness for submission
+
+Issue #651 and PR #652 are available for discussion. Independent build and automated checks have passed. The PR remains Draft pending the running-game checks above and has not been marked as fully game-tested.

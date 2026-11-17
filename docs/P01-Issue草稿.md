@@ -1,6 +1,6 @@
 # [Bug] Action editor keeps expanding horizontally while open
 
-> Draft for review; not published. Follows the upstream Bug Report fields and adds the proposed scope, rationale, and validation evidence.
+> Published as Issue #643 with Draft PR #644. Uses the previously agreed issue structure; isolated-branch build and native layout results have now been added. Running-game verification remains pending.
 
 ## What happened?
 
@@ -17,7 +17,8 @@ This was reported during local fork testing. The same auto-sizing and layout pat
 | Upstream source baseline | AutoDuty `0.0.0.399`, tag at commit `ee4eced8` |
 | Build where the behavior was reported | Local development fork before the fix; the exact window-title version was not captured |
 | Source parent immediately before the fix | `cd7b3094` |
-| Local fix commit | `00b99e12` |
+| Original local fix commit | `00b99e12` |
+| Isolated upstream PR commit | `52ffea59` (PR #644) |
 | Build environment | Windows x64, .NET 10, Dalamud API 15 |
 
 The upstream baseline version is a source reference, not a claim that the bug has been reproduced on the released `0.0.0.399` binary.
@@ -50,7 +51,7 @@ One production file: `AutoDuty/Windows/BuildTab.cs`, limited to `ActionEditWindo
 | Close button | Calculate its width from text and frame padding; position it using local window coordinates and the preceding item's right edge | Keep the button placement consistent with the resized content area |
 | Coordinate inputs | Add the matching `ImGui.PopItemWidth()` | Restore the item-width stack after the X/Y/Z inputs |
 
-These values describe the local source patch, not independently measured physical screen pixels under every UI scale. The minimum width and behavior on narrow viewports need checking before submission.
+These values describe the local source patch, not independently measured physical screen pixels under every UI scale. The minimum width and behavior on narrow viewports need checking before marking the PR ready for review.
 
 The proposed PR does not change route execution, action semantics, saved route data, leveling selection, or configuration schema. It will not include the other features from the development branch.
 
@@ -70,11 +71,13 @@ These are the intended acceptance criteria. Runtime results are listed separatel
 | Local compilation | Release/x64 build of the integrated fork containing the patch, using Dalamud API 15 assemblies | Passed: 0 errors, 44 warnings; recorded in `artifacts/build-editor-width.log` |
 | Patch scope | Inspected local commit `00b99e12` | One production file changed: 10 insertions, 3 deletions |
 | Upstream source comparison | Inspected `BuildTab.cs` at `ee4eced8` | The relevant auto-sizing, close-button layout, and unbalanced coordinate-input width pattern are present |
-| Independent cherry-picked branch | Not created or built yet | Pending |
+| Independent upstream branch | Full Release/x64 rebuild of `fix/action-editor-width` at `52ffea59`, based directly on `ee4eced8` | Passed: 0 errors, 70 warnings, identical warning messages to the upstream full rebuild |
+| Native layout regression | Execute this branch's extracted constructor and Draw code using actual cimgui, mocked game services, 3 scales × 3 window widths × 120 frames | Passed: all 9 cases retained their selected width; actual Dalamud WindowSystem and game behavior are not covered |
+| Independent merge/build combinations | All 120 merge orders and all 31 nonempty subsets of P01–P05 | No merge conflicts, identical final tree, every subset builds |
 | Post-fix in-game editor behavior | Not yet verified in game | Pending; compilation does not establish that the width is stable |
 | Scaling / narrow viewport behavior | Not yet verified in game | Pending |
 
-The build result is from the integrated development branch, not an isolated P01 branch. It must be repeated after extracting the patch onto the agreed upstream base. No UI automation result is claimed for P01.
+The original 44-warning result above is historical evidence from the integrated fork. The separate 70-warning result is from the isolated P01 branch and matches a full rebuild of the unmodified upstream baseline. Native cimgui results exercise the actual extracted layout code with mocked services; they are not a running-game test. Logs: `artifacts/build-p01-final.log` and `artifacts/tests-p01-native-layout.log`.
 
 ## Planned runtime verification
 
@@ -103,4 +106,4 @@ No configuration-specific trigger has been established. A full personal configur
 
 ## Readiness for submission
 
-The local patch and its intended scope are available for discussion. The affected runtime version, clean upstream reproduction, isolated-branch build, and post-fix in-game checks remain to be completed before marking the fix as fully tested.
+Issue #643 and PR #644 are available for discussion. The isolated branch has been built and the native layout regression has passed. PR #644 remains Draft because the affected runtime version, clean upstream reproduction, actual WindowSystem behavior and post-fix in-game checks remain unverified. It has not been marked as fully game-tested.
