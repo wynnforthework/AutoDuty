@@ -1077,7 +1077,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if ((StepRecoveryPolicy.UnexpectedTransition(this.Stage) || Environment.TickCount64 < this.returnObservedUntil)
             && !this.recentlyWatchedCutscene && !Conditions.Instance()->WatchingCutscene
             && flag is (ConditionFlag.BetweenAreas or ConditionFlag.BetweenAreas51) &&
-            value && this.States.HasFlag(PluginState.Navigating))
+            value && this.States.HasFlag(PluginState.Navigating)
+            && RouteCompletionPolicy.HasStep(this.indexer, this.Actions.Count)
+            && ExitDutyHelper.State != ActionState.Running)
         {
             // A zone/load/jump flag is not evidence that navigation or an
             // interaction succeeded. In particular Return used to skip the
@@ -2253,6 +2255,17 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (this.Stage != Stage.Paused && this.States.HasFlag(PluginState.Navigating))
             this.combatCheckpoints.Observe(this.Actions, this.indexer, Player.Available ? Player.Position : default,
                 PartyHelper.PartyInCombat(), PlayerHelper.IsValid && DeathHelper.DeathState == PlayerLifeState.Alive);
+        // The end sentinel owns no navigation attempt. DutyStarted becomes false
+        // on victory, so waiting for navigation readiness here would block exit forever.
+        if (RouteCompletionPolicy.Finished(this.indexer, this.Actions.Count,
+                this.States.HasFlag(PluginState.Navigating), this.Stage == Stage.Paused))
+        {
+            this.currentAttempt = null;
+            this.pendingStepFailure = null;
+            this.navigationReadiness.Reset();
+            this.DoneNavigating();
+            return;
+        }
         if (!this.UpdateStepAttempt() || this.Stage == Stage.Paused) return;
         this.PreStageChecks();
 

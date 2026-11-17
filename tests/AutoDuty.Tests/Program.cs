@@ -40,6 +40,14 @@ static void Run()
     Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Waiting_For_Combat, true) == AutoDuty.Data.Enums.Stage.Waiting_For_Combat, "combat wait restores its state");
     Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Looping, false) == AutoDuty.Data.Enums.Stage.Looping, "queue loop preserves work");
     Console.WriteLine("PASS: movement, action, combat and loop resume policies; no duplicate action invocation");
+    Check(RouteCompletionPolicy.Finished(31, 31, true, false), "Dzemael final Boss advances to end sentinel and finishes without duty/nav readiness");
+    Check(!RouteCompletionPolicy.HasStep(31, 31), "route end is not a failed step during departure");
+    Check(RouteCompletionPolicy.HasStep(30, 31), "last Boss remains protected against unexpected return");
+    Check(!RouteCompletionPolicy.Finished(30, 31, true, false), "duty victory does not skip an unfinished last step");
+    Check(!RouteCompletionPolicy.Finished(31, 31, true, true), "manual pause does not automatically finish route");
+    Check(!RouteCompletionPolicy.Finished(31, 31, false, false), "route finish is dispatched only once");
+    Check(!RouteCompletionPolicy.Finished(0, 0, true, false), "missing route is not a completed route");
+    Check(!RouteCompletionPolicy.HasStep(-1, 31), "unselected index is not a running step");
     TestDutyExecutionBoundary();
     TestBossProgress();
     TestCombatCheckpoint();
