@@ -24,7 +24,7 @@ internal static class DutyToolsUi
             ImGui.SameLine();
         }
         if (failed || current) ImGui.PushStyleColor(ImGuiCol.Text, failed ? new Vector4(1, .35f, .3f, 1) : new Vector4(0, 1, 1, 1));
-        bool selected = ImGui.Selectable($"{(current ? "> " : "")}{index + 1}. {action.ToCustomString()}###StepRow", current || selectedStep == index, ImGuiSelectableFlags.AllowDoubleClick);
+        bool selected = ImGui.Selectable($"{(current ? "> " : "")}{index}. {action.ToCustomString()}###StepRow", current || selectedStep == index, ImGuiSelectableFlags.AllowDoubleClick);
         if (selected)
         {
             selectedStep = index;
@@ -79,7 +79,7 @@ internal static class DutyToolsUi
         string distance = Player.Available && step.Position != Vector3.Zero
             ? $" / {Loc.Get("LevelingPlan.ProgressDistance")}: {Vector3.Distance(Player.Position, step.Position):F2}m" : "";
         string task = Plugin.taskManager.CurrentTask?.Name is { } name ? " / " + name : "";
-        ImGui.TextWrapped($"{Loc.Get("LevelingPlan.ProgressState")}: {phase} / #{Plugin.indexer + 1}{distance}{task}");
+        ImGui.TextWrapped($"{Loc.Get("LevelingPlan.ProgressState")}: {phase} / #{Plugin.indexer}{distance}{task}");
         if (Plugin.Stage == Stage.Moving && Plugin.currentAttempt is { } moving && Player.Available)
         {
             Vector3 delta = Player.Position - step.Position;
@@ -96,7 +96,7 @@ internal static class DutyToolsUi
     {
         if (Plugin.currentFailure is not { } failure) return;
         ImGui.PushID(compact ? "OverlayFailure" : "MainFailure");
-        ImGui.TextColored(new Vector4(1, .35f, .3f, 1), Text("Failed") + $" #{failure.Index + 1}: {failure.Reason} ({failure.Attempts})");
+        ImGui.TextColored(new Vector4(1, .35f, .3f, 1), Text("Failed") + $" #{failure.Index}: {failure.Reason} ({failure.Attempts})");
         if (failure.Detail.Length > 0 && !compact) ImGui.TextWrapped(failure.Detail);
         if (ImGui.Button(Text("Retry"))) Plugin.SeekToStep(failure.Index);
         ImGui.SameLine();

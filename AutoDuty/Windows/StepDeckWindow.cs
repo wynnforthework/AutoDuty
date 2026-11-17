@@ -79,7 +79,7 @@ internal sealed class StepDeckWindow : Window
         }
 
         int position = active ? current + 1 : Math.Clamp(current, 0, count);
-        ImGui.TextUnformatted($"{Text("Position")}  {position} / {count}   ·   {this.Phase()}");
+        ImGui.TextUnformatted($"{Text("Position")}  #{Math.Clamp(current, 0, count - 1)} / {count}   ·   {this.Phase()}");
         ImGui.SameLine();
         if (ImGui.SmallButton(Text("Main"))) Plugin.MainWindow.IsOpen = true;
         ImGui.PushStyleColor(ImGuiCol.PlotHistogram, Accent);
@@ -191,7 +191,7 @@ internal sealed class StepDeckWindow : Window
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(16, 12) * scale);
         if (ImGui.BeginChild("Card", new Vector2(width, height), false, ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.AlwaysUseWindowPadding))
         {
-            ImGui.TextColored(color, $"    {index + 1:00}  /  {Text(kind)}");
+            ImGui.TextColored(color, $"    {index:00}  /  {Text(kind)}");
             string state = failed ? Text("Failed") : current ? this.Phase() : Plugin.attemptHistory.TryGetValue(index, out var history) && history.SkippedReason != null ? Text("Skipped") : Text("Step");
             ImGui.TextColored(failed ? Danger : current ? Accent : Muted, state);
             // Fixed controls stay visible even for very long arguments, notes and condition lists.

@@ -51,7 +51,7 @@ internal sealed class PathRecorderWindow : Window
         ImGui.TextWrapped(this.message);
         if (ImGui.BeginChild("RecordedSteps", new System.Numerics.Vector2(0, 0)))
             for (int i = 0; i < Plugin.Actions.Count; i++)
-                if (ImGui.Selectable($"{i + 1}. {Plugin.Actions[i].ToCustomString()}")) BuildTab.EditStep(i);
+                if (ImGui.Selectable($"{i}. {Plugin.Actions[i].ToCustomString()}")) BuildTab.EditStep(i);
         ImGui.EndChild();
     }
 

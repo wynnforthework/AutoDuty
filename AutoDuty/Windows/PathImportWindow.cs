@@ -60,7 +60,7 @@ internal sealed class PathImportWindow : Window
                 var action = this.file.Actions[i];
                 bool sensitive = action.Name is "ChatCommand" or "Action" or "DutySpecificCode" or "BLULoad" or "ModifyIndex";
                 if (sensitive) ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, .65f, .25f, 1));
-                ImGui.TextWrapped($"{i + 1}. {(sensitive ? "[!] " : "")}{action.ToCustomString()}");
+                ImGui.TextWrapped($"{i}. {(sensitive ? "[!] " : "")}{action.ToCustomString()}");
                 if (sensitive) ImGui.PopStyleColor();
                 if (PathValidator.Error(action) is { } error) ImGui.TextColored(new Vector4(1, .35f, .3f, 1), error);
             }
