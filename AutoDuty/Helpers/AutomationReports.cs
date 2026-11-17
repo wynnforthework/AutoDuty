@@ -21,6 +21,7 @@ internal sealed class RouteMetricSummary
     internal int CleanRuns => this.Runs.Count(r => r.VerifiedComplete);
     internal double Reliability => this.Samples == 0 ? 0 : 100d * this.CleanRuns / this.Samples;
     internal double MeanCompletion => this.Runs.Average(r => r.CompletionPercent);
+    internal double BestCompletion => this.Runs.Count == 0 ? 0 : this.Runs.Max(r => r.CompletionPercent);
     internal double MeanSeconds => this.Runs.Average(r => r.Duration.TotalSeconds);
     internal long Experience => this.Runs.Sum(r => r.Experience);
     internal double ExperiencePerHour => this.Runs.Sum(r => r.Duration.TotalHours) is > 0 and var hours ? this.Experience / hours : 0;
@@ -28,6 +29,15 @@ internal sealed class RouteMetricSummary
 
 internal static class AutomationReports
 {
+    internal static RouteMetricSummary? CompletionEvidence(IEnumerable<RouteRunRecord> runs, uint territory, string hash, uint job, string mode, bool multibox)
+    {
+        var matching = runs.Where(r => r.EndedAt != null && r.TerritoryId == territory && r.RouteHash == hash
+            && r.JobId == job && r.Mode == mode && r.Multibox == multibox).ToList();
+        return matching.Count == 0 ? null : new RouteMetricSummary
+        {
+            Key = new(territory, hash, job, mode, 0, multibox), Name = matching[^1].RouteName, Runs = matching,
+        };
+    }
     internal const int MaxBytes = 4 * 1024 * 1024;
     internal static string Fingerprint(IReadOnlyList<PathAction> actions) => Convert.ToHexString(SHA256.HashData(
         Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(actions, Formatting.None, PathJson.Write))));

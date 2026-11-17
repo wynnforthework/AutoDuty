@@ -130,6 +130,9 @@ namespace AutoDuty.Helpers
         {
             string hash = AutomationReports.Fingerprint(path.Actions);
             string runMode = mode + (QueueHelper.ShouldBeUnSynced() ? "/Unsynced" : "/Synced");
+            if (!level.HasValue)
+                return AutomationReports.CompletionEvidence(Configurations.ConfigurationMain.Instance.stats.routeRuns,
+                    path.container.ID, hash, (uint)Player.Job, runMode, Multibox.MultiboxUtility.Config.MultiBox);
             return AutomationReports.Summarize(Configurations.ConfigurationMain.Instance.stats.routeRuns.Where(r =>
                 r.TerritoryId == path.container.ID && r.RouteHash == hash && r.JobId == (uint)Player.Job
                 && r.Mode == runMode && r.PartySize == Math.Max(1, Svc.Party.Length)

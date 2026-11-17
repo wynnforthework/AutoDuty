@@ -16,6 +16,8 @@ internal static class LevelingPlanTab
     private static string search = "";
     private static bool plannedOnly;
     private static long refreshed;
+    private static int metricsRevision;
+    private static int sampleCount;
     private static (ulong Character, uint Job, short Level, ushort ItemLevel, DutyMode Mode, int Revision) context;
     private static Content? nextDuty;
     private static readonly Dictionary<uint, (ContentPathsManager.DutyPath? Path, RouteMetricSummary? All, RouteMetricSummary? Level)> evidence = [];
@@ -72,8 +74,7 @@ internal static class LevelingPlanTab
             if (row.All == null) ImGui.TextDisabled(Text("NoSamples"));
             else
             {
-                ImGui.TextUnformatted($"{Text("Mean")}: {row.All.MeanCompletion:F1}%");
-                ImGui.TextUnformatted($"{Text("Clean")}: {row.All.CleanRuns}/{row.All.Samples} ({row.All.Reliability:F1}%)");
+                ImGui.TextUnformatted($"{Text("Best")}: {row.All.BestCompletion:F1}%");
             }
             ImGui.TableNextColumn();
             if (row.Level == null) ImGui.TextDisabled(Text("NoLevelSamples"));
@@ -145,7 +146,7 @@ internal static class LevelingPlanTab
             bool current = Plugin.CurrentTerritoryContent?.TerritoryType == duty.TerritoryType;
             ImGui.TextWrapped($"{(current ? "> " : "")}L{duty.ClassJobLevelRequired} {duty.Name}");
             ImGui.TableNextColumn(); ImGui.TextWrapped(row.Path?.FileName ?? Text("MissingScript"));
-            ImGui.TableNextColumn(); ImGui.TextUnformatted(row.All == null ? Text("NoSamples") : $"{row.All.MeanCompletion:F1}% ({row.All.CleanRuns}/{row.All.Samples})");
+            ImGui.TableNextColumn(); ImGui.TextUnformatted(row.All == null ? Text("NoSamples") : $"{row.All.BestCompletion:F1}%");
             ImGui.TableNextColumn(); ImGui.TextWrapped((current ? Text("Selected") + " / " : "") + Status(duty, level, true, row.Path != null));
         }
         ImGui.EndTable();
@@ -179,8 +180,11 @@ internal static class LevelingPlanTab
         var current = (Player.CID, (uint)Player.Job, level, InventoryHelper.CurrentItemLevel, Mode, LevelingHelper.PlanRevision);
         // Keep row content and popup layout stable while browsing. Refresh only
         // for an explicit refresh, route/plan change, or player context change.
-        if (current != context || refreshed == 0)
+        int count = ConfigurationMain.Instance.stats.routeRuns.Count;
+        if (current != context || refreshed == 0 || metricsRevision != Plugin.MetricsEvidenceRevision || sampleCount != count)
         {
+            sampleCount = count;
+            metricsRevision = Plugin.MetricsEvidenceRevision;
             context = current;
             Refresh(level);
         }

@@ -225,12 +225,23 @@ static void TestAutomationReports()
     failed.FirstProblem = "stuck"; failed.ProblemStep = 1; failed.Failures = 1; failed.AutonomousSteps = 1;
     var groups = AutomationReports.Summarize([good, failed]);
     Check(groups.Count == 1 && groups[0].Reliability == 50 && groups[0].MeanCompletion == 75 && groups[0].Participants == 2, "failed attempts and multiple contributors are included");
+    Check(AutomationReports.CompletionEvidence([failed], 1037, hash, 19, good.Mode, false)!.BestCompletion == 50,
+        "single half run shows fifty percent");
+    Check(AutomationReports.CompletionEvidence([failed, good, failed], 1037, hash, 19, good.Mode, false)!.BestCompletion == 100,
+        "successful run establishes best completion and later failures never reduce it");
     Check(groups[0].ExperiencePerHour > 3500000 && groups[0].ExperiencePerHour < 3700000, "XP/hour uses all attempt durations");
     var tank = Clean(); tank.JobId = 21;
     var party = Clean(); party.PartySize = 4;
     var mode = Clean(); mode.Mode = "Regular/Unsynced";
     var version = Clean(); version.RouteHash = AutomationReports.Fingerprint(actions);
     Check(AutomationReports.Summarize([good, tank, party, mode, version]).Count == 5, "job, party, mode and version cohorts remain separate");
+    var best = AutomationReports.CompletionEvidence([failed, party, tank, mode, version], 1037, hash, 19, good.Mode, false)!;
+    Check(best.Samples == 2 && best.BestCompletion == 100, "completion survives party size changes but separates job mode and script content");
+    Check(AutomationReports.CompletionEvidence([tank, mode, version], 1037, hash, 19, good.Mode, false) == null,
+        "no evidence never borrows another job mode or route version");
+    var running = Clean(); running.EndedAt = null;
+    Check(AutomationReports.CompletionEvidence([running], 1037, hash, 19, good.Mode, false) == null,
+        "unfinished live attempt is not final completion evidence");
     string json = AutomationReports.Export([good, failed]);
     var imported = AutomationReports.Read(json);
     Check(imported.Count == 2 && imported.All(r => r.CharacterId == 0 && r.Imported) && imported[0].VerifiedComplete, "report export removes character identity and preserves evidence");

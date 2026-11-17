@@ -17,6 +17,7 @@ public sealed partial class AutoDuty
 {
     internal AutomationSessionRecord? MetricsSession { get; private set; }
     internal RouteRunTracker? MetricsRun { get; private set; }
+    internal int MetricsEvidenceRevision { get; private set; }
     private ExperienceAccumulator experienceSamples = new();
     private bool metricsInitialized;
     private long lastMetricsSave, lastExperienceSample;
@@ -113,6 +114,7 @@ public sealed partial class AutoDuty
         this.SampleExperience();
         if (this.MetricsRun is not { } tracker) return;
         tracker.Finish(DateTime.UtcNow, outcome);
+        this.MetricsEvidenceRevision++;
         this.MetricsRun = null;
         this.SaveMetrics();
     }
