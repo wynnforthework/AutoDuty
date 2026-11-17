@@ -1,12 +1,12 @@
 # AutoDuty 上游 PR 拆分与提交建议（待选择）
 
-日期：2026-11-17。本文是提交范围的提案，尚未创建功能分支、推送或打开 PR。
+日期：2026-11-17；本次更新覆盖到 `1bcd1482`。本文是提交范围的提案，尚未创建上游 PR 功能分支、推送或打开 Issue/PR。P01 已有本地 Issue 草稿，仍待选择与审核。
 
 ## 1. 核对范围与结论
 
 - 上游：`https://github.com/erdelf/AutoDuty`；个人 fork：`https://github.com/wynnforthework/AutoDuty`。
-- 本次已执行 `git fetch upstream --prune`。比较基线为 `upstream/master = ee4eced8`，功能快照为 `dev_01 = 0a934f5b`。
-- 快照比基线多 **47 个提交**，净变化 **84 个文件，6670 行新增、393 行删除**；不包括本文。
+- 初版整理时执行过 `git fetch upstream --prune`；本次更新没有重新获取远端。比较本地已获取的 `upstream/master = ee4eced8` 与集成快照 `dev_01 = 1bcd1482`，不声称这是远端当前最新状态。
+- 快照比基线多 **51 个提交**，其中 49 个为原始改造/使用文档提交，另 2 个为 PR 拆分建议和 P01 Issue 草稿。完整差异为 **90 个文件，7438 行新增、409 行删除**；排除这两份 PR 筹备文档后为 **88 个文件，6982 行新增、409 行删除**。数字以 `1bcd1482` 为固定快照，不包括本次文档更新提交。
 - `.gitmodules` 改过 ECommons 来源；副本 `Paths` 和 `Resources/md5s.json` 没有净改动。本轮运行问题修复主要在执行器，不能包装成“更新副本脚本”PR。
 - `upstream/dev = aedf055e`，目前包含在 `master` 中。上游近期有从 `dev` 合并至 `master` 的记录；实际发 PR 前仍需确认目标分支约定，不能仅凭默认分支断定。
 - `feat/mathematics-ore-shopping`、`feat/trials-roulette-loop` 是另外两条功能分支，不属于本次 `dev_01` 差异，不混入。
@@ -37,11 +37,13 @@
 | P16 | 会话经验统计、最高完成度和运行报告 | 可选大功能 | P06、P10；编排展示扩展依赖 P13 | 必须包含最终“自动重试不算干预”的修正 |
 | P17 | 独立执行步骤卡片窗口 | 可选 UI 功能 | P06；编辑入口依赖 P11 | 独立窗口、选项和本地化一组，不捆绑传送 |
 | P18 | 每次插件会话首次进入副本时重建网格 | 待讨论默认策略 | 可独立；与 P06 就绪等待衔接 | 从 `048fe4ed` 提取，建议默认关闭供上游评估 |
+| P19 | 通用 Boss 完成证据、提前击杀与入口重走保留击败状态 | 重点，需游戏验证 | P05、P06；与 P08 联合验收 | 拆取 `60f6d5ca`，P09 诊断钩子可后接 |
+| P20 | 未 Stop 退本后的执行状态清理与新轮重置 | 优先准备，接执行器基础后 | P06；P08/P19 的状态清理按已合并功能接入 | 拆取 `1bcd1482`，不能为清理钩子捆绑其它功能 |
 | H01 | 新增 TeleportTo 动作、步骤菜单直接传送 | 建议先留 fork | P06/P11 的部分接口 | 与所有稳定性 PR 分离，需上游明确接受此功能范围 |
 | H02 | UI、命令和日志全部统一零基编号 | 待讨论兼容性 | 涉及各窗口、命令与日志 | 独立决定；不能借 P04 混入命令语义变更 |
 | H03 | ECommons 子模块 URL、中文计划与验收流水账 | 本地保留；依赖修复可另议 | 无 | 仅有可复现的干净克隆失败时单独提依赖修复 |
 
-建议第一轮选择 **P01～P05**；第二轮 **P06～P09**。P10～P18 根据上游对功能方向的反馈逐组提交，而不是同时发十几个互相依赖的 PR。
+建议第一轮选择 **P01～P05**；第二轮以 **P06** 为基础，准备 **P07～P09、P20、P19**。P20 属于执行生命周期修复，P19 属于 Boss 完成判断，两者独立发 PR；P19 与 P08 必须联合验收死亡回入口场景。P10～P18 根据上游对功能方向的反馈逐组提交，而不是同时发十几个互相依赖的 PR。既有编号保持不变，新增修复续编为 P19/P20。
 
 ## 3. 每组最终范围与英文 PR 草案
 
@@ -101,7 +103,7 @@
 
 分支建议：`fix/localized-boss-identification`。文件：`Helpers/BossIdentity.cs`、`Helpers/ObjectHelper.cs`、`Managers/ActionsManager.cs`、`AutoDuty.cs` 相关调用。
 
-使用完整路线备注名匹配本地名称或 NameId 对应的英文 BNpcName，保留原等级标记/BossMod 兜底。只允许附近、存活、可选中的适当对象；不因“已在战斗”就猜测首领成功。
+本组只提取 `67fdd313` 的完整路线备注名与本地名称/英文 BNpcName 匹配，保留该阶段的等级标记/BossMod 兜底。只返回附近、存活、可选中的适当对象；不因“已在战斗”就猜测首领成功。当前集成版本后续在 P19 中进一步限制已知名称的兜底、加入死亡与副本目标证据；这些不是 P05 的隐含范围。
 
 **Title:** Recognize named bosses across client languages
 
@@ -143,7 +145,7 @@
 
 **Body:** Interaction objects can disappear before loading flags arrive, or remain available long enough for the old interaction loop to restart navigation. Keep ownership of the transfer until loading settles, cancel work tied to the old location, and distinguish normal transfers from returns to the route entrance.
 
-**Validation:** 第 3→5、第 7→8 步、重复加载标志、同 territory 坐标跳转、超时、死亡/返回与暂停恢复。核心诊断可以晚于 P09 接入；不依赖导出窗口才能工作。
+**Validation:** 第 3→5、第 7→8 步、重复加载标志、同 territory 坐标跳转、超时、死亡/返回与暂停恢复。核心诊断可以晚于 P09 接入；不依赖导出窗口才能工作。P08 负责副本内回入口重走，不负责真正退本的清理（P20）或确认已击败 Boss（P19）。实际石卫塔诊断已表明，仅从第 0 步重走会再次寻找消失的第一 Boss，因此不能把 P08 单独描述成已完整解决死亡恢复。
 
 ### P09：导航诊断
 
@@ -237,6 +239,40 @@
 
 **Validation:** 主窗口关闭、缩放/字体、长内容、首末步居中、手动浏览不抢回、窗口生命周期。已有原生 ImGui 离线模拟验证，不能写成真实游戏验收。移除传送按钮后仍可独立使用。
 
+### P19：通用 Boss 完成证据
+
+分支建议：`fix/boss-completion-evidence`。来源：`60f6d5ca`。主要文件：`AutoDuty.BossProgress.cs`、`Helpers/BossProgress.cs`、`Helpers/ObjectHelper.cs`、`Managers/ActionsManager.cs` 和执行器调用。
+
+实际触发：石卫塔（1042）第一 Boss 已击败，第二 Boss 战死亡回入口后从头重走，第 5 步仍等待已经消失的 Chudo-Yudo，发生 `Boss-GetBossObject` 超时。这里的副本编号和名称是复现证据，不是实现中的特判条件。
+
+最终行为：在动作队列之外观察对应 Boss 的死亡，或读取包含完整首领名称且计数达标的 ContentDirector 目标。按区域、备注和战斗位置保存本轮证据；保留到死亡回入口重走，真正新轮才清空。英文备注通过名称表解析本地语言。存活首领优先于旧死亡记录；已知名称不回退到其它首领；无可解析名称时，只能将当前 Boss 动作已绑定对象的死亡作为证据，不能分配附近任意尸体。重新接近对象时从对象表获取，避免沿用已经消失的对象。
+
+已确认击败的步骤不再等待该首领出现或重新开战，保留拾取流程并等待队伍脱战。脱战、暂时消失、不可选中或附近没有怪本身不是胜利；缺少完成证据时有界等待后保护暂停。若既没有观察到死亡，也没有可匹配名称的已完成游戏目标，仍可能无法自动确认，不能宣称适用于所有特殊阶段或未命名脚本。
+
+**Title:** Preserve verified boss completion across entrance recovery
+
+**Body:** Returning to the entrance after a later encounter can replay Boss steps for enemies that have already despawned. Retain per-duty evidence from a matching boss death or completed named duty objective, recognize early kills, and clear that evidence for a new run. Do not treat disappearance or leaving combat alone as victory, or substitute a different nearby boss for a known name.
+
+**Validation:** 已在集成分支编译并运行模型回归，覆盖提前击杀、尸体消失、第二 Boss 团灭后保留第一 Boss 记录、新轮重置、区域/位置隔离、阶段复活、未完成/零数量目标及中英文名称边界。模型不初始化游戏服务，不能证明真实 ContentDirector 文本或对象生命周期已验收。独立分支还需验证石卫塔重走、其它副本正常/提前击杀、阶段转换，以及未命名路线。
+
+**拆分要求：** 基于 P05/P06 适配；与 P08 联合验收但不反向捆绑 P08 的交互传送。`boss-candidates` 的目标文本/计数、名称和死亡状态，以及 `boss-defeated` 来源记录归 P09 的可选增量；不为日志导出引入统计、录制或传送功能。P19 自身须在 DutyStarted/离开副本时清空证据，不能强制要求完整 P20 才不会跨轮复用。
+
+### P20：退本后的步骤状态清理
+
+分支建议：`fix/reset-execution-after-duty-exit`。来源：`1bcd1482`。主要文件：`AutoDuty.DutyLifecycle.cs`、`Helpers/DutyExecutionBoundary.cs`、`Helpers/DeathHelper.cs`、`AutoDuty.cs`。
+
+实际触发：执行到中间步骤，没有点 Stop 就退出副本；退出加载可能先触发保护暂停，区域切换处理随后在 Paused 分支提前返回，旧任务、步骤索引和手动选择遗留到下一轮。再次开始时可能从退出前的步骤执行。
+
+最终行为：真正离开副本的清理先于 Stopped/Paused 提前返回，清除旧任务、导航/跟随、死亡恢复回调、失败重试、交互状态、入口和步骤选择。新轮 DutyStarted 再次重置，但不打断正在等待开场的启动队列。暂停后退本结束旧运行；正常自动循环保留排队/轮间流程。区域 0、内部地图切换及副本内 Pause/Resume 不作为退本；DutyRecommenced 与新一轮 DutyStarted 分开。野外后续传送不反复清空新的选择。
+
+**Title:** Clear retained route execution when leaving a duty
+
+**Body:** Leaving a duty without pressing Stop can retain the old step and queued work, especially when loading first pauses execution. Invalidate that state before the paused/stopped territory-change return and reset it for a new duty, while preserving normal loop queueing and progress during transfers within the duty.
+
+**Validation:** 集成分支 Release 构建通过，44 个已有警告、0 错误；模型回归覆盖未 Stop 退出、加载区域 0、内部地图、同副本连续两轮及野外选择保留。尚未游戏验证，也未验证独立 PR 分支。提交前必须分别实测中途直接退本、暂停/失败后退本、正常自动循环、内部传送、死亡回入口、重新选中步骤后有意从该步启动。当前“副本内/外”以项目内容目录判断，未知副本地图不在已验证范围。
+
+**拆分要求：** P06 是执行状态基础；P08 的交互/入口清理、P07 的战斗检查点和 P19 的首领清理，只对目标分支已存在的状态保留钩子。若这些功能尚未合并，移除相应引用，而不是把整个功能带进 P20。P09 的诊断、P16 的成绩结束和 P11/P17 的选择显示同理按已存在接口适配。不能把“真正退本后清理”扩展成“每次加载或普通暂停都归零”。
+
 ### P18 / H01 / H02 / H03 的范围决定
 
 - P18 每会话重建：不是检测网格有变化才重建，会增加首次进入等待；当前开关及拒绝/超时回退语义要让上游评估。英文标题可用 `Optionally rebuild navmesh on the first duty visit of a session`。
@@ -249,7 +285,7 @@
 推荐顺序：
 
 1. P01/P02/P03/P04/P05 可各自以选定上游基线为起点，不互相携带。
-2. P06 建执行基础；P07/P08/P09 在其后，但彼此不要形成循环依赖。
+2. P06 建执行基础；P07/P08/P09/P20 在其后，但彼此不要形成循环依赖。P19 在 P05/P06 后准备，并与 P08 联合验收。P20 不因调用某个功能的清理接口而硬依赖该整组功能；P19 也必须自行保证证据不跨轮复用。
 3. P10 是格式基础；P11 保存/热编辑、P12 职能在其后；P13 基础编排不依赖 P16。
 4. P14/P15 分别依赖路线保存与格式；两者之间无需依赖。
 5. P16 最后接统计与编排成绩；P17 最后接展示层。P18 默认策略另议。
@@ -286,8 +322,9 @@ git -C ../AutoDuty-pr-action-editor-width diff --cached
 ## 6. 已有验证与缺口
 
 - 当前集成版本 Release/x64 编译通过：44 个已有警告、0 错误；测试依赖本机 Dalamud API 15 环境。
-- 离线测试涵盖 315 条路线格式、等待参数、录制取样、保存重载、职能分配、战斗检查点、导航监测、交互切区、完成度、经验累计和报告验证。
-- 本次仅做 Git/源码整理，**未为这些候选分支运行 cherry-pick、构建或游戏验收**。实际卡墙、首领识别、切区、加载速度与 ImGui 字体效果仍需真实客户端检查。
+- 离线测试涵盖 315 条路线格式、等待参数、录制取样、保存重载、职能分配、战斗检查点、导航监测、交互切区、完成度、经验累计和报告验证；新增 Boss 完成证据及退本边界场景。最新集成验证日志为 `artifacts/build-duty-lifecycle.log`、`artifacts/tests-duty-lifecycle.log`。
+- 已有集成测试包：`AutoDuty-test-60f6d5ca.zip`（Boss 修复）、`AutoDuty-test-1bcd1482.zip`（含前者及退本重置）。它们是本地测试产物，不提交上游；没有收到游戏内验收结果，不能写成已验证正常。
+- 本次仅更新拆分文档并核对 Git/源码，未重新运行代码测试；**仍未为候选分支执行 cherry-pick、独立构建或游戏验收**。实际卡墙、首领识别、切区、加载速度与 ImGui 字体效果仍需真实客户端检查。
 - 独立 PR 不携带整个庞大的测试入口；按功能抽出有意义的回归用例与最小测试设施。UI 小修复采用针对性人工验收，不增加只镜像实现的测试。
 
 ## 7. 待你选择
@@ -298,7 +335,7 @@ git -C ../AutoDuty-pr-action-editor-width diff --cached
 
 ## 附录：原始提交去向
 
-下面按原时间顺序列出所有 47 个提交。一个提交可能拆入多个 PR；编号代表来源映射，不代表可以整提交照搬。
+下面按时间顺序列出固定快照中的全部 **51 个提交**（含 2 个本地 PR 筹备文档提交）。一个提交可能拆入多个 PR；编号代表来源映射，不代表可以整提交照搬。本次文档更新提交不计入该固定快照。
 
 | 提交 | 主题摘要 | 去向 |
 | `93b18410` | docs: record duty reliability implementation plan and fix ECommons source | H03 |
@@ -348,3 +385,7 @@ git -C ../AutoDuty-pr-action-editor-width diff --cached
 | `7f7b2a7b` | Wait for navigation readiness and report each bounded step attempt | P06 |
 | `707ba5e1` | Show best historical route completion in leveling plan | P16、P13 展示扩展 |
 | `0a934f5b` | Count successful automatic retries as autonomous route completion | P16（最终重试语义） |
+| `ccd5f49f` | docs: propose scoped upstream PRs and map source commits | 本地 PR 筹备文档，不单独发产品 PR |
+| `e552c2af` | docs: draft P01 issue with upstream fields and validation evidence | P01 Issue 草稿；不随代码 PR 加入上游仓库 |
+| `60f6d5ca` | fix: retain generic boss defeat evidence through entrance recovery | P19；诊断增量归 P09 |
+| `1bcd1482` | fix: reset retained route execution when leaving a duty | P20；按已合并功能适配清理钩子 |
