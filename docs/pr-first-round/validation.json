@@ -152,7 +152,9 @@
       "commit": "52ffea593edfc6d54f39ca9dd35a75e4a55f3265",
       "issue_url": "https://github.com/erdelf/AutoDuty/issues/643",
       "pr_url": "https://github.com/erdelf/AutoDuty/pull/644",
-      "draft": true
+      "draft": true,
+      "issue_state": "closed",
+      "issue_created_in_error": true
     },
     {
       "id": "P02",
@@ -160,7 +162,9 @@
       "commit": "b131082c987fca0fc5e00f194e043b1e6333910c",
       "issue_url": "https://github.com/erdelf/AutoDuty/issues/645",
       "pr_url": "https://github.com/erdelf/AutoDuty/pull/646",
-      "draft": true
+      "draft": true,
+      "issue_state": "closed",
+      "issue_created_in_error": true
     },
     {
       "id": "P03",
@@ -168,7 +172,9 @@
       "commit": "1031bc417adfa708bab2638a150aef8e39a038e1",
       "issue_url": "https://github.com/erdelf/AutoDuty/issues/647",
       "pr_url": "https://github.com/erdelf/AutoDuty/pull/648",
-      "draft": true
+      "draft": true,
+      "issue_state": "closed",
+      "issue_created_in_error": true
     },
     {
       "id": "P04",
@@ -176,7 +182,9 @@
       "commit": "524d90ac715dd74728625b98d8d4b1bf8de2109f",
       "issue_url": "https://github.com/erdelf/AutoDuty/issues/649",
       "pr_url": "https://github.com/erdelf/AutoDuty/pull/650",
-      "draft": true
+      "draft": true,
+      "issue_state": "closed",
+      "issue_created_in_error": true
     },
     {
       "id": "P05",
@@ -184,7 +192,9 @@
       "commit": "9f3f13a53ecb404da2d6c08658796a7445e5eb49",
       "issue_url": "https://github.com/erdelf/AutoDuty/issues/651",
       "pr_url": "https://github.com/erdelf/AutoDuty/pull/652",
-      "draft": true
+      "draft": true,
+      "issue_state": "closed",
+      "issue_created_in_error": true
     }
   ]
 }

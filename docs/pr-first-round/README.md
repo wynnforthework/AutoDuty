@@ -1,14 +1,14 @@
 # 第一轮 P01～P05 提交与验证记录
 
-日期：2026-11-17。五组补丁均已分别提交并推送至 fork，已为每组创建上游 Issue 和 Draft PR。未合并，也未标为 Ready for review；各独立分支的游戏内回归尚未完成。
+日期：2026-11-17。五组补丁均已分别提交并推送至 fork，已为每组创建 Draft PR。此前误建的五个 Bug Issue 已关闭；确认过的草稿结构现用于 PR 正文。未合并，也未标为 Ready for review；各独立分支的游戏内回归尚未完成。
 
 | 编号 | 分支 | 提交 | Issue | PR |
 |---|---|---|---|---|
-| P01 | `fix/action-editor-width` | `52ffea59` | [#643](https://github.com/erdelf/AutoDuty/issues/643) | [#644](https://github.com/erdelf/AutoDuty/pull/644)（Draft） |
-| P02 | `fix/stable-path-selector` | `b131082c` | [#645](https://github.com/erdelf/AutoDuty/issues/645) | [#646](https://github.com/erdelf/AutoDuty/pull/646)（Draft） |
-| P03 | `fix/brayflox-key-interaction` | `1031bc41` | [#647](https://github.com/erdelf/AutoDuty/issues/647) | [#648](https://github.com/erdelf/AutoDuty/pull/648)（Draft） |
-| P04 | `fix/navigation-waypoint-tolerance` | `524d90ac` | [#649](https://github.com/erdelf/AutoDuty/issues/649) | [#650](https://github.com/erdelf/AutoDuty/pull/650)（Draft） |
-| P05 | `fix/boss-identification-and-completion` | `9f3f13a5` | [#651](https://github.com/erdelf/AutoDuty/issues/651) | [#652](https://github.com/erdelf/AutoDuty/pull/652)（Draft） |
+| P01 | `fix/action-editor-width` | `52ffea59` | [#643](https://github.com/erdelf/AutoDuty/issues/643)（误建，已关闭） | [#644](https://github.com/erdelf/AutoDuty/pull/644)（Draft） |
+| P02 | `fix/stable-path-selector` | `b131082c` | [#645](https://github.com/erdelf/AutoDuty/issues/645)（误建，已关闭） | [#646](https://github.com/erdelf/AutoDuty/pull/646)（Draft） |
+| P03 | `fix/brayflox-key-interaction` | `1031bc41` | [#647](https://github.com/erdelf/AutoDuty/issues/647)（误建，已关闭） | [#648](https://github.com/erdelf/AutoDuty/pull/648)（Draft） |
+| P04 | `fix/navigation-waypoint-tolerance` | `524d90ac` | [#649](https://github.com/erdelf/AutoDuty/issues/649)（误建，已关闭） | [#650](https://github.com/erdelf/AutoDuty/pull/650)（Draft） |
+| P05 | `fix/boss-identification-and-completion` | `9f3f13a5` | [#651](https://github.com/erdelf/AutoDuty/issues/651)（误建，已关闭） | [#652](https://github.com/erdelf/AutoDuty/pull/652)（Draft） |
 
 ## 独立性与合并顺序
 
@@ -62,10 +62,10 @@ dotnet run --project tests/BossProgress.Tests/BossProgress.Tests.csproj -c Relea
 | P04 | 绕柱、坡面、桥/上下层、交互终点、精确 MoveTo；重点验证 4m 高差保护 |
 | P05 | 中英文客户端、无名称回退、提前击杀、多阶段、死亡重走、新副本状态清理、超时暂停及同一步恢复 |
 
-上游 PR 保持 Draft 的原因就是这些真实游戏验证尚未完成。源码测试和编译结果已如实写入每个 Issue/PR；不把之前集成分支的游戏经历当作这五个独立分支的验证记录。
+上游 PR 保持 Draft 的原因就是这些真实游戏验证尚未完成。源码测试和编译结果已如实写入每个 PR；不把之前集成分支的游戏经历当作这五个独立分支的验证记录。
 
 ## 文档与后续
 
-本目录的 `P01-issue.md`～`P05-issue.md`、`P01-pr.md`～`P05-pr.md` 保存发布正文。每个 Issue 遵循 `[Bug] title` 并保留上游模板字段，同时说明版本、范围、改动、原因、收益、测试方法、结果与缺口。
+本目录的 `P01-pr.md`～`P05-pr.md` 保存当前 PR 正文。`P01-issue.md`～`P05-issue.md` 为误建 Issue 的历史记录，对应 Issue 已关闭。PR 标题采用 `[Fix] title`；正文按已确认草稿的结构说明版本、复现、范围、改动、原因、收益、测试方法、结果与缺口。原 `*-issue.md` 仅保留误发记录，不作为后续提交入口。
 
-游戏验收结果应补到对应 Issue/PR；满足验收后再转 Ready。后续根据上游反馈分别修改相应分支，继续保持独立性，暂不提交第二轮。
+游戏验收结果应补到对应 PR；满足验收后再转 Ready。后续根据上游反馈分别修改相应分支，继续保持独立性，暂不提交第二轮。

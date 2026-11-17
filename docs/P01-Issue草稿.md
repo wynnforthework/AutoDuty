@@ -1,6 +1,6 @@
 # [Bug] Action editor keeps expanding horizontally while open
 
-> Published as Issue #643 with Draft PR #644. Uses the previously agreed issue structure; isolated-branch build and native layout results have now been added. Running-game verification remains pending.
+> Historical filename: this document is the agreed content-structure reference for PR #644, not an instruction to file a Bug Issue. Issue #643 was created in error and has been closed. Current published PR description: `pr-first-round/P01-pr.md`.
 
 ## What happened?
 
@@ -106,4 +106,4 @@ No configuration-specific trigger has been established. A full personal configur
 
 ## Readiness for submission
 
-Issue #643 and PR #644 are available for discussion. The isolated branch has been built and the native layout regression has passed. PR #644 remains Draft because the affected runtime version, clean upstream reproduction, actual WindowSystem behavior and post-fix in-game checks remain unverified. It has not been marked as fully game-tested.
+PR #644 is available for discussion; mistakenly created Issue #643 is closed. The isolated branch has been built and the native layout regression has passed. PR #644 remains Draft because the affected runtime version, clean upstream reproduction, actual WindowSystem behavior and post-fix in-game checks remain unverified. It has not been marked as fully game-tested.
