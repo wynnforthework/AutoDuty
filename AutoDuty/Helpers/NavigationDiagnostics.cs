@@ -25,7 +25,7 @@ internal static class NavigationDiagnostics
             string json = JsonConvert.SerializeObject(new
             {
                 utc = DateTime.UtcNow, sequence = System.Threading.Interlocked.Increment(ref sequence), operation, source, detail,
-                territory = Svc.ClientState.TerritoryType, step = Plugin.indexer + 1, stage = Plugin.Stage.ToString(),
+                territory = Svc.ClientState.TerritoryType, step = Plugin.indexer, stepNumberBase = 0, stage = Plugin.Stage.ToString(),
                 route = Path.GetFileName(Plugin.pathFile),
                 action = Plugin.currentAttempt?.Action.ToCustomString(), attempt = (Plugin.currentAttempt?.Attempts ?? 0) + 1,
                 position = Player.Available ? Player.Position : default,
@@ -34,6 +34,7 @@ internal static class NavigationDiagnostics
                 finding = VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress,
                 running = VNavmesh_IPCSubscriber.Path_IsRunning, waypoints = VNavmesh_IPCSubscriber.Path_NumWaypoints,
                 tolerance = VNavmesh_IPCSubscriber.Path_GetTolerance,
+                movementAllowed = VNavmesh_IPCSubscriber.Path_MovementAllowed,
                 meshReady = VNavmesh_IPCSubscriber.Nav_IsReady,
                 casting = Player.Available && PlayerHelper.IsCasting,
                 betweenAreas = Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.BetweenAreas],

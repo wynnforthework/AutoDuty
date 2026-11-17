@@ -42,7 +42,7 @@ internal static class MetricsDashboard
             var run = tracker.Record;
             ImGui.TextWrapped($"{run.RouteName} | {(Job)run.JobId} | {run.Mode} | {run.PartySize} {Text("Players")}");
             ImGui.ProgressBar((float)(run.CompletionPercent / 100), new Vector2(-1, 0), $"{Text("Completion")}: {run.CompletionPercent:F1}% ({run.AutonomousSteps}/{run.TotalSteps})");
-            if (run.FirstProblem.Length > 0) ImGui.TextColored(Attention, $"{Text("FirstProblem")}: #{run.ProblemStep + 1} {run.FirstProblem}");
+            if (run.FirstProblem.Length > 0) ImGui.TextColored(Attention, $"{Text("FirstProblem")}: #{run.ProblemStep} {run.FirstProblem}");
             if (ImGui.Button(Text("MarkIntervention"))) Plugin.MetricsProblem("operator-marked", true);
         }
         ImGui.TextWrapped(Text("Definition"));
@@ -87,7 +87,7 @@ internal static class MetricsDashboard
             ImGui.TableNextColumn(); ImGui.TextUnformatted($"{group.ExperiencePerHour:N0}");
             ImGui.TableNextColumn();
             foreach (var problem in group.Runs.Where(r => r.FirstProblem.Length > 0).GroupBy(r => (r.ProblemStep, r.FirstProblem)).OrderByDescending(g => g.Count()).Take(3))
-                ImGui.TextUnformatted($"#{problem.Key.ProblemStep + 1} {problem.Key.FirstProblem}: {problem.Count()}");
+                ImGui.TextUnformatted($"#{problem.Key.ProblemStep} {problem.Key.FirstProblem}: {problem.Count()}");
         }
         ImGui.EndTable();
     }
@@ -106,7 +106,7 @@ internal static class MetricsDashboard
             ImGui.TableNextColumn(); ImGui.TextColored(run.VerifiedComplete ? Good : Attention, $"{run.CompletionPercent:F1}% ({run.AutonomousSteps}/{run.TotalSteps})");
             if (ImGui.IsItemHovered()) ImGui.SetTooltip($"{Text("Executed")}: {run.ExecutedSteps}; {Text("PolicySkipped")}: {run.PolicySkippedSteps}; {Text("Failures")}: {run.Failures}; {Text("Interventions")}: {run.Interventions}");
             ImGui.TableNextColumn(); ImGui.TextUnformatted($"{run.Experience:N0} / +{run.LevelsGained}");
-            ImGui.TableNextColumn(); ImGui.TextUnformatted($"{run.Outcome}\n{run.FirstProblem}" + (run.ProblemStep is { } step ? $" #{step + 1}" : ""));
+            ImGui.TableNextColumn(); ImGui.TextUnformatted($"{run.Outcome}\n{run.FirstProblem}" + (run.ProblemStep is { } step ? $" #{step}" : ""));
         }
         ImGui.EndTable();
     }

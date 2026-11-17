@@ -9,6 +9,9 @@ internal sealed class CombatCheckpointProgress
 {
     internal const float NearbyRadius = 6;
     internal const float SwitchArrivalRadius = 1.5f;
+    // vnavmesh's Path.Tolerance applies to EVERY waypoint, including obstacle
+    // corners. Destination arrival radii must never be used for path following.
+    internal const float WaypointTolerance = .25f;
     private PathAction? checkpoint;
     private bool observedCombat;
     private bool combatEnded;

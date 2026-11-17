@@ -257,6 +257,7 @@ internal static class VNavmesh_IPCSubscriber
     internal static bool  Nav_IsReady                                 => Vnavmesh.IsReady();
     internal static bool  SimpleMove_PathfindInProgress               => Vnavmesh.PathfindInProgress();
     internal static bool  Path_IsRunning                              => Vnavmesh.IsRunning();
+    internal static bool Path_MovementAllowed => Vnavmesh.GetMovementAllowed();
     internal static void Path_MoveTo(List<Vector3> points, bool fly,
         [System.Runtime.CompilerServices.CallerMemberName] string caller = "", [System.Runtime.CompilerServices.CallerFilePath] string file = "", [System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
     {

@@ -54,12 +54,12 @@ public partial class AutoDuty
         attempt.Attempts++;
         NavigationDiagnostics.Record("step-failure", detail: new { reason, detail });
         NavigationDiagnostics.Export(reason);
-        Svc.Log.Warning($"Step {this.indexer + 1} ({attempt.Action.ToCustomString()}): {reason}; {detail}; failure {attempt.Attempts}/{Configuration.DutyConfig.MaxStepRetries}");
+        Svc.Log.Warning($"Step {this.indexer} ({attempt.Action.ToCustomString()}): {reason}; {detail}; failure {attempt.Attempts}/{Configuration.DutyConfig.MaxStepRetries}");
         this.CancelStepWork();
         this.pendingStepFailure = null;
         if (attempt.Attempts < Math.Max(1, Configuration.DutyConfig.MaxStepRetries))
         {
-            Svc.Chat.Print("[AutoDuty] " + Loc.Get("DutyTools.AutoRetryDetail", this.indexer + 1, reason, attempt.Attempts + 1, Math.Max(1, Configuration.DutyConfig.MaxStepRetries)));
+            Svc.Chat.Print("[AutoDuty] " + Loc.Get("DutyTools.AutoRetryDetail", this.indexer, reason, attempt.Attempts + 1, Math.Max(1, Configuration.DutyConfig.MaxStepRetries)));
             attempt.StartedAt = attempt.LastTickAt = Environment.TickCount64;
             attempt.ActionStartedAt = 0;
             attempt.MovementStarted = false;
@@ -85,7 +85,7 @@ public partial class AutoDuty
         }
         if (!forcePause && !StepRecoveryPolicy.MustPause(reason) && !Configuration.DutyConfig.PauseOnStepFailure)
         {
-            Svc.Chat.Print($"[AutoDuty] Step {this.indexer + 1} failed: {reason}. Skipped by configuration.");
+            Svc.Chat.Print($"[AutoDuty] Step {this.indexer} failed: {reason}. Skipped by configuration.");
             if (this.currentAttempt != null) this.currentAttempt.SkippedReason = reason;
             this.indexer++;
             this.Stage = Stage.Reading_Path;
@@ -94,8 +94,8 @@ public partial class AutoDuty
         this.currentFailure = new(this.indexer, reason, detail, this.currentAttempt?.Attempts ?? 1, DateTime.UtcNow);
         this.Stage = Stage.Paused;
         this.States |= PluginState.Failed;
-        Svc.Chat.PrintError($"[AutoDuty] Step {this.indexer + 1} failed: {reason} ({detail}). Paused after {this.currentFailure.Attempts} failures.");
-        Svc.Log.Error($"Step {this.indexer + 1} paused: {reason}; {detail}");
+        Svc.Chat.PrintError($"[AutoDuty] Step {this.indexer} failed: {reason} ({detail}). Paused after {this.currentFailure.Attempts} failures.");
+        Svc.Log.Error($"Step {this.indexer} paused: {reason}; {detail}");
         if (Configuration.DutyConfig.PlaySoundOnFailure) SoundHelper.StartSound(Sounds.Sound01);
     }
 
@@ -161,14 +161,14 @@ public partial class AutoDuty
             MultiboxUtility.Server.SendPath();
             MultiboxUtility.Server.SendStepStart(manual);
         }
-        Svc.Log.Info($"Seek to step {this.indexer + 1}; resume={resume}");
+        Svc.Log.Info($"Seek to step {this.indexer}; resume={resume}");
     }
 
     private bool TryApplyNearbyCombatSwitch()
     {
         if (!Player.Available || !this.combatCheckpoints.CanApply(this.pathAction, Player.Position, PartyHelper.PartyInCombat())) return false;
         VNavmesh_IPCSubscriber.Path_Stop();
-        Svc.Log.Info($"Step {this.indexer + 1}: applying nearby StopForCombat after observed combat ended; executing switch without waiting for another fight.");
+        Svc.Log.Info($"Step {this.indexer}: applying nearby StopForCombat after observed combat ended; executing switch without waiting for another fight.");
         this.Stage = Stage.Action;
         return true;
     }

@@ -69,6 +69,6 @@ internal static class PathEditHelper
         }
         if (PathFileStore.ShouldPersistEdit(reason, Plugin.Recorder.Recording))
             Windows.BuildTab.SavePath(running: true);
-        Svc.Log.Info($"Path edit: {reason}; step {oldIndex + 1} -> {relocated + 1}");
+        Svc.Log.Info($"Path edit: {reason}; step {oldIndex} -> {relocated}");
     }
 }

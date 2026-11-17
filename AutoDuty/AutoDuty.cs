@@ -489,9 +489,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
                     }
                     catch (Exception ex) { Svc.Chat.PrintError(ex.Message); }
                 }),
-                (["step"], "seek to a 1-based step", args => { if (args.Length > 1 && int.TryParse(args[1], out int step) && step > 0 && step <= this.Actions.Count) this.SeekToStep(step - 1); }),
+                (["step"], "seek to a 0-based step", args => { if (args.Length > 1 && int.TryParse(args[1], out int step) && step >= 0 && step < this.Actions.Count) this.SeekToStep(step); }),
                 (["retry"], "retry current step", _ => { if (this.indexer >= 0) this.SeekToStep(this.indexer); }),
-                (["where"], "show current step", _ => Svc.Chat.Print($"[AutoDuty] Step {this.indexer + 1}/{this.Actions.Count}: {this.currentAttempt?.Action.ToCustomString()} {this.currentFailure?.Reason}")),
+                (["where"], "show current step", _ => Svc.Chat.Print($"[AutoDuty] Step {this.indexer}/{this.Actions.Count}: {this.currentAttempt?.Action.ToCustomString()} {this.currentFailure?.Reason}")),
                 (["movetoflag"], "moves to the flag map marker", _ => MapHelper.MoveToMapMarker()),
                 (["ttfull"], "opens packs, registers cards and sells the rest", _ =>
                                                                                 {
@@ -1074,7 +1074,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.transitionObservedAt = Environment.TickCount64;
             this.transitionOrigin = Player.Position;
             this.transitionWasReturn = Environment.TickCount64 < this.returnObservedUntil;
-            this.FailCurrentStep("unexpected-position-transition", $"flag={flag}; step={this.indexer + 1}; position={Player.Position}", forcePause: true);
+            this.FailCurrentStep("unexpected-position-transition", $"flag={flag}; step={this.indexer}; position={Player.Position}", forcePause: true);
         }
         if (Conditions.Instance()->WatchingCutscene || flag is ConditionFlag.WatchingCutscene or ConditionFlag.WatchingCutscene78 or ConditionFlag.OccupiedInCutSceneEvent)
         {
@@ -1554,7 +1554,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         BossMod_IPCSubscriber.SetMovement(false);
         this.DutyData?.StayCloseToTank = false;
         if (this.currentAttempt == null) this.BeginAttempt(this.indexer);
-        VNavmesh_IPCSubscriber.Path_SetTolerance(CombatCheckpointProgress.ArrivalRadius(this.pathAction, this.currentAttempt?.Attempts ?? 0));
+        VNavmesh_IPCSubscriber.Path_SetTolerance(CombatCheckpointProgress.WaypointTolerance);
         if (this.pathAction is { Name: "MoveTo", Arguments.Count: > 0 } && bool.TryParse(this.pathAction.Arguments[0], out bool useMesh) && !useMesh)
             VNavmesh_IPCSubscriber.Path_MoveTo([this.pathAction.Position], false);
         else if (!VNavmesh_IPCSubscriber.SimpleMove_PathfindAndMoveTo(this.pathAction.Position, false))
@@ -1598,6 +1598,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         // Arrival wins over stuck detection, exhausted-path handling and timeout.
         if (this.TryAdvanceAtDestination()) return;
+
+        // Restore the corner tolerance if a previous action/plugin changed it.
+        VNavmesh_IPCSubscriber.Path_SetTolerance(CombatCheckpointProgress.WaypointTolerance);
 
         if (this.currentAttempt != null && this.currentAttempt.NavigationStop.StoppedShort(
                 VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress || VNavmesh_IPCSubscriber.Path_IsRunning,
@@ -1660,7 +1663,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
     private string MovementFailureDetail()
     {
         Vector3 delta = Player.Position - this.pathAction.Position;
-        return $"target={this.pathAction.Position}; position={Player.Position}; horizontal={MathF.Sqrt(delta.X * delta.X + delta.Z * delta.Z):F2}m; vertical={MathF.Abs(delta.Y):F2}m; distance={delta.Length():F2}m; arrival={CombatCheckpointProgress.ArrivalRadius(this.pathAction, this.currentAttempt?.Attempts ?? 0):F2}m; pathfinding={VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress}; running={VNavmesh_IPCSubscriber.Path_IsRunning}; waypoints={VNavmesh_IPCSubscriber.Path_NumWaypoints}";
+        return $"target={this.pathAction.Position}; position={Player.Position}; horizontal={MathF.Sqrt(delta.X * delta.X + delta.Z * delta.Z):F2}m; vertical={MathF.Abs(delta.Y):F2}m; distance={delta.Length():F2}m; arrival={CombatCheckpointProgress.ArrivalRadius(this.pathAction, this.currentAttempt?.Attempts ?? 0):F2}m; waypointTolerance={VNavmesh_IPCSubscriber.Path_GetTolerance:F2}m; movementAllowed={VNavmesh_IPCSubscriber.Path_MovementAllowed}; pathfinding={VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress}; running={VNavmesh_IPCSubscriber.Path_IsRunning}; waypoints={VNavmesh_IPCSubscriber.Path_NumWaypoints}";
     }
 
     private void StageAction()
@@ -2238,7 +2241,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
                 VNavmesh_IPCSubscriber.Path_Stop();
 
             this.taskManager.Abort();
-            Svc.Log.Warning($"Step {this.indexer + 1} interrupted by ConditionsWhile");
+            Svc.Log.Warning($"Step {this.indexer} interrupted by ConditionsWhile");
             this.MetricsStepCompleted(true);
             if (this.currentAttempt != null) this.currentAttempt.SkippedReason = "conditions-while";
             this.Stage = Stage.Reading_Path;
