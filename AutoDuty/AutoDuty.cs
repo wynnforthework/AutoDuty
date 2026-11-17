@@ -1557,6 +1557,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         BossMod_IPCSubscriber.SetMovement(false);
         this.DutyData?.StayCloseToTank = false;
         if (this.currentAttempt == null) this.BeginAttempt(this.indexer);
+        this.ReportAttemptStart();
         VNavmesh_IPCSubscriber.Path_SetTolerance(CombatCheckpointProgress.WaypointTolerance);
         if (this.pathAction is { Name: "MoveTo", Arguments.Count: > 0 } && bool.TryParse(this.pathAction.Arguments[0], out bool useMesh) && !useMesh)
             VNavmesh_IPCSubscriber.Path_MoveTo([this.pathAction.Position], false);
@@ -1613,7 +1614,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
         }
 
-        if (PlayerHelper.IsCasting) this.currentAttempt?.Progress.Reset(Player.Position, Environment.TickCount64);
+        if (PlayerHelper.IsCasting || VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress)
+            this.currentAttempt?.Progress.Reset(Player.Position, Environment.TickCount64);
         if (!PlayerHelper.IsCasting && this.currentAttempt is { } progressAttempt
             && progressAttempt.Progress.IsStuck(Player.Position, Environment.TickCount64, Configuration.DutyConfig.Stuck.MinStuckTime))
         {
@@ -1666,7 +1668,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
     private string MovementFailureDetail()
     {
         Vector3 delta = Player.Position - this.pathAction.Position;
-        return $"target={this.pathAction.Position}; position={Player.Position}; horizontal={MathF.Sqrt(delta.X * delta.X + delta.Z * delta.Z):F2}m; vertical={MathF.Abs(delta.Y):F2}m; distance={delta.Length():F2}m; arrival={CombatCheckpointProgress.ArrivalRadius(this.pathAction, this.currentAttempt?.Attempts ?? 0):F2}m; waypointTolerance={VNavmesh_IPCSubscriber.Path_GetTolerance:F2}m; movementAllowed={VNavmesh_IPCSubscriber.Path_MovementAllowed}; pathfinding={VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress}; running={VNavmesh_IPCSubscriber.Path_IsRunning}; waypoints={VNavmesh_IPCSubscriber.Path_NumWaypoints}";
+        return $"target={this.pathAction.Position}; position={Player.Position}; horizontal={MathF.Sqrt(delta.X * delta.X + delta.Z * delta.Z):F2}m; vertical={MathF.Abs(delta.Y):F2}m; distance={delta.Length():F2}m; arrival={CombatCheckpointProgress.ArrivalRadius(this.pathAction, this.currentAttempt?.Attempts ?? 0):F2}m; stuckLimitMs={MovementProgress.EffectiveLimit(Configuration.DutyConfig.Stuck.MinStuckTime)}; waypointTolerance={VNavmesh_IPCSubscriber.Path_GetTolerance:F2}m; movementAllowed={VNavmesh_IPCSubscriber.Path_MovementAllowed}; pathfinding={VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress}; running={VNavmesh_IPCSubscriber.Path_IsRunning}; waypoints={VNavmesh_IPCSubscriber.Path_NumWaypoints}";
     }
 
     private void StageAction()
@@ -2109,6 +2111,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (!this.taskManager.IsBusy && !this.pathAction.Name.IsNullOrEmpty())
         {
             if (this.currentAttempt?.Index != this.indexer) this.BeginAttempt(this.indexer);
+            this.ReportAttemptStart();
             if (this.currentAttempt != null) this.currentAttempt.ActionStartedAt = Environment.TickCount64;
             this.actions.InvokeAction(this.pathAction);
         }
@@ -2312,6 +2315,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private void StopAndResetAll()
     {
+        this.navigationReadiness.Reset();
         this.interactionTransition.Reset();
         this.transitionPending = false;
         this.returnObservedUntil = 0;

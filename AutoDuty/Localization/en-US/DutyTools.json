@@ -75,6 +75,8 @@
     "RestartEntrance": "Return to the duty entrance confirmed; cleared old work and restarting at step 1.",
     "ExportNavigation": "Export navigation trace (copy file path)",
     "StuckRecoveryPolicy": "Stuck navigation retries the current step, then pauses at the limit. It never uses Return or skips a failed movement step.",
+    "AttemptStart": "Step {0}: starting attempt {1}/{2}.",
+    "RetryQueued": "Step {0} attempt {2}/{3} failed: {1}; retry queued until ready.",
     "AutoRetryDetail": "Step {0} failed: {1}; starting attempt {2}/{3}."
   }
 }

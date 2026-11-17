@@ -76,6 +76,7 @@ static void Run()
     Check(dialogueProgress.Observe(false, false) && dialogueProgress.Observe(false, false), "dialogue close remains completed across throttled polls");
     Check(!new InteractionDialogueProgress().Observe(false, false), "new interaction cannot reuse previous dialogue evidence");
     TestInteractionTransfer();
+    TestNavigationReadiness();
     TestPathPersistence();
     var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>
     {
@@ -438,4 +439,24 @@ static void TestInteractionTransfer()
     progress.ObserveLoading(step, 7, 1100, false);
     Check(!progress.Settled(2000, false, true, 999, start) && progress.Settled(3000, false, true, 999, start), "territory change also provides transfer evidence");
     Console.WriteLine("PASS: sand transfer ownership, delayed/duplicate loading flags, settle grace, death/Return exclusion, stale state and bounded timeouts");
+}
+static void TestNavigationReadiness()
+{
+    var ready = new NavigationReadiness();
+    Check(!ready.Observe(false, false, false, 0), "loading never starts readiness timer");
+    Check(!ready.Observe(false, true, true, 60000), "slow player loading cannot consume movement timeout");
+    Check(!ready.Observe(true, false, true, 120000), "entry barrier waits for duty started");
+    Check(!ready.Observe(true, true, false, 180000), "mesh build has no stuck verdict");
+    Check(!ready.Observe(true, true, true, 200000) && !ready.Observe(true, true, true, 200999), "readiness requires a stable second");
+    Check(ready.Observe(true, true, true, 201000), "ready after slow load eventually proceeds");
+    Check(!ready.Observe(false, true, true, 202000), "later load resets readiness");
+    Check(!ready.Observe(true, true, true, 300000) && ready.Observe(true, true, true, 301000), "new area starts a fresh stable window");
+    var progress = new MovementProgress();
+    var p = System.Numerics.Vector3.Zero;
+    progress.Reset(p, 0);
+    Check(!progress.IsStuck(p, 4999, 500) && progress.IsStuck(p, 5000, 500), "legacy 500ms setting gets five-second movement window");
+    progress.Reset(p, 60000);
+    Check(!progress.IsStuck(p, 64999, 500), "load suspension discards pre-load idle time");
+    Check(MovementProgress.EffectiveLimit(10000) == 10000, "longer configured stuck window is preserved");
+    Console.WriteLine("PASS: slow loading, duty barrier, mesh readiness, stable readiness and legacy stuck window");
 }

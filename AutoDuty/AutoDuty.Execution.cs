@@ -12,6 +12,7 @@ namespace AutoDuty;
 public partial class AutoDuty
 {
     internal readonly CombatCheckpointProgress combatCheckpoints = new();
+    private readonly NavigationReadiness navigationReadiness = new();
     internal readonly InteractionTransitionProgress interactionTransition = new();
     private bool interactionTransitionCancelled;
     private bool interactionRequiresTransfer;
@@ -35,6 +36,15 @@ public partial class AutoDuty
     }
 
     // TaskManager callbacks must not mutate its queue while it is enumerating a task.
+    private void ReportAttemptStart()
+    {
+        if (this.currentAttempt is not { StartReported: false } attempt) return;
+        attempt.StartReported = true;
+        Svc.Chat.Print("[AutoDuty] " + Loc.Get("DutyTools.AttemptStart", this.indexer,
+            attempt.Attempts + 1, Math.Max(1, Configuration.DutyConfig.MaxStepRetries)));
+        NavigationDiagnostics.Record("step-attempt-start");
+    }
+
     internal void ReportTaskFailure(string reason, string detail) => this.pendingStepFailure ??= (reason, detail);
 
     private void CancelStepWork()
@@ -68,7 +78,8 @@ public partial class AutoDuty
         this.pendingStepFailure = null;
         if (attempt.Attempts < Math.Max(1, Configuration.DutyConfig.MaxStepRetries))
         {
-            Svc.Chat.Print("[AutoDuty] " + Loc.Get("DutyTools.AutoRetryDetail", this.indexer, reason, attempt.Attempts + 1, Math.Max(1, Configuration.DutyConfig.MaxStepRetries)));
+            Svc.Chat.Print("[AutoDuty] " + Loc.Get("DutyTools.RetryQueued", this.indexer, reason, attempt.Attempts, Math.Max(1, Configuration.DutyConfig.MaxStepRetries)));
+            attempt.StartReported = false;
             attempt.StartedAt = attempt.LastTickAt = Environment.TickCount64;
             attempt.ActionStartedAt = 0;
             attempt.MovementStarted = false;
@@ -151,6 +162,7 @@ public partial class AutoDuty
 
     internal void SeekToStep(int index, bool resume = true, bool broadcast = true, bool manual = true)
     {
+        this.navigationReadiness.Reset();
         this.transitionPending = false;
         this.returnObservedUntil = 0;
         this.combatCheckpoints.Reset();
@@ -278,6 +290,28 @@ public partial class AutoDuty
     private bool UpdateStepAttempt()
     {
         if (this.currentAttempt?.Index != this.indexer) this.BeginAttempt(this.indexer);
+        long now = Environment.TickCount64;
+        bool navigationStage = this.Stage is Stage.Reading_Path or Stage.Moving;
+        if (!navigationStage) this.navigationReadiness.Reset();
+        bool canNavigate = !navigationStage || this.navigationReadiness.Observe(PlayerHelper.IsReadyFull,
+            !InDungeon || Svc.DutyState.IsDutyStarted, VNavmesh_IPCSubscriber.Nav_IsReady, now);
+        if (navigationStage && !canNavigate)
+        {
+            if (this.currentAttempt is { } waiting)
+            {
+                waiting.StartedAt += now - waiting.LastTickAt;
+                waiting.LastTickAt = now;
+                waiting.Progress.Reset(Player.Available ? Player.Position : default, now);
+                waiting.NavigationStop.Reset();
+            }
+            if (this.Stage == Stage.Moving)
+            {
+                VNavmesh_IPCSubscriber.Path_Stop();
+                this.Stage = Stage.Reading_Path;
+            }
+            this.action = "Waiting for player, duty and navigation readiness";
+            return false;
+        }
         if (this.pendingStepFailure is { } failure && this.Stage != Stage.Paused)
         {
             this.pendingStepFailure = null;
@@ -285,7 +319,6 @@ public partial class AutoDuty
             return false;
         }
         if (this.currentAttempt is not { } attempt) return true;
-        long now = Environment.TickCount64;
         if (this.Stage is Stage.Paused or Stage.Waiting_For_Combat or Stage.Dead or Stage.Revived
             || Svc.Condition[ConditionFlag.WatchingCutscene] || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
             || Svc.Condition[ConditionFlag.OccupiedInQuestEvent] || Svc.Condition[ConditionFlag.BetweenAreas]
@@ -295,6 +328,8 @@ public partial class AutoDuty
             attempt.StartedAt += delta;
             if (attempt.ActionStartedAt != 0) attempt.ActionStartedAt += delta;
             this.taskManager.RemainingTimeMS += delta;
+            attempt.Progress.Reset(Player.Available ? Player.Position : default, now);
+            attempt.NavigationStop.Reset();
         }
         attempt.LastTickAt = now;
         return true;
