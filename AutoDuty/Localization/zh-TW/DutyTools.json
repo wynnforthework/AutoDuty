@@ -6,7 +6,7 @@
     "Skip": "跳過",
     "Previous": "上一步",
     "Reliability": "步驟可靠性",
-    "MaxStepRetries": "每步失敗次數上限",
+    "MaxStepRetries": "每步最多重試次數（不含首次執行，0 為不重試）",
     "MoveToStepTimeoutMs": "移動逾時（毫秒）",
     "ActionStepTimeoutMs": "動作逾時（毫秒）",
     "BossSpawnTimeoutMs": "Boss 出現及進入戰鬥逾時（毫秒）",

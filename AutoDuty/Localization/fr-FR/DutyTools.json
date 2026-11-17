@@ -5,7 +5,7 @@
     "Skip": "Skip",
     "Previous": "Previous step",
     "Reliability": "Step reliability",
-    "MaxStepRetries": "Failure limit per step",
+    "MaxStepRetries": "Maximum retries per step (excluding initial execution; 0 disables retries)",
     "MoveToStepTimeoutMs": "Movement timeout (ms)",
     "ActionStepTimeoutMs": "Action timeout (ms)",
     "BossSpawnTimeoutMs": "Boss spawn / engage timeout (ms)",

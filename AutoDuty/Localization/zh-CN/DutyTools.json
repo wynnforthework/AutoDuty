@@ -6,7 +6,7 @@
     "Skip": "跳过",
     "Previous": "上一步",
     "Reliability": "步骤可靠性",
-    "MaxStepRetries": "每步失败次数上限",
+    "MaxStepRetries": "每步最多重试次数（不含首次执行，0 为不重试）",
     "MoveToStepTimeoutMs": "移动超时（毫秒）",
     "ActionStepTimeoutMs": "动作超时（毫秒）",
     "BossSpawnTimeoutMs": "Boss 出现及进入战斗超时（毫秒）",
@@ -70,13 +70,13 @@
     "NavFinding": "正在计算路径",
     "NavMoving": "正在沿路径移动",
     "NavStopped": "导航已停止，正在核对到达位置（未到达时最多等待2秒）",
-    "MoveDetail": "导航：{0} / 第 {1}/{2} 次尝试 / 已用 {3}s，上限 {4}s / 水平距离 {5}m / 高差 {6}m / 到达范围 {7}m",
+    "MoveDetail": "导航：{0} / 已重试 {1}/{2} 次（不含首次执行） / 已用 {3}s，上限 {4}s / 水平距离 {5}m / 高差 {6}m / 到达范围 {7}m",
     "LastMoveFailure": "上次失败原因",
     "RestartEntrance": "已确认回到副本入口，清理旧任务并从第 1 步重新检查执行。",
     "ExportNavigation": "导出导航诊断（复制文件路径）",
     "StuckRecoveryPolicy": "卡住后在当前步骤有限重试，达到上限强制暂停，不自动使用返回，也不跳过失败步骤。",
-    "AttemptStart": "第 {0} 步开始第 {1}/{2} 次尝试。",
-    "RetryQueued": "第 {0} 步第 {2}/{3} 次尝试失败：{1}，等待就绪后重试。",
+    "AttemptStart": "第 {0} 步开始第 {1}/{2} 次重试。",
+    "RetryQueued": "第 {0} 步执行失败：{1}，等待就绪后进行第 {2}/{3} 次重试。",
     "AutoRetryDetail": "第 {0} 步失败：{1}，开始第 {2}/{3} 次尝试。"
   }
 }

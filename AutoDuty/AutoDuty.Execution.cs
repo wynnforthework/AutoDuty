@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using AutoDuty.Helpers;
 using AutoDuty.IPC;
@@ -40,8 +40,10 @@ public partial class AutoDuty
     {
         if (this.currentAttempt is not { StartReported: false } attempt) return;
         attempt.StartReported = true;
-        Svc.Chat.Print("[AutoDuty] " + Loc.Get("DutyTools.AttemptStart", this.indexer,
-            attempt.Attempts + 1, Math.Max(1, Configuration.DutyConfig.MaxStepRetries)));
+        // The mandatory initial execution is not a retry and does not need a chat message.
+        if (attempt.Attempts > 0)
+            Svc.Chat.Print("[AutoDuty] " + Loc.Get("DutyTools.AttemptStart", this.indexer,
+                attempt.Attempts, Math.Max(0, Configuration.DutyConfig.MaxStepRetries)));
         NavigationDiagnostics.Record("step-attempt-start");
     }
 
@@ -70,15 +72,15 @@ public partial class AutoDuty
         attempt.Attempts++;
         NavigationDiagnostics.Record("step-failure", detail: new { reason, detail });
         NavigationDiagnostics.Export(reason);
-        Svc.Log.Warning($"Step {this.indexer} ({attempt.Action.ToCustomString()}): {reason}; {detail}; failure {attempt.Attempts}/{Configuration.DutyConfig.MaxStepRetries}");
+        Svc.Log.Warning($"Step {this.indexer} ({attempt.Action.ToCustomString()}): {reason}; {detail}; failure count={attempt.Attempts}; retry limit={Math.Max(0, Configuration.DutyConfig.MaxStepRetries)}");
         this.interactionTransition.Reset();
         this.interactionRequiresTransfer = false;
         this.interactionTransitionCancelled = false;
         this.CancelStepWork();
         this.pendingStepFailure = null;
-        if (attempt.Attempts < Math.Max(1, Configuration.DutyConfig.MaxStepRetries))
+        if (StepRetryPolicy.CanRetry(attempt.Attempts, Configuration.DutyConfig.MaxStepRetries))
         {
-            Svc.Chat.Print("[AutoDuty] " + Loc.Get("DutyTools.RetryQueued", this.indexer, reason, attempt.Attempts, Math.Max(1, Configuration.DutyConfig.MaxStepRetries)));
+            Svc.Chat.Print("[AutoDuty] " + Loc.Get("DutyTools.RetryQueued", this.indexer, reason, attempt.Attempts, Math.Max(0, Configuration.DutyConfig.MaxStepRetries)));
             attempt.StartReported = false;
             attempt.StartedAt = attempt.LastTickAt = Environment.TickCount64;
             attempt.ActionStartedAt = 0;

@@ -6,7 +6,7 @@
     "Skip": "Skip",
     "Previous": "Previous step",
     "Reliability": "Step reliability",
-    "MaxStepRetries": "Failure limit per step",
+    "MaxStepRetries": "Maximum retries per step (excluding initial execution; 0 disables retries)",
     "MoveToStepTimeoutMs": "Movement timeout (ms)",
     "ActionStepTimeoutMs": "Action timeout (ms)",
     "BossSpawnTimeoutMs": "Boss spawn / engage timeout (ms)",
@@ -70,13 +70,13 @@
     "NavFinding": "Calculating path",
     "NavMoving": "Following path",
     "NavStopped": "Navigation stopped; checking arrival (up to 2 seconds if short)",
-    "MoveDetail": "Navigation: {0} / attempt {1}/{2} / elapsed {3}s, limit {4}s / horizontal {5}m / height {6}m / arrival radius {7}m",
+    "MoveDetail": "Navigation: {0} / retries {1}/{2} (excluding initial execution) / elapsed {3}s, limit {4}s / horizontal {5}m / height {6}m / arrival radius {7}m",
     "LastMoveFailure": "Last failure",
     "RestartEntrance": "Return to the duty entrance confirmed; cleared old work and restarting at step 1.",
     "ExportNavigation": "Export navigation trace (copy file path)",
     "StuckRecoveryPolicy": "Stuck navigation retries the current step, then pauses at the limit. It never uses Return or skips a failed movement step.",
-    "AttemptStart": "Step {0}: starting attempt {1}/{2}.",
-    "RetryQueued": "Step {0} attempt {2}/{3} failed: {1}; retry queued until ready.",
+    "AttemptStart": "Step {0}: starting retry {1}/{2}.",
+    "RetryQueued": "Step {0} failed: {1}; retry {2}/{3} queued until ready.",
     "AutoRetryDetail": "Step {0} failed: {1}; starting attempt {2}/{3}."
   }
 }

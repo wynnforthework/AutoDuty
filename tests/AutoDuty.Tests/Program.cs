@@ -48,6 +48,13 @@ static void Run()
     Check(!RouteCompletionPolicy.Finished(31, 31, false, false), "route finish is dispatched only once");
     Check(!RouteCompletionPolicy.Finished(0, 0, true, false), "missing route is not a completed route");
     Check(!RouteCompletionPolicy.HasStep(-1, 31), "unselected index is not a running step");
+    Check(!StepRetryPolicy.CanRetry(1, 0), "zero retries: initial failure pauses immediately");
+    Check(StepRetryPolicy.CanRetry(1, 3), "initial execution failure schedules retry one of three");
+    Check(StepRetryPolicy.CanRetry(2, 3), "first retry failure schedules retry two");
+    Check(StepRetryPolicy.CanRetry(3, 3), "second retry failure schedules final retry three");
+    Check(!StepRetryPolicy.CanRetry(4, 3), "third retry failure exhausts budget after four executions");
+    Check(!StepRetryPolicy.CanRetry(0, 3), "initial execution does not consume retry budget");
+    Check(!StepRetryPolicy.CanRetry(1, -1), "negative retry configuration behaves as zero");
     TestDutyExecutionBoundary();
     TestBossProgress();
     TestCombatCheckpoint();

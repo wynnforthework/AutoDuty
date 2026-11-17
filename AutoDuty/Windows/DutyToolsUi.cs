@@ -84,7 +84,7 @@ internal static class DutyToolsUi
         {
             Vector3 delta = Player.Position - step.Position;
             string navigation = Text(VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress ? "NavFinding" : VNavmesh_IPCSubscriber.Path_IsRunning ? "NavMoving" : "NavStopped");
-            ImGui.TextWrapped(Loc.Get("DutyTools.MoveDetail", navigation, moving.Attempts + 1, Math.Max(1, Configuration.DutyConfig.MaxStepRetries),
+            ImGui.TextWrapped(Loc.Get("DutyTools.MoveDetail", navigation, moving.Attempts, Math.Max(0, Configuration.DutyConfig.MaxStepRetries),
                 Math.Max(0, Environment.TickCount64 - moving.StartedAt) / 1000, Math.Max(1000, Configuration.DutyConfig.MoveToStepTimeoutMs) / 1000,
                 MathF.Sqrt(delta.X * delta.X + delta.Z * delta.Z).ToString("F2"), MathF.Abs(delta.Y).ToString("F2"),
                 Helpers.CombatCheckpointProgress.ArrivalRadius(step, moving.Attempts).ToString("F2")));
@@ -118,7 +118,7 @@ internal static class DutyToolsUi
             int value = (int)property.GetValue(config)!;
             if (ImGui.InputInt(Text(name), ref value))
             {
-                property.SetValue(config, Math.Clamp(value, name == "WaitForStepTimeoutMs" ? 0 : name == "MaxStepRetries" ? 1 : 1000, name == "MaxStepRetries" ? 100 : int.MaxValue));
+                property.SetValue(config, Math.Clamp(value, name == "WaitForStepTimeoutMs" ? 0 : name == "MaxStepRetries" ? 0 : 1000, name == "MaxStepRetries" ? 100 : int.MaxValue));
                 ConfigurationProfileV2.Save();
             }
         }
