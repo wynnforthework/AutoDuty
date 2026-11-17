@@ -42,6 +42,17 @@ static void Run()
     Console.WriteLine("PASS: movement, action, combat and loop resume policies; no duplicate action invocation");
     TestCombatCheckpoint();
     TestLevelingPlan();
+    Check(InteractionCompletion.HasReward(1041, 1004346, id => id == 2000521 ? 1 : 0), "Brayflox key completes persistent NPC interaction, including retry");
+    Check(!InteractionCompletion.HasReward(1041, 1004346, _ => 0), "missing key does not complete NPC interaction");
+    Check(!InteractionCompletion.HasReward(1041, 2001462, _ => 1), "holding key does not complete gate interaction");
+    Check(!InteractionCompletion.HasReward(1193, 1004346, _ => 1), "key evidence is scoped to Brayflox duty");
+    Console.WriteLine("PASS: Brayflox key reward completion, retry idempotence and unrelated interactions isolated");
+    var dialogueProgress = new InteractionDialogueProgress();
+    Check(!dialogueProgress.Observe(false, false), "no dialogue is not proof of interaction completion");
+    Check(!dialogueProgress.Observe(true, false) && !dialogueProgress.Observe(true, false), "visible dialogue never completes while clicking");
+    Check(!dialogueProgress.Observe(false, true), "wait for interaction cast to finish");
+    Check(dialogueProgress.Observe(false, false) && dialogueProgress.Observe(false, false), "dialogue close remains completed across throttled polls");
+    Check(!new InteractionDialogueProgress().Observe(false, false), "new interaction cannot reuse previous dialogue evidence");
     TestPathPersistence();
     var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>
     {

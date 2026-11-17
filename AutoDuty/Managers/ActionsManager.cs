@@ -604,7 +604,7 @@ namespace AutoDuty.Managers
         public void ClickTalk(PathAction action) => 
             taskManager.Enqueue(AddonHelper.ClickTalk, "ClickTalk");
 
-        private static unsafe bool InteractableCheck(IGameObject? gameObject)
+        private static unsafe bool InteractableCheck(IGameObject? gameObject, InteractionDialogueProgress dialogue)
         {
             if (Conditions.Instance()->Mounted || Conditions.Instance()->RidingPillion)
                 return true;
@@ -612,17 +612,27 @@ namespace AutoDuty.Managers
             if (Player.Available && IsCasting)
                 return false;
 
-            if (GenericHelpers.TryGetAddonByName("SelectYesno", out AtkUnitBase* addonSelectYesno) && GenericHelpers.IsAddonReady(addonSelectYesno) && !AddonHelper.ClickSelectYesno(true))
+            if (GenericHelpers.TryGetAddonByName("SelectYesno", out AtkUnitBase* addonSelectYesno) && GenericHelpers.IsAddonReady(addonSelectYesno))
+            {
+                dialogue.Observe(true, false);
+                AddonHelper.ClickSelectYesno(true);
                 return false;
-            else if (AddonHelper.ClickSelectYesno(true))
-                return true;
+            }
 
             if (GenericHelpers.TryGetAddonByName("SelectString", out AtkUnitBase* addonSelectString) && GenericHelpers.IsAddonReady(addonSelectString))
                 return true;
 
-            if (GenericHelpers.TryGetAddonByName("Talk", out AtkUnitBase* addonTalk) && GenericHelpers.IsAddonReady(addonTalk) && !AddonHelper.ClickTalk())
+            if (GenericHelpers.TryGetAddonByName("Talk", out AtkUnitBase* addonTalk) && GenericHelpers.IsAddonReady(addonTalk))
+            {
+                dialogue.Observe(true, false);
+                AddonHelper.ClickTalk();
                 return false;
-            else if (AddonHelper.ClickTalk())
+            }
+            // Track completion per interaction instead of consuming the shared
+            // AddonHelper edge twice (or letting Yesno consume Talk's edge).
+            if (dialogue.Observe(false, false)) return true;
+
+            if (InteractionCompletion.HasReward(Svc.ClientState.TerritoryType, gameObject?.BaseId ?? 0, InventoryHelper.ItemCount))
                 return true;
 
             if (gameObject is not { IsTargetable: true } || !gameObject.IsValid() || !IsValid)
@@ -650,8 +660,9 @@ namespace AutoDuty.Managers
         }
         private unsafe void Interactable(IGameObject? gameObject)
         {
+            var dialogue = new InteractionDialogueProgress();
             taskManager.Enqueue(() => BossMod_IPCSubscriber.SetMovement(false));
-            taskManager.Enqueue(() => InteractableCheck(gameObject), "Interactable-InteractableCheck");
+            taskManager.Enqueue(() => InteractableCheck(gameObject, dialogue), "Interactable-InteractableCheck");
             taskManager.Enqueue(() => IsCasting, "Interactable-WaitIsCasting", new OptionalWaitConfiguration(500));
             taskManager.Enqueue(() => !IsCasting, "Interactable-WaitNotIsCasting");
             taskManager.Enqueue(() => BossMod_IPCSubscriber.SetMovement(true));
