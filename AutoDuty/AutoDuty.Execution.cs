@@ -12,6 +12,9 @@ namespace AutoDuty;
 public partial class AutoDuty
 {
     internal readonly CombatCheckpointProgress combatCheckpoints = new();
+    internal readonly InteractionTransitionProgress interactionTransition = new();
+    private bool interactionTransitionCancelled;
+    private bool interactionRequiresTransfer;
     private bool levelingFailureCounted;
     internal StepAttempt? currentAttempt;
     internal StepFailure? currentFailure;
@@ -20,6 +23,9 @@ public partial class AutoDuty
 
     internal void BeginAttempt(int index)
     {
+        this.interactionTransition.Reset();
+        this.interactionTransitionCancelled = false;
+        this.interactionRequiresTransfer = false;
         this.currentAttempt = index >= 0 && index < this.Actions.Count
             ? new StepAttempt { Index = index, Action = this.Actions[index], StartPosition = Player.Available ? Player.Position : default }
             : null;
@@ -55,6 +61,9 @@ public partial class AutoDuty
         NavigationDiagnostics.Record("step-failure", detail: new { reason, detail });
         NavigationDiagnostics.Export(reason);
         Svc.Log.Warning($"Step {this.indexer} ({attempt.Action.ToCustomString()}): {reason}; {detail}; failure {attempt.Attempts}/{Configuration.DutyConfig.MaxStepRetries}");
+        this.interactionTransition.Reset();
+        this.interactionRequiresTransfer = false;
+        this.interactionTransitionCancelled = false;
         this.CancelStepWork();
         this.pendingStepFailure = null;
         if (attempt.Attempts < Math.Max(1, Configuration.DutyConfig.MaxStepRetries))
@@ -77,6 +86,7 @@ public partial class AutoDuty
         if (this.currentFailure != null) return;
         NavigationDiagnostics.Record("step-paused", detail: new { reason, detail });
         NavigationDiagnostics.Export(reason);
+        this.interactionTransition.Reset();
         this.CancelStepWork();
         if (this.LevelingEnabled && !this.levelingFailureCounted)
         {
@@ -94,7 +104,8 @@ public partial class AutoDuty
         this.currentFailure = new(this.indexer, reason, detail, this.currentAttempt?.Attempts ?? 1, DateTime.UtcNow);
         this.Stage = Stage.Paused;
         this.States |= PluginState.Failed;
-        Svc.Chat.PrintError($"[AutoDuty] Step {this.indexer} failed: {reason} ({detail}). Paused after {this.currentFailure.Attempts} failures.");
+        string pauseDetail = this.currentFailure.Attempts > 0 ? $"Paused after {this.currentFailure.Attempts} failures." : "Paused for safety.";
+        Svc.Chat.PrintError($"[AutoDuty] Step {this.indexer} failed: {reason} ({detail}). {pauseDetail}");
         Svc.Log.Error($"Step {this.indexer} paused: {reason}; {detail}");
         if (Configuration.DutyConfig.PlaySoundOnFailure) SoundHelper.StartSound(Sounds.Sound01);
     }
@@ -105,6 +116,12 @@ public partial class AutoDuty
         if (this.currentFailure != null)
         {
             this.SeekToStep(this.indexer);
+            return;
+        }
+        if (this.interactionTransition.Pending)
+        {
+            // Resume the observed transfer, never navigate back to its old coordinates.
+            this.Stage = Stage.Interactable;
             return;
         }
         var target = PauseResumePolicy.Target(this.previousStage, this.States.HasFlag(PluginState.Navigating));
@@ -162,6 +179,91 @@ public partial class AutoDuty
             MultiboxUtility.Server.SendStepStart(manual);
         }
         Svc.Log.Info($"Seek to step {this.indexer}; resume={resume}");
+    }
+
+    internal void ObserveInteractionClick(uint objectId)
+    {
+        if (this.Stage != Stage.Action || this.pathAction.Name != "Interactable" || !Player.Available) return;
+        this.interactionTransition.Click(this.pathAction, this.indexer, Svc.ClientState.TerritoryType, Player.Position, Environment.TickCount64);
+        this.interactionRequiresTransfer |= InteractionTransitionProgress.RequiresTransfer(Svc.ClientState.TerritoryType, objectId);
+        NavigationDiagnostics.Record("interaction-click", detail: new { objectId, requiresTransfer = this.interactionRequiresTransfer });
+    }
+
+    private bool ObserveInteractionLoading()
+    {
+        if (this.Stage is not (Stage.Action or Stage.Interactable) || !this.States.HasFlag(PluginState.Navigating)) return false;
+        if (!this.interactionTransition.ObserveLoading(this.pathAction, this.indexer, Environment.TickCount64,
+                this.Stage is Stage.Dead or Stage.Revived || DeathHelper.DeathState != PlayerLifeState.Alive
+                || Environment.TickCount64 < this.returnObservedUntil)) return false;
+        // Latch either load flag immediately. Queue mutation waits for Framework_Update.
+        VNavmesh_IPCSubscriber.Path_Stop();
+        NavigationDiagnostics.Record("interaction-transfer-start");
+        return true;
+    }
+
+    private bool TickInteractionTransition()
+    {
+        if (this.Stage is Stage.Stopped or Stage.Paused or Stage.Dead or Stage.Revived) return false;
+        if (this.interactionTransition.Step == null) return false;
+        long now = Environment.TickCount64;
+        if (now < this.returnObservedUntil && this.interactionTransition.Pending)
+        {
+            this.transitionPending = true;
+            this.transitionObservedAt = now;
+            this.transitionOrigin = Player.Available ? Player.Position : default;
+            this.transitionWasReturn = true;
+            this.MetricsProblem("unexpected-position-transition");
+            this.FailCurrentStep("unexpected-position-transition", "Return during interaction transfer", forcePause: true);
+            return true;
+        }
+        if (this.interactionTransition.Pending)
+        {
+            if (!this.interactionTransitionCancelled)
+            {
+                this.CancelStepWork();
+                this.pendingStepFailure = null;
+                this.combatCheckpoints.Reset();
+                BossMod_IPCSubscriber.SetMovement(false);
+                this.Stage = Stage.Interactable;
+                this.action = "Waiting for interaction transfer";
+                this.interactionTransitionCancelled = true;
+            }
+            bool loading = Svc.Condition[ConditionFlag.BetweenAreas] || Svc.Condition[ConditionFlag.BetweenAreas51];
+            if (this.interactionTransition.Settled(now, loading, PlayerHelper.IsValid,
+                    Svc.ClientState.TerritoryType, Player.Available ? Player.Position : default)
+                && this.pathAction.ConditionsUntil.TrueForAll(c => c.IsFulfilled()))
+            {
+                if (this.IsAtRouteEntrance())
+                {
+                    this.interactionTransition.Reset();
+                    this.RestartAtEntrance("interaction-returned-to-entrance");
+                    return true;
+                }
+                NavigationDiagnostics.Record("interaction-transfer-complete");
+                Svc.Log.Info($"Step {this.indexer}: interaction transfer settled; old navigation and interaction cancelled.");
+                this.MetricsStepCompleted();
+                this.indexer++;
+                this.interactionTransition.Reset();
+                this.currentAttempt = null;
+                this.action = "";
+                StuckHelper.ResetForStep();
+                this.Stage = Stage.Reading_Path;
+                return true;
+            }
+        }
+        if ((this.interactionTransition.Pending || this.interactionRequiresTransfer) && this.interactionTransition.TimedOut(now))
+        {
+            bool pending = this.interactionTransition.Pending;
+            this.interactionTransition.Reset();
+            if (pending)
+            {
+                this.MetricsProblem("interaction-transfer-timeout");
+                this.FailCurrentStep("interaction-transfer-timeout", "load, position or completion conditions did not settle; old coordinates will not be retried", forcePause: true);
+            }
+            else this.RegisterStepFailure("interaction-transfer-timeout", "interaction did not start a transfer");
+            return true;
+        }
+        return this.interactionTransition.Pending;
     }
 
     private bool TryApplyNearbyCombatSwitch()

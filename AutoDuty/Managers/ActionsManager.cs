@@ -606,6 +606,8 @@ namespace AutoDuty.Managers
 
         private static unsafe bool InteractableCheck(IGameObject? gameObject, InteractionDialogueProgress dialogue)
         {
+            if (Plugin.interactionTransition.Pending || Svc.Condition[ConditionFlag.BetweenAreas]
+                || Svc.Condition[ConditionFlag.BetweenAreas51]) return false;
             if (Conditions.Instance()->Mounted || Conditions.Instance()->RidingPillion)
                 return true;
 
@@ -652,6 +654,7 @@ namespace AutoDuty.Managers
                     Svc.Log.Debug($"InteractableCheck: Interacting with {gameObject!.Name} at {gameObject.Position} which is {GetDistanceToPlayer(gameObject)} away, because game object is not null: {gameObject != null} and IsTargetable: {gameObject!.IsTargetable} and IsValid: {gameObject.IsValid()}");
                     if (VNavmesh_IPCSubscriber.Path_IsRunning)
                         VNavmesh_IPCSubscriber.Path_Stop();
+                    Plugin.ObserveInteractionClick(gameObject.BaseId);
                     InteractWithObject(gameObject);
                 };
             }

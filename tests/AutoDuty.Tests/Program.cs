@@ -60,7 +60,7 @@ static void Run()
         Check(StepRecoveryPolicy.MustPause(reason), "movement recovery never skips missing prerequisites: " + reason);
     Check(StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Moving), "loading during failed navigation cannot mark step completed");
     Check(StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Reading_Path), "loading during retry preserves failed step");
-    Check(!StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Action), "scripted sand interaction keeps its own transition completion");
+    Check(!StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Action), "action transfer uses actual-click evidence before movement recovery");
     Check(!StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Paused), "repeated transition flags cannot advance paused steps");
     Check(!StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Revived), "real death recovery remains separate");
     Console.WriteLine("PASS: bounded movement recovery forces pause, transition cannot advance failed step, scripted teleport and death recovery isolated");
@@ -75,6 +75,7 @@ static void Run()
     Check(!dialogueProgress.Observe(false, true), "wait for interaction cast to finish");
     Check(dialogueProgress.Observe(false, false) && dialogueProgress.Observe(false, false), "dialogue close remains completed across throttled polls");
     Check(!new InteractionDialogueProgress().Observe(false, false), "new interaction cannot reuse previous dialogue evidence");
+    TestInteractionTransfer();
     TestPathPersistence();
     var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>
     {
@@ -395,4 +396,46 @@ static void TestCombatCheckpoint()
     navStop.Reset();
     Check(!navStop.StoppedShort(false, 100000), "retry and combat resume start fresh idle observation");
     Console.WriteLine("PASS: adjacent early-combat switch, no empty-area guessing, no boss/remote reuse, new waves, death/reset and scoped arrival tolerance");
+}
+
+static void TestInteractionTransfer()
+{
+    var progress = new InteractionTransitionProgress();
+    var step = new AutoDuty.Data.Classes.PathAction { Name = "Interactable", Arguments = ["2000461"] };
+    var start = new System.Numerics.Vector3(104.04624f, -.8942185f, 151.06163f);
+    var end = new System.Numerics.Vector3(-20.41f, -.95f, 146.28f);
+    Check(InteractionTransitionProgress.RequiresTransfer(1303, 2000460)
+        && InteractionTransitionProgress.RequiresTransfer(1303, 2000461), "both reported sand portals require observed transfer before advancing");
+    Check(!InteractionTransitionProgress.RequiresTransfer(1041, 2000461)
+        && !InteractionTransitionProgress.RequiresTransfer(1303, 1004346), "persistent key NPC and unrelated duty retain normal completion");
+    Check(!progress.ObserveLoading(step, 7, 1000, false), "loading without actual click cannot complete movement");
+    progress.Click(step, 7, 1303, start, 1000);
+    Check(!progress.ObserveLoading(step, 7, 1200, true), "death or Return takes priority over recent interaction");
+    Check(!progress.ObserveLoading(step, 5, 1200, false), "step 5 cannot consume step 7 interaction evidence");
+    Check(!progress.ObserveLoading(new AutoDuty.Data.Classes.PathAction(), 7, 1200, false), "replacement route cannot reuse click evidence");
+    Check(!progress.Settled(2000, false, true, 1303, end), "object disappearance or displacement alone cannot finish transfer");
+    Check(progress.ObserveLoading(step, 7, 3000, false), "delayed loading after click is latched on owning step");
+    Check(!progress.Settled(3100, true, false, 1303, end), "old interaction stays blocked throughout load");
+    Check(!progress.Settled(4000, false, true, 1303, end), "wait for stable player state after loading clears");
+    Check(progress.ObserveLoading(step, 7, 4500, false), "second loading flag is idempotent");
+    Check(!progress.Settled(4600, false, true, 1303, end)
+        && !progress.Settled(5599, false, true, 1303, end), "second flag restarts stable-state grace");
+    Check(progress.Settled(5600, false, true, 1303, end), "same-territory sand transfer completes after one stable second");
+    Check(!progress.Settled(5700, false, true, 1303, start), "unchanged position does not prove teleport succeeded");
+    Check(!progress.Settled(5800, false, false, 1303, end), "lost player validity resets settle timer");
+    Check(!progress.Settled(6000, false, true, 1303, end)
+        && progress.Settled(7000, false, true, 1303, end), "combat-capable valid state can settle without waiting combat end");
+    Check(progress.ObserveLoading(step, 7, 40000, false), "long in-progress load accepts duplicate flags without becoming unexpected transition");
+    Check(!progress.TimedOut(62999) && progress.TimedOut(63000), "duplicate flags do not extend sixty-second loading deadline");
+    progress.Reset();
+    Check(!progress.Pending && !progress.ObserveLoading(step, 7, 80000, false), "seek/retry/death/reset discards old transfer evidence");
+    progress.Click(step, 7, 1303, start, 1000);
+    progress.Click(step, 7, 1303, start, 29000);
+    Check(!progress.TimedOut(30999) && progress.TimedOut(31000), "repeated interaction cannot extend transfer-start deadline forever");
+    Check(!progress.ObserveLoading(step, 7, 31000, false), "expired click cannot authorize unrelated transition");
+    progress.Reset();
+    progress.Click(step, 7, 1303, start, 1000);
+    progress.ObserveLoading(step, 7, 1100, false);
+    Check(!progress.Settled(2000, false, true, 999, start) && progress.Settled(3000, false, true, 999, start), "territory change also provides transfer evidence");
+    Console.WriteLine("PASS: sand transfer ownership, delayed/duplicate loading flags, settle grace, death/Return exclusion, stale state and bounded timeouts");
 }

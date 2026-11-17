@@ -1043,6 +1043,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (flag == ConditionFlag.Unconscious)
         {
+            if (value) this.interactionTransition.Reset();
             switch (value)
             {
                 case true when this.Stage != Stage.Dead || DeathHelper.DeathState != PlayerLifeState.Dead:
@@ -1061,6 +1062,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
         }
         //Svc.Log.Debug($"{flag} : {value}");
+        if (value && flag is (ConditionFlag.BetweenAreas or ConditionFlag.BetweenAreas51)
+            && this.ObserveInteractionLoading()) return;
         if ((StepRecoveryPolicy.UnexpectedTransition(this.Stage) || Environment.TickCount64 < this.returnObservedUntil)
             && !this.recentlyWatchedCutscene && !Conditions.Instance()->WatchingCutscene
             && flag is (ConditionFlag.BetweenAreas or ConditionFlag.BetweenAreas51) &&
@@ -1691,6 +1694,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
         }
         if (!this.taskManager.IsBusy && EzThrottler.Throttle("AdvanceStep" + this.indexer, 100))
         {
+            // Flow-sand objects may disappear before the loading flags arrive.
+            // Keep the interaction as owner until its observed transfer settles.
+            if (this.interactionRequiresTransfer && this.interactionTransition.Step != null) return;
             this.Stage = Stage.Reading_Path;
 
             PathAction? curAction = this.indexer < this.Actions.Count ? this.Actions[this.indexer] : null;
@@ -2216,6 +2222,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         FileHelper.Tick();
         NavigationDiagnostics.Tick();
         this.TickPositionRecovery();
+        if (this.TickInteractionTransition()) return;
         if (Player.Available && !InDungeon) this.GetJobAndLevelingCheck();
         this.TickMetrics();
         this.Recorder.Tick();
@@ -2305,6 +2312,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private void StopAndResetAll()
     {
+        this.interactionTransition.Reset();
         this.transitionPending = false;
         this.returnObservedUntil = 0;
         this.combatCheckpoints.Reset();
