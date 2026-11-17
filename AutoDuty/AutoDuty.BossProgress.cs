@@ -10,7 +10,8 @@ public sealed partial class AutoDuty
     private readonly BossProgress bossProgress = new();
     private BossProgress.Key BossKey(PathAction step) => new(Svc.ClientState.TerritoryType, step.Note.Trim(), step.Position);
 
-    internal bool BossAlreadyDefeated(PathAction step) => this.bossProgress.IsDefeated(this.BossKey(step));
+    internal bool BossAlreadyDefeated(PathAction step) => this.bossProgress.IsDefeated(this.BossKey(step))
+        || (this.IsCompletedBossRoute() && ReferenceEquals(step, this.Actions[this.indexer]));
 
     private void TickBossProgress()
     {

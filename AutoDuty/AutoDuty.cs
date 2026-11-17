@@ -830,6 +830,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
     }
 
     private DateTime lastDutyStart = DateTime.MinValue;
+    private long dutyCompletedAt;
 
     private void DutyState_DutyStarted(IDutyStateEventArgs args)
     {
@@ -846,6 +847,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.attemptHistory.Clear();
         this.currentAttempt = null;
         this.currentFailure = null;
+        this.dutyCompletedAt = 0;
         this.dutyState         = DutyState.DutyStarted;
         this.lastDutyStart     = DateTime.UtcNow;
         DeathHelper.deathCount = 0;
@@ -872,6 +874,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.MetricsDutyCompleted();
         Svc.Log.Warning("Duty Done");
         this.dutyState = DutyState.DutyComplete;
+        this.dutyCompletedAt = Environment.TickCount64;
         if (this.LevelingEnabled) LevelingHelper.RecordSuccess(Svc.ClientState.TerritoryType);
         if(this.States is not (PluginState.None or PluginState.Paused))
         {
@@ -1078,6 +1081,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             && !this.recentlyWatchedCutscene && !Conditions.Instance()->WatchingCutscene
             && flag is (ConditionFlag.BetweenAreas or ConditionFlag.BetweenAreas51) &&
             value && this.States.HasFlag(PluginState.Navigating)
+            && this.dutyState != DutyState.DutyComplete
             && RouteCompletionPolicy.HasStep(this.indexer, this.Actions.Count)
             && ExitDutyHelper.State != ActionState.Running)
         {
@@ -2266,6 +2270,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.DoneNavigating();
             return;
         }
+        if (this.TickCompletedBossRoute()) return;
         if (!this.UpdateStepAttempt() || this.Stage == Stage.Paused) return;
         this.PreStageChecks();
 

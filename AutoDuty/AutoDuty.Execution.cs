@@ -53,7 +53,8 @@ public partial class AutoDuty
     {
         this.taskManager.Abort();
         VNavmesh_IPCSubscriber.Path_Stop();
-        Chat.ExecuteCommand("/automove off");
+        if (PlayerHelper.IsReady)
+            Chat.ExecuteCommand("/automove off");
         FollowHelper.SetFollow(null);
         SchedulerHelper.DescheduleAction("ConditionChangeStageReadingPath");
         SchedulerHelper.DescheduleAction("StuckHelperReturn");

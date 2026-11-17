@@ -55,6 +55,15 @@ static void Run()
     Check(!StepRetryPolicy.CanRetry(4, 3), "third retry failure exhausts budget after four executions");
     Check(!StepRetryPolicy.CanRetry(0, 3), "initial execution does not consume retry budget");
     Check(!StepRetryPolicy.CanRetry(1, -1), "negative retry configuration behaves as zero");
+    Check(RouteCompletionPolicy.CompletedBoss(true, true, false, 1, ["MoveTo", "Boss"]), "authoritative duty victory finishes final Boss even if corpse was missed");
+    Check(!RouteCompletionPolicy.CompletedBoss(false, true, false, 1, ["MoveTo", "Boss"]), "combat end without duty victory cannot finish Boss");
+    Check(!RouteCompletionPolicy.CompletedBoss(true, true, true, 1, ["MoveTo", "Boss"]), "completed duty respects manual pause");
+    Check(!RouteCompletionPolicy.CompletedBoss(true, true, false, 0, ["Boss", "MoveTo", "Boss"]), "victory cannot skip unfinished route progression");
+    Check(RouteCompletionPolicy.CompletedBoss(true, true, false, 0, ["Boss", "TreasureCoffer", "<-- Comment -->"]), "only passive tail markers may follow completed final Boss");
+    Check(!RouteCompletionPolicy.DrainFinished(true, 9999), "allow optional loot tasks a bounded grace period");
+    Check(RouteCompletionPolicy.DrainFinished(true, 10000), "stuck loot cannot block confirmed victory beyond ten seconds");
+    Check(RouteCompletionPolicy.DrainFinished(false, 0), "completed queue exits without extra delay");
+    Console.WriteLine("PASS: authoritative final Boss completion, bounded loot wait and manual pause preservation");
     TestDutyExecutionBoundary();
     TestBossProgress();
     TestCombatCheckpoint();

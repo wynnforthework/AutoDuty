@@ -1,3 +1,4 @@
+﻿using System.Linq;
 using AutoDuty.Helpers;
 using AutoDuty.Windows;
 using ECommons.DalamudServices;
@@ -7,6 +8,41 @@ namespace AutoDuty;
 public sealed partial class AutoDuty
 {
     private readonly DutyExecutionBoundary executionBoundary = new();
+
+    private bool IsCompletedBossRoute()
+    {
+        if (this.dutyState != DutyState.DutyComplete || !InDungeon
+            || !this.States.HasFlag(PluginState.Navigating) || this.Stage == Stage.Paused) return false;
+        return RouteCompletionPolicy.CompletedBoss(true, true, false,
+            this.indexer, this.Actions.Select(a => a.Name).ToArray());
+    }
+
+    private bool TickCompletedBossRoute()
+    {
+        // DutyCompleted is authoritative victory evidence, even when the final boss
+        // corpse/objective was missed. Never infer victory merely from leaving combat.
+        if (!this.IsCompletedBossRoute()) return false;
+        this.pendingStepFailure = null;
+        if (!PlayerHelper.IsReadyFull || PartyHelper.PartyInCombat()) return true;
+        // Let existing optional chest tasks finish, but never retry the completed
+        // encounter because a loot movement/callback timed out.
+        if (!RouteCompletionPolicy.DrainFinished(this.taskManager.IsBusy,
+                System.Environment.TickCount64 - this.dutyCompletedAt)) return true;
+        Svc.Log.Info($"[AutoDuty] Duty completed: finishing final Boss step {this.indexer}; pending task={this.taskManager.CurrentTask?.Name ?? "none"}.");
+        this.CancelStepWork();
+        this.MetricsStepCompleted();
+        this.indexer++;
+        while (this.indexer < this.Actions.Count)
+        {
+            this.MetricsStepCompleted(policySkip: true);
+            this.indexer++;
+        }
+        this.currentAttempt = null;
+        this.navigationReadiness.Reset();
+        this.Stage = Stage.Reading_Path;
+        this.DoneNavigating();
+        return true;
+    }
 
     private void ResetDutyStepState()
     {
