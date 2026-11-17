@@ -755,10 +755,20 @@ namespace AutoDuty.Managers
                  output = RegexHelper.ObjectIdRegex().Match(input).Captures.First().Value : 
                  output = string.Empty) != string.Empty;
 
-        private static bool BossCheck()
+        private static bool BossCheck(PathAction action, ref long idleSince)
         {
-            if (!Svc.Condition[ConditionFlag.InCombat])
-                return true;
+            if (!PartyHelper.PartyInCombat())
+            {
+                if (Player.IsDead) return false;
+                if (Plugin.BossAlreadyDefeated(action)) return true;
+                // A phase transition/despawn or wipe is not proof of victory.
+                if (idleSince == 0) idleSince = Environment.TickCount64;
+                TraceBossCandidates(action);
+                if (Environment.TickCount64 - idleSince >= Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs))
+                    Plugin.FailCurrentStep("boss-completion-unconfirmed", "Combat ended without boss death or completed objective evidence", forcePause: true);
+                return false;
+            }
+            idleSince = 0;
 
             if (EzThrottler.Throttle("PositionalChecker", 25) && ReflectionHelper.Avarice_Reflection.PositionalChanged(out Positional positional))
                 BossMod_IPCSubscriber.SetPositional(positional);
@@ -766,20 +776,23 @@ namespace AutoDuty.Managers
             return false;
         }
 
-        private static unsafe bool BossMoveCheck(Vector3 bossV3)
+        private static unsafe bool BossMoveCheck(PathAction action)
         {
-            if (Plugin.DutyData?.bossObject != null)
+            // Reacquire from the object table: the previous wrapper may already have despawned.
+            var boss = GetBossForStep(action);
+            Plugin.DutyData?.bossObject = boss;
+            if (boss == null)
             {
-                if (Plugin.DutyData.bossObject.Struct()->InCombat)
-                {
-                    VNavmesh_IPCSubscriber.Path_Stop();
-                    return true;
-                }
-                MovementHelper.Move(Plugin.DutyData.bossObject.Position);
+                VNavmesh_IPCSubscriber.Path_Stop();
+                TraceBossCandidates(action);
                 return false;
             }
-
-            MovementHelper.Move(bossV3);
+            if (boss.Struct()->InCombat)
+            {
+                VNavmesh_IPCSubscriber.Path_Stop();
+                return true;
+            }
+            MovementHelper.Move(boss.Position);
             return false;
         }
 
@@ -808,19 +821,21 @@ namespace AutoDuty.Managers
         {
             Svc.Log.Info($"Starting Action Boss: {Plugin.DutyData?.bossObject?.Name.TextValue ?? "null"}");
             int index = 0;
+            long idleSince = 0;
             List<IGameObject>? treasureCofferObjects = null;
             Plugin.skipTreasureCoffer = false;
             this.StopForCombat(true, false);
             taskManager.Enqueue(() =>
             {
+                if (Plugin.BossAlreadyDefeated(action)) return true;
                 TraceBossCandidates(action);
                 return (Plugin.DutyData?.bossObject = GetBossForStep(action)) != null;
             }, "Boss-GetBossObject", new TaskManagerConfiguration(Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs)));
-            taskManager.Enqueue(() => BossMoveCheck(action.Position),                                                                                                            "Boss-MoveCheck", new TaskManagerConfiguration(Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs)));
+            taskManager.Enqueue(() => Plugin.BossAlreadyDefeated(action) || BossMoveCheck(action),                                                                                                            "Boss-MoveCheck", new TaskManagerConfiguration(Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs)));
             taskManager.Enqueue(() => Plugin.action      = $"Boss: {Plugin.DutyData?.bossObject?.Name.TextValue ?? ""}",                                                         "Boss-SetActionVar");
-            taskManager.Enqueue(() => Svc.Targets.Target = Plugin.DutyData?.bossObject,                                                                                          "Boss-SetTarget");
-            taskManager.Enqueue(() => Svc.Condition[ConditionFlag.InCombat],                                                                                                     "Boss-WaitInCombat", new TaskManagerConfiguration(Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs)));
-            taskManager.Enqueue(() => BossCheck(),                                                                                                                               "Boss-BossCheck", new TaskManagerConfiguration(int.MaxValue));
+            taskManager.Enqueue(() => { if (!Plugin.BossAlreadyDefeated(action)) Svc.Targets.Target = Plugin.DutyData?.bossObject; },                                                                                          "Boss-SetTarget");
+            taskManager.Enqueue(() => Plugin.BossAlreadyDefeated(action) || PartyHelper.PartyInCombat(),                                                                                                     "Boss-WaitInCombat", new TaskManagerConfiguration(Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs)));
+            taskManager.Enqueue(() => BossCheck(action, ref idleSince),                                                                                                                               "Boss-BossCheck", new TaskManagerConfiguration(int.MaxValue));
             taskManager.Enqueue(() => { Plugin.DutyData?.bossObject = null; },                                                                                                   "Boss-ClearBossObject");
 
             if (Configuration.DutyConfig.LootTreasure)

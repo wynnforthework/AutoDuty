@@ -833,6 +833,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private void DutyState_DutyStarted(IDutyStateEventArgs args)
     {
+        this.bossProgress.Reset();
         this.levelingFailureCounted = false;
         this.attemptHistory.Clear();
         this.currentAttempt = null;
@@ -1540,6 +1541,12 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (this.TryApplyNearbyCombatSwitch()) return;
 
+        if (this.pathAction.Name == "Boss" && this.BossAlreadyDefeated(this.pathAction))
+        {
+            this.Stage = Stage.Action;
+            return;
+        }
+
         // TeleportTo uses Position as its destination, never as a navigation prerequisite.
         if (this.pathAction.Name == "TeleportTo" || this.pathAction.Position == Vector3.Zero)
         {
@@ -2224,6 +2231,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
     {
         FileHelper.Tick();
         NavigationDiagnostics.Tick();
+        this.TickBossProgress();
         this.TickPositionRecovery();
         if (this.TickInteractionTransition()) return;
         if (Player.Available && !InDungeon) this.GetJobAndLevelingCheck();
