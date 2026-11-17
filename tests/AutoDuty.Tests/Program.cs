@@ -102,6 +102,7 @@ static void Run()
     Check(dialogueProgress.Observe(false, false) && dialogueProgress.Observe(false, false), "dialogue close remains completed across throttled polls");
     Check(!new InteractionDialogueProgress().Observe(false, false), "new interaction cannot reuse previous dialogue evidence");
     TestInteractionTransfer();
+    TestMovementTransfer();
     TestNavigationReadiness();
     TestPathPersistence();
     var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>
@@ -544,6 +545,39 @@ static void TestInteractionTransfer()
     progress.ObserveLoading(step, 7, 1100, false);
     Check(!progress.Settled(2000, false, true, 999, start) && progress.Settled(3000, false, true, 999, start), "territory change also provides transfer evidence");
     Console.WriteLine("PASS: sand transfer ownership, delayed/duplicate loading flags, settle grace, death/Return exclusion, stale state and bounded timeouts");
+}
+static void TestMovementTransfer()
+{
+    var progress = new InteractionTransitionProgress();
+    var step = new AutoDuty.Data.Classes.PathAction
+    {
+        Name = "MoveTo", Position = new(192.01451f, -8.05f, -212.5612f)
+    };
+    var trigger = new System.Numerics.Vector3(191.99313f, -8.050052f, -205.81342f);
+    var upstairs = new System.Numerics.Vector3(196.04f, 24, -256.61f);
+    Check(!progress.ObserveMovementLoading(step, 22, false, 1366, trigger, 1000, false), "idle/reading/combat movement cannot authorize a transfer");
+    Check(!progress.ObserveMovementLoading(step, 22, true, 1366, trigger, 1000, true), "death or Return never completes a nearby MoveTo");
+    Check(!progress.ObserveMovementLoading(step, 22, true, 1366, trigger + new System.Numerics.Vector3(20, 0, 0), 1000, false), "remote loading remains unexpected");
+    var boss = new AutoDuty.Data.Classes.PathAction { Name = "Boss", Position = step.Position };
+    Check(!progress.ObserveMovementLoading(boss, 22, true, 1366, trigger, 1000, false), "Boss prerequisite movement must not skip the encounter");
+    Check(progress.Step == null && !progress.Pending, "rejected movement loading leaves no transferable evidence");
+    Check(progress.ObserveMovementLoading(step, 22, true, 1366, trigger, 1000, false), "Dusk Vigil index 22 portal triggers before original coordinate is reached");
+    Check(!progress.Settled(2000, true, false, 1366, upstairs), "old coordinate cannot complete while loading");
+    Check(!progress.ObserveLoading(step, 23, 2100, false), "next step cannot consume previous movement transfer");
+    Check(progress.ObserveLoading(step, 22, 2500, false), "second loading flag retains original owning step after displacement");
+    Check(!progress.Settled(3000, false, true, 1366, upstairs), "wait for destination to settle");
+    Check(progress.Settled(4000, false, true, 1366, upstairs), "same territory floor transfer completes movement without revisiting old coordinates");
+    progress.Reset();
+    Check(!progress.Pending && !progress.Settled(5000, false, true, 1366, upstairs), "stop/seek/death reset prevents duplicate advancement");
+    progress.ObserveMovementLoading(step, 22, true, 1366, trigger, 1000, false);
+    Check(!progress.Settled(2000, false, true, 1366, trigger)
+        && !progress.Settled(3000, false, true, 1366, trigger), "loading without position or territory change never completes movement");
+    Check(progress.TimedOut(61000), "unconfirmed movement transfer has a bounded timeout");
+    progress.Reset();
+    progress.ObserveMovementLoading(step, 22, true, 1366, trigger, 1000, false);
+    Check(!progress.Settled(2000, false, true, 999, trigger)
+        && progress.Settled(3000, false, true, 999, trigger), "changed territory also confirms movement transfer after settling");
+    Console.WriteLine("PASS: Dusk Vigil movement portal, duplicate flags, stable destination, ownership, reset, timeout and death/Return exclusion");
 }
 static void TestNavigationReadiness()
 {

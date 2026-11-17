@@ -2,7 +2,8 @@ using System.Numerics;
 
 namespace AutoDuty.Helpers;
 
-// Evidence belongs to one actual interaction, never to a nearby movement step.
+// Transfer evidence belongs to one step: an actual interaction, or loading triggered
+// while actively approaching a nearby MoveTo destination.
 internal sealed class InteractionTransitionProgress
 {
     internal PathAction? Step { get; private set; }
@@ -26,6 +27,18 @@ internal sealed class InteractionTransitionProgress
         this.territory = territory;
         this.origin = position;
         this.clickedAt = now;
+    }
+
+    internal bool ObserveMovementLoading(PathAction step, int index, bool moving,
+        uint territory, Vector3 position, long now, bool deathOrReturn)
+    {
+        // Loading alone must never skip an arbitrary movement. A portal can trigger
+        // before the recorded destination (Dusk Vigil triggers about 7m before it).
+        // Restrict automatic ownership to a 10m sphere around that destination.
+        if (!moving || deathOrReturn || step.Name != "MoveTo"
+            || Vector3.DistanceSquared(step.Position, position) > 100) return false;
+        this.Click(step, index, territory, position, now);
+        return this.ObserveLoading(step, index, now, false);
     }
 
     internal bool ObserveLoading(PathAction step, int index, long now, bool deathOrReturn)

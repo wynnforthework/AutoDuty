@@ -208,13 +208,33 @@ public partial class AutoDuty
 
     private bool ObserveInteractionLoading()
     {
-        if (this.Stage is not (Stage.Action or Stage.Interactable) || !this.States.HasFlag(PluginState.Navigating)) return false;
+        if ((this.Stage is not (Stage.Action or Stage.Interactable)
+                && !(this.Stage == Stage.Moving && this.interactionTransition.Pending))
+            || !this.States.HasFlag(PluginState.Navigating)) return false;
         if (!this.interactionTransition.ObserveLoading(this.pathAction, this.indexer, Environment.TickCount64,
                 this.Stage is Stage.Dead or Stage.Revived || DeathHelper.DeathState != PlayerLifeState.Alive
                 || Environment.TickCount64 < this.returnObservedUntil)) return false;
         // Latch either load flag immediately. Queue mutation waits for Framework_Update.
         VNavmesh_IPCSubscriber.Path_Stop();
-        NavigationDiagnostics.Record("interaction-transfer-start");
+        NavigationDiagnostics.Record(this.pathAction.Name == "MoveTo" ? "movement-transfer-loading" : "interaction-transfer-start");
+        return true;
+    }
+
+    private unsafe bool ObserveMovementLoading()
+    {
+        if (!Player.Available || !InDungeon || this.dutyState == DutyState.DutyComplete
+            || !this.States.HasFlag(PluginState.Navigating) || this.currentFailure != null
+            || this.currentAttempt?.Index != this.indexer
+            || !RouteCompletionPolicy.HasStep(this.indexer, this.Actions.Count)
+            || !ReferenceEquals(this.pathAction, this.Actions[this.indexer])) return false;
+        bool deathOrReturn = DeathHelper.DeathState != PlayerLifeState.Alive || Player.IsDead
+            || Environment.TickCount64 < this.returnObservedUntil
+            || FFXIVClientStructs.FFXIV.Client.Game.ActionManager.Instance()->CastActionId == 6;
+        if (!this.interactionTransition.ObserveMovementLoading(this.pathAction, this.indexer,
+                this.Stage == Stage.Moving, Svc.ClientState.TerritoryType, Player.Position,
+                Environment.TickCount64, deathOrReturn)) return false;
+        VNavmesh_IPCSubscriber.Path_Stop();
+        NavigationDiagnostics.Record("movement-transfer-start", detail: new { target = this.pathAction.Position, origin = Player.Position });
         return true;
     }
 
@@ -222,6 +242,7 @@ public partial class AutoDuty
     {
         if (this.Stage is Stage.Stopped or Stage.Paused or Stage.Dead or Stage.Revived) return false;
         if (this.interactionTransition.Step == null) return false;
+        string transferKind = this.interactionTransition.Step.Name == "MoveTo" ? "movement" : "interaction";
         long now = Environment.TickCount64;
         if (now < this.returnObservedUntil && this.interactionTransition.Pending)
         {
@@ -230,7 +251,7 @@ public partial class AutoDuty
             this.transitionOrigin = Player.Available ? Player.Position : default;
             this.transitionWasReturn = true;
             this.MetricsProblem("unexpected-position-transition");
-            this.FailCurrentStep("unexpected-position-transition", "Return during interaction transfer", forcePause: true);
+            this.FailCurrentStep("unexpected-position-transition", "Return during step transfer", forcePause: true);
             return true;
         }
         if (this.interactionTransition.Pending)
@@ -242,7 +263,7 @@ public partial class AutoDuty
                 this.combatCheckpoints.Reset();
                 BossMod_IPCSubscriber.SetMovement(false);
                 this.Stage = Stage.Interactable;
-                this.action = "Waiting for interaction transfer";
+                this.action = $"Waiting for {transferKind} transfer";
                 this.interactionTransitionCancelled = true;
             }
             bool loading = Svc.Condition[ConditionFlag.BetweenAreas] || Svc.Condition[ConditionFlag.BetweenAreas51];
@@ -253,11 +274,11 @@ public partial class AutoDuty
                 if (this.IsAtRouteEntrance())
                 {
                     this.interactionTransition.Reset();
-                    this.RestartAtEntrance("interaction-returned-to-entrance");
+                    this.RestartAtEntrance($"{transferKind}-returned-to-entrance");
                     return true;
                 }
-                NavigationDiagnostics.Record("interaction-transfer-complete");
-                Svc.Log.Info($"Step {this.indexer}: interaction transfer settled; old navigation and interaction cancelled.");
+                NavigationDiagnostics.Record($"{transferKind}-transfer-complete");
+                Svc.Log.Info($"Step {this.indexer}: {transferKind} transfer settled; old navigation and interaction cancelled.");
                 this.MetricsStepCompleted();
                 this.indexer++;
                 this.interactionTransition.Reset();
@@ -274,8 +295,8 @@ public partial class AutoDuty
             this.interactionTransition.Reset();
             if (pending)
             {
-                this.MetricsProblem("interaction-transfer-timeout");
-                this.FailCurrentStep("interaction-transfer-timeout", "load, position or completion conditions did not settle; old coordinates will not be retried", forcePause: true);
+                this.MetricsProblem($"{transferKind}-transfer-timeout");
+                this.FailCurrentStep($"{transferKind}-transfer-timeout", "load, position or completion conditions did not settle; old coordinates will not be retried", forcePause: true);
             }
             else this.RegisterStepFailure("interaction-transfer-timeout", "interaction did not start a transfer");
             return true;

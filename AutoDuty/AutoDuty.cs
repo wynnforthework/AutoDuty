@@ -1076,7 +1076,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         }
         //Svc.Log.Debug($"{flag} : {value}");
         if (value && flag is (ConditionFlag.BetweenAreas or ConditionFlag.BetweenAreas51)
-            && this.ObserveInteractionLoading()) return;
+            && (this.ObserveInteractionLoading() || this.ObserveMovementLoading())) return;
         if ((StepRecoveryPolicy.UnexpectedTransition(this.Stage) || Environment.TickCount64 < this.returnObservedUntil)
             && !this.recentlyWatchedCutscene && !Conditions.Instance()->WatchingCutscene
             && flag is (ConditionFlag.BetweenAreas or ConditionFlag.BetweenAreas51) &&
