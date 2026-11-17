@@ -2168,6 +2168,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
     public void Framework_Update(IFramework framework)
     {
         FileHelper.Tick();
+        NavigationDiagnostics.Tick();
         if (Player.Available && !InDungeon) this.GetJobAndLevelingCheck();
         this.TickMetrics();
         this.Recorder.Tick();

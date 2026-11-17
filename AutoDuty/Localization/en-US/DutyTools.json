@@ -72,6 +72,7 @@
     "NavStopped": "Navigation stopped; checking arrival (up to 2 seconds if short)",
     "MoveDetail": "Navigation: {0} / attempt {1}/{2} / elapsed {3}s, limit {4}s / horizontal {5}m / height {6}m / arrival radius {7}m",
     "LastMoveFailure": "Last failure",
+    "ExportNavigation": "Export navigation trace (copy file path)",
     "StuckRecoveryPolicy": "Stuck navigation retries the current step, then pauses at the limit. It never uses Return or skips a failed movement step.",
     "AutoRetryDetail": "Step {0} failed: {1}; starting attempt {2}/{3}."
   }

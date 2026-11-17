@@ -1,4 +1,4 @@
-﻿using ECommons.DalamudServices;
+using ECommons.DalamudServices;
 using ECommons.EzIpcManager;
 using ECommons.Reflection;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -184,6 +184,7 @@ internal static class BossMod_IPCSubscriber
     {
         if (AutoDuty.Configuration.DutyConfig.AutoManageBossModAISettings)
         {
+            NavigationDiagnostics.Record("boss-movement", detail: on);
             Svc.Log.Debug($"BossMod Setting Movement: {on}");
 
             string destinationStrategy = (on ? DestinationStrategy.Pathfind : DestinationStrategy.None).ToString();
@@ -248,15 +249,25 @@ internal static class VNavmesh_IPCSubscriber
 {
     internal static bool IsEnabled => IPCSubscriber_Common.IsReady("vnavmesh");
 
-    internal static void  Path_Stop()                                 => Vnavmesh.Stop();
+    internal static void Path_Stop([System.Runtime.CompilerServices.CallerMemberName] string caller = "", [System.Runtime.CompilerServices.CallerFilePath] string file = "", [System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
+    {
+        if (Vnavmesh.IsRunning() || Vnavmesh.PathfindInProgress()) NavigationDiagnostics.Record("nav-stop", $"{System.IO.Path.GetFileName(file)}:{line}:{caller}");
+        Vnavmesh.Stop();
+    }
     internal static bool  Nav_IsReady                                 => Vnavmesh.IsReady();
     internal static bool  SimpleMove_PathfindInProgress               => Vnavmesh.PathfindInProgress();
     internal static bool  Path_IsRunning                              => Vnavmesh.IsRunning();
     internal static void  Path_MoveTo(List<Vector3> points, bool fly) => Vnavmesh.MoveTo(points, fly);
     internal static bool  GetNav_Rebuild()  => Vnavmesh.Rebuild();
     internal static float Nav_BuildProgress => Vnavmesh.BuildProgress();
-    internal static bool SimpleMove_PathfindAndMoveTo(Vector3 position, bool canFly) =>
-        Vnavmesh.PathfindAndMoveTo(position, canFly);
+    internal static bool SimpleMove_PathfindAndMoveTo(Vector3 position, bool canFly,
+        [System.Runtime.CompilerServices.CallerMemberName] string caller = "", [System.Runtime.CompilerServices.CallerFilePath] string file = "", [System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
+    {
+        NavigationDiagnostics.Record("nav-request", $"{System.IO.Path.GetFileName(file)}:{line}:{caller}", new { position, canFly });
+        bool accepted = Vnavmesh.PathfindAndMoveTo(position, canFly);
+        NavigationDiagnostics.Record("nav-result", caller, accepted);
+        return accepted;
+    }
     internal static int      Path_NumWaypoints                                   => Vnavmesh.NumWaypoints();
     internal static float    Path_GetTolerance                                   => Vnavmesh.GetTolerance();
     internal static void     Path_SetTolerance(float tolerance)                  => Vnavmesh.SetTolerance(tolerance);

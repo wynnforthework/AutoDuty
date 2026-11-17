@@ -52,6 +52,8 @@ public partial class AutoDuty
         this.MetricsProblem(reason);
         attempt.LastFailReason = reason;
         attempt.Attempts++;
+        NavigationDiagnostics.Record("step-failure", detail: new { reason, detail });
+        NavigationDiagnostics.Export(reason);
         Svc.Log.Warning($"Step {this.indexer + 1} ({attempt.Action.ToCustomString()}): {reason}; {detail}; failure {attempt.Attempts}/{Configuration.DutyConfig.MaxStepRetries}");
         this.CancelStepWork();
         this.pendingStepFailure = null;
@@ -72,6 +74,8 @@ public partial class AutoDuty
     internal void FailCurrentStep(string reason, string detail = "", bool forcePause = false)
     {
         if (this.currentFailure != null) return;
+        NavigationDiagnostics.Record("step-paused", detail: new { reason, detail });
+        NavigationDiagnostics.Export(reason);
         this.CancelStepWork();
         if (this.LevelingEnabled && !this.levelingFailureCounted)
         {
