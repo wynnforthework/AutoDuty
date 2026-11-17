@@ -42,6 +42,14 @@ static void Run()
     Console.WriteLine("PASS: movement, action, combat and loop resume policies; no duplicate action invocation");
     TestCombatCheckpoint();
     TestLevelingPlan();
+    foreach (string reason in new[] { "stuck", "navigation-stopped-short", "move-timeout", "no-path", "pathfind-rejected", "unexpected-position-transition" })
+        Check(StepRecoveryPolicy.MustPause(reason), "movement recovery never skips missing prerequisites: " + reason);
+    Check(StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Moving), "loading during failed navigation cannot mark step completed");
+    Check(StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Reading_Path), "loading during retry preserves failed step");
+    Check(!StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Action), "scripted sand interaction keeps its own transition completion");
+    Check(!StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Paused), "repeated transition flags cannot advance paused steps");
+    Check(!StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Revived), "real death recovery remains separate");
+    Console.WriteLine("PASS: bounded movement recovery forces pause, transition cannot advance failed step, scripted teleport and death recovery isolated");
     Check(InteractionCompletion.HasReward(1041, 1004346, id => id == 2000521 ? 1 : 0), "Brayflox key completes persistent NPC interaction, including retry");
     Check(!InteractionCompletion.HasReward(1041, 1004346, _ => 0), "missing key does not complete NPC interaction");
     Check(!InteractionCompletion.HasReward(1041, 2001462, _ => 1), "holding key does not complete gate interaction");

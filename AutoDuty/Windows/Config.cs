@@ -1,4 +1,4 @@
-﻿using AutoDuty.Helpers;
+using AutoDuty.Helpers;
 using AutoDuty.IPC;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
@@ -1071,30 +1071,7 @@ public static class ConfigTab
                 }
             }
 
-            bool stuckReturn = Configuration.DutyConfig.Stuck.StuckReturn;
-            if (ImGui.Checkbox(Loc.Get("ConfigTab.Duty.UseReturnWhenStuck") + "###UseReturnConfig", ref stuckReturn))
-            {
-                Configuration.DutyConfig.Stuck.StuckReturn = stuckReturn;
-                ConfigurationProfileV2.Save();
-            }
-
-            if (Configuration.DutyConfig.Stuck.StuckReturn)
-            {
-                ImGui.SameLine();
-                int returnX = Configuration.DutyConfig.Stuck.StuckReturnX;
-                if (ImGui.InputInt(Loc.Get("ConfigTab.Duty.ReturnTimes") + "###ReturnTimesConfig", ref returnX, 1))
-                {
-                    Configuration.DutyConfig.Stuck.StuckReturnX = (byte)Math.Clamp(returnX, byte.MinValue + 2, byte.MaxValue);
-                    ConfigurationProfileV2.Save();
-                }
-            }
-
-            if (Configuration is { DutyConfig.Stuck: { RebuildNavmeshOnStuck: true, StuckReturn: true } } && 
-                Configuration.DutyConfig.Stuck.RebuildNavmeshAfterStuckXTimes >= Configuration.DutyConfig.Stuck.StuckReturnX)
-            {
-                Configuration.DutyConfig.Stuck.StuckReturnX = Configuration.DutyConfig.Stuck.RebuildNavmeshAfterStuckXTimes + 1;
-                ConfigurationProfileV2.Save();
-            }
+            ImGui.TextWrapped(Loc.Get("DutyTools.StuckRecoveryPolicy"));
 
             ImGui.Unindent();
 

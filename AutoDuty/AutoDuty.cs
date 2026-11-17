@@ -1045,16 +1045,16 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
         }
         //Svc.Log.Debug($"{flag} : {value}");
-        if (this.Stage is not (Stage.Dead or Stage.Revived or Stage.Action) && !this.recentlyWatchedCutscene && !Conditions.Instance()->WatchingCutscene && 
+        if (StepRecoveryPolicy.UnexpectedTransition(this.Stage) && !this.recentlyWatchedCutscene && !Conditions.Instance()->WatchingCutscene &&
             (flag is not (ConditionFlag.WatchingCutscene or ConditionFlag.WatchingCutscene78 or ConditionFlag.OccupiedInCutSceneEvent) and (ConditionFlag.BetweenAreas or ConditionFlag.BetweenAreas51 or ConditionFlag.Jumping61) ||
              (flag is ConditionFlag.SufferingStatusAffliction63 && PlayerHelper.HasStatus(1268))) && 
             value && this.States.HasFlag(PluginState.Navigating))
         {
-            Svc.Log.Info($"Condition_ConditionChange: Indexer Increase and Change Stage to Condition");
-            this.MetricsStepCompleted();
-            this.indexer++;
-            VNavmesh_IPCSubscriber.Path_Stop();
-            this.Stage = Stage.Condition;
+            // A zone/load/jump flag is not evidence that navigation or an
+            // interaction succeeded. In particular Return used to skip the
+            // failed step while relocating the character to the entrance.
+            this.MetricsProblem("unexpected-position-transition");
+            this.FailCurrentStep("unexpected-position-transition", $"flag={flag}; step={this.indexer + 1}; position={Player.Position}", forcePause: true);
         }
         if (Conditions.Instance()->WatchingCutscene || flag is ConditionFlag.WatchingCutscene or ConditionFlag.WatchingCutscene78 or ConditionFlag.OccupiedInCutSceneEvent)
         {
@@ -1571,60 +1571,15 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
         }
 
-        unsafe
+        if (!PlayerHelper.IsCasting && StuckHelper.IsStuck(out _))
         {
-            if (ActionManager.Instance()->CastActionId == 6)
-                return;
-
-            if (!PlayerHelper.IsCasting && StuckHelper.IsStuck(out byte stuckCount))
-            {
-                this.MetricsProblem("stuck-recovery");
-                VNavmesh_IPCSubscriber.Path_Stop();
-                if (this.currentAttempt != null && ++this.currentAttempt.StuckCount >= Math.Max(1, Configuration.DutyConfig.MaxStepRetries) * Math.Max(1, Configuration.DutyConfig.Stuck.StuckReturnX))
-                {
-                    this.RegisterStepFailure("stuck", this.pathAction.Position.ToString());
-                    return;
-                }
-                if (Configuration.DutyConfig.Stuck.StuckReturn && stuckCount >= Configuration.DutyConfig.Stuck.StuckReturnX)
-                {
-                    Svc.Log.Debug($"Using Stuck Return Action");
-                    if (ActionManager.Instance()->GetActionStatus(ActionType.Action, 6) == 0)
-                    {
-                        BossMod_IPCSubscriber.SetMovement(false);
-                        this.SetRotationPluginSettings(false, false, true);
-                        ActionManager.Instance()->UseAction(ActionType.Action, 6); // Chat.ExecuteCommand("/return");
-                        SchedulerHelper.ScheduleAction("StuckHelperReturnInsurance", () =>
-                                                                                     {
-                                                                                         VNavmesh_IPCSubscriber.Path_Stop();
-                                                                                         ActionManager.Instance()->UseAction(ActionType.Action, 6); //Chat.ExecuteCommand("/return");
-                                                                                     }, () => ActionManager.Instance()->CastActionId != 6 && 
-                                                                                              ActionManager.Instance()->GetActionStatus(ActionType.Action, 6) == 0 && PlayerHelper.IsReady, false);
-
-                        SchedulerHelper.ScheduleAction("StuckHelperReturn", () =>
-                                                                            {
-                                                                                VNavmesh_IPCSubscriber.Path_Stop();
-                                                                                Plugin.Stage           = Stage.Revived;
-                                                                                DeathHelper.DeathState = PlayerLifeState.Revived;
-
-                                                                                SchedulerHelper.ScheduleAction("StuckHelperUnschedule", () => SchedulerHelper.DescheduleAction("StuckHelperReturnInsurance"),
-                                                                                                               () => DeathHelper.DeathState == PlayerLifeState.Alive);
-                                                                            }, () => ActionManager.Instance()->CastActionId != 6 && PlayerHelper.IsReady);
-                        return;
-                    }
-                    else
-                    {
-                        Svc.Log.Debug("Return action not available");
-                    }
-                }
-                else if (Configuration.DutyConfig.Stuck.RebuildNavmeshOnStuck && stuckCount >= Configuration.DutyConfig.Stuck.RebuildNavmeshAfterStuckXTimes)
-                {
-                    VNavmesh_IPCSubscriber.GetNav_Rebuild();
-                }
-
-                this.Stage = Stage.Idle;
-                this.Stage = Stage.Reading_Path;
-                return;
-            }
+            // Recovery must remain inside the same bounded step attempt. Return
+            // invalidates route prerequisites and must never run as stuck recovery.
+            if (Configuration.DutyConfig.Stuck.RebuildNavmeshOnStuck
+                && (this.currentAttempt?.Attempts ?? 0) + 1 >= Configuration.DutyConfig.Stuck.RebuildNavmeshAfterStuckXTimes)
+                VNavmesh_IPCSubscriber.GetNav_Rebuild();
+            this.RegisterStepFailure("stuck", this.MovementFailureDetail());
+            return;
         }
 
         if (this.currentAttempt != null)

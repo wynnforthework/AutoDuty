@@ -69,7 +69,7 @@ public partial class AutoDuty
         this.FailCurrentStep(reason, detail);
     }
 
-    internal void FailCurrentStep(string reason, string detail = "")
+    internal void FailCurrentStep(string reason, string detail = "", bool forcePause = false)
     {
         if (this.currentFailure != null) return;
         this.CancelStepWork();
@@ -78,7 +78,7 @@ public partial class AutoDuty
             this.levelingFailureCounted = true;
             LevelingHelper.RecordFailure(Svc.ClientState.TerritoryType);
         }
-        if (!Configuration.DutyConfig.PauseOnStepFailure)
+        if (!forcePause && !StepRecoveryPolicy.MustPause(reason) && !Configuration.DutyConfig.PauseOnStepFailure)
         {
             Svc.Chat.Print($"[AutoDuty] Step {this.indexer + 1} failed: {reason}. Skipped by configuration.");
             if (this.currentAttempt != null) this.currentAttempt.SkippedReason = reason;
