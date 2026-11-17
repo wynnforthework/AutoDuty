@@ -40,6 +40,7 @@ static void Run()
     Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Waiting_For_Combat, true) == AutoDuty.Data.Enums.Stage.Waiting_For_Combat, "combat wait restores its state");
     Check(PauseResumePolicy.Target(AutoDuty.Data.Enums.Stage.Looping, false) == AutoDuty.Data.Enums.Stage.Looping, "queue loop preserves work");
     Console.WriteLine("PASS: movement, action, combat and loop resume policies; no duplicate action invocation");
+    TestDutyExecutionBoundary();
     TestBossProgress();
     TestCombatCheckpoint();
     TestLevelingPlan();
@@ -91,6 +92,23 @@ static void Run()
     PathSelectionHelper.AssignRole(bindings, AutoDuty.Data.Enums.JobWithRole.Healers, null);
     Check((bindings["shared.json"] & AutoDuty.Data.Enums.JobWithRole.Healers) == 0, "remove role restores automatic matching");
     Console.WriteLine("PASS: role assignment, reassignment and removal preserve other roles");
+}
+static void TestDutyExecutionBoundary()
+{
+    var boundary = new DutyExecutionBoundary();
+    Check(!boundary.Leave(129, false), "idle outside territory events do not clear a user selection");
+    boundary.Enter(1042);
+    Check(!boundary.Leave(0, false), "temporary loading territory preserves paused/active duty progress");
+    Check(!boundary.Leave(1042, true), "same duty zone transfer/death return keeps progress");
+    Check(!boundary.Leave(999, true), "supported internal duty map is not treated as leaving");
+    Check(boundary.Leave(129, false), "manual exit without Stop invalidates retained duty execution");
+    Check(!boundary.Leave(130, false), "subsequent outdoor travel does not clear newly edited selection");
+    boundary.Enter(1042);
+    Check(boundary.Leave(129, false), "second run in identical duty still resets at exit");
+    boundary.Enter(1041);
+    boundary.Enter(0);
+    Check(boundary.Leave(129, false), "loading placeholder cannot erase tracked duty identity");
+    Console.WriteLine("PASS: duty exit without Stop, loading placeholders, internal transfers, repeated same duty and outdoor selection preservation");
 }
 static void TestBossProgress()
 {

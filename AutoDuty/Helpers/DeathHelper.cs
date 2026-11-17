@@ -168,6 +168,16 @@ namespace AutoDuty.Helpers
             Svc.Framework.Update += OnRevive;
         }
 
+        internal static void CancelForDutyChange()
+        {
+            Svc.Framework.Update -= OnRevive;
+            SchedulerHelper.DescheduleAction(nameof(OnDeath));
+            SchedulerHelper.DescheduleAction("FindShortcut");
+            deathState = PlayerLifeState.Alive;
+            oldIndex = 0;
+            shortcutUseLocation = null;
+        }
+
         internal static void Stop()
         {
             Svc.Framework.Update -= OnRevive;

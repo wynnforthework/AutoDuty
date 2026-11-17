@@ -833,7 +833,15 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private void DutyState_DutyStarted(IDutyStateEventArgs args)
     {
-        this.bossProgress.Reset();
+        // DutyStarted is a new instance; DutyRecommenced after a wipe is separate.
+        // Keep the queue waiting for this new duty, but cancel stale route work.
+        if (this.Stage != Stage.Looping && this.States.HasFlag(PluginState.Navigating))
+        {
+            this.CancelStepWork();
+            this.Stage = Stage.Stopped;
+        }
+        this.ResetDutyStepState();
+        this.executionBoundary.Enter(Svc.ClientState.TerritoryType);
         this.levelingFailureCounted = false;
         this.attemptHistory.Clear();
         this.currentAttempt = null;
@@ -953,6 +961,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
     private void ClientState_TerritoryChanged(uint t)
     {
         this.MetricsTerritoryChanged(t);
+        this.ResetDepartedDuty(t);
         if (MultiboxUtility.Config.MultiBox)
         {
             bool isDuty = ContentHelper.DictionaryContent.ContainsKey(t);
@@ -1822,6 +1831,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         Svc.Log.Debug($"StartNavigation: startFromZero={startFromZero}");
         if (ContentHelper.DictionaryContent.TryGetValue(Svc.ClientState.TerritoryType, out Content? content))
         {
+            this.executionBoundary.Enter(Svc.ClientState.TerritoryType);
             this.CurrentTerritoryContent = content;
             this.pathFile                = $"{Plugin.pathsDirectory.FullName}/({Svc.ClientState.TerritoryType}) {content.EnglishName?.Replace(":", "")}.json";
             this.LoadPath();
