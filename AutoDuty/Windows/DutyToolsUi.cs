@@ -35,6 +35,7 @@ internal static class DutyToolsUi
         if (failed || current) ImGui.PopStyleColor();
         if (ImGui.BeginPopupContextItem("StepMenu"))
         {
+            TeleportMenuItem(action);
             if (ImGui.MenuItem(Text("RunHere"))) Plugin.SeekToStep(index);
             if (ImGui.MenuItem(Text("Previous"))) Plugin.SeekToStep(index - 1);
             if (ImGui.MenuItem(Text("Skip"))) Plugin.SeekToStep(index + 1);
@@ -50,6 +51,12 @@ internal static class DutyToolsUi
     }
 
     internal static string Text(string key) => Loc.Get("DutyTools." + key);
+
+    internal static void TeleportMenuItem(PathAction action)
+    {
+        if (ImGui.MenuItem(Loc.Get("BuildTab.TeleportTo"), "", false, Player.Available))
+            Plugin.TeleportToStep(action.Position);
+    }
 
     internal static void ExecutionStatus()
     {

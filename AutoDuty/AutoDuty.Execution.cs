@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using AutoDuty.Helpers;
 using AutoDuty.IPC;
@@ -116,6 +116,20 @@ public partial class AutoDuty
         }
         this.Stage = target;
         if (this.currentAttempt != null) this.currentAttempt.LastTickAt = Environment.TickCount64;
+    }
+
+    internal unsafe void TeleportToStep(System.Numerics.Vector3 position)
+    {
+        if (!Player.Available) return;
+        if (this.Stage != Stage.Stopped && this.indexer >= 0 && this.indexer < this.Actions.Count)
+            this.SeekToStep(this.indexer, resume: false, broadcast: false);
+        else
+        {
+            this.CancelStepWork();
+            this.MetricsProblem("manual-teleport", true);
+        }
+        NavigationDiagnostics.Record("manual-teleport", detail: position);
+        Player.GameObject->SetPosition(position.X, position.Y, position.Z);
     }
 
     internal void SeekToStep(int index, bool resume = true, bool broadcast = true, bool manual = true)

@@ -404,6 +404,7 @@ namespace AutoDuty.Windows
                         if (ImGui.Selectable($"{(editing ? "> " : "")}{item.Index}: ###Text{item.Index}", editing || item.Index == _buildListSelected))
                             EditStep(item.Index, fromBuild: true);
                         if (editing) ImGui.PopStyleColor(3);
+                        bool openStepMenu = ImGui.IsItemClicked(ImGuiMouseButton.Right);
 
                         if (ImGui.IsItemClicked(ImGuiMouseButton.Middle))
                         {
@@ -430,6 +431,14 @@ namespace AutoDuty.Windows
                         {
                             ImGui.SameLine(0, 0);
                             ImGui.TextColored(color, text);
+                            openStepMenu |= ImGui.IsItemClicked(ImGuiMouseButton.Right);
+                        }
+
+                        if (openStepMenu) ImGui.OpenPopup("BuildStepContext" + item.Index);
+                        if (ImGui.BeginPopup("BuildStepContext" + item.Index))
+                        {
+                            DutyToolsUi.TeleportMenuItem(item.Value);
+                            ImGui.EndPopup();
                         }
 
                         ImGui.PopStyleColor();
