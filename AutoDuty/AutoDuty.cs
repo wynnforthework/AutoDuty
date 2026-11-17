@@ -309,6 +309,17 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     internal PathRecorder Recorder { get; } = new();
     private PathRecorderWindow? recorderWindow;
+    private StepDeckWindow? stepDeckWindow;
+    internal void ShowStepDeck()
+    {
+        this.EnsureStepDeck().IsOpen = true;
+    }
+
+    private StepDeckWindow EnsureStepDeck()
+    {
+        if (this.stepDeckWindow == null) this.windowSystem.AddWindow(this.stepDeckWindow = new());
+        return this.stepDeckWindow;
+    }
     internal void ShowRecorder()
     {
         if (this.recorderWindow == null) this.windowSystem.AddWindow(this.recorderWindow = new());
@@ -459,6 +470,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
                                                              }
                                                          }),
                 (["path"], "copy or import shared routes", this.PathCommand),
+                (["steps"], "open the independent step cards", _ => this.ShowStepDeck()),
                 (["rec"], "record: start|stop|add <action>|undo|save <name>|append <name>", args =>
                 {
                     this.ShowRecorder();
@@ -2383,6 +2395,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private void DrawUI()
     {
+        this.EnsureStepDeck().ObserveExecution();
         this.windowSystem.Draw();
         this.metricsTextInputActive = Dalamud.Bindings.ImGui.ImGui.GetIO().WantTextInput;
     }

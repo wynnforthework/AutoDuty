@@ -181,6 +181,8 @@ public class ConfigurationProfileV2
     [JsonObject(MemberSerialization.OptOut)]
     public class OverlayConfig(ConfigurationProfileV2 config)
     {
+        public bool AutoOpenStepDeck { get; set; } = true;
+
         [JsonIgnore]
         private readonly ConfigurationProfileV2 config = config;
 

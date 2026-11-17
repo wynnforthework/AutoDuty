@@ -185,6 +185,8 @@ namespace AutoDuty.Windows
             }
             if (ImGui.Button(DutyToolsUi.Text("Recorder"))) Plugin.ShowRecorder();
             ImGui.SameLine();
+            if (ImGui.Button(Loc.Get("StepDeck.Open"))) Plugin.ShowStepDeck();
+            ImGui.SameLine();
             if (ImGui.Button(DutyToolsUi.Text("CopyPath"))) Plugin.PathCommand(["path", "copy"]);
             ImGui.SameLine();
             if (ImGui.Button(DutyToolsUi.Text("PastePath"))) Plugin.PathCommand(["path", "import"]);

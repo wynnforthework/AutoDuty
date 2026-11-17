@@ -46,6 +46,7 @@ namespace AutoDuty.Windows
         internal static void Draw()
         {
             MainWindow.CurrentTabName = "Main";
+            if (ImGui.Button(Loc.Get("StepDeck.Open"))) Plugin.ShowStepDeck();
             
             DutyMode     dutyMode     = Configuration.Meta.DutyModeEnum;
             LevelingMode levelingMode = Plugin.LevelingModeEnum;
