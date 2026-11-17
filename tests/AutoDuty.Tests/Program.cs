@@ -42,6 +42,20 @@ static void Run()
     Console.WriteLine("PASS: movement, action, combat and loop resume policies; no duplicate action invocation");
     TestCombatCheckpoint();
     TestLevelingPlan();
+    var movementProgress = new MovementProgress();
+    var anchor = new System.Numerics.Vector3(104, 0, 150);
+    movementProgress.Reset(anchor, 0);
+    Check(!movementProgress.IsStuck(anchor, 1000, 5000), "navigation startup allows progress window");
+    Check(!movementProgress.IsStuck(anchor + new System.Numerics.Vector3(.1f, 0, 0), 4000, 5000), "collision jitter does not reset progress timer");
+    Check(movementProgress.IsStuck(anchor, 5000, 5000), "path restarts without position progress reach bounded stuck timeout");
+    Check(!movementProgress.IsStuck(anchor + new System.Numerics.Vector3(1, 0, 0), 5100, 5000), "real movement resets progress timer");
+    movementProgress.Reset(anchor, 6000);
+    Check(!movementProgress.IsStuck(anchor, 7000, 5000), "combat resume starts fresh progress window");
+    Check(EntranceRecovery.IsEntrance(1303, 1303, anchor, anchor + new System.Numerics.Vector3(3, 0, 0)), "confirmed entrance spawn tolerates small offset");
+    Check(!EntranceRecovery.IsEntrance(1303, 1303, anchor, anchor + new System.Numerics.Vector3(0, 6, 0)), "other floor is not entrance");
+    Check(!EntranceRecovery.IsEntrance(1303, 1303, anchor, anchor + new System.Numerics.Vector3(20, 0, 0)), "normal portal destination is not entrance");
+    Check(!EntranceRecovery.IsEntrance(1303, 1041, anchor, anchor), "another map does not reuse entrance coordinates");
+    Console.WriteLine("PASS: position-based movement watchdog, collision jitter, retry/combat reset and entrance map/floor validation");
     foreach (string reason in new[] { "stuck", "navigation-stopped-short", "move-timeout", "no-path", "pathfind-rejected", "unexpected-position-transition" })
         Check(StepRecoveryPolicy.MustPause(reason), "movement recovery never skips missing prerequisites: " + reason);
     Check(StepRecoveryPolicy.UnexpectedTransition(AutoDuty.Data.Enums.Stage.Moving), "loading during failed navigation cannot mark step completed");

@@ -14,6 +14,8 @@ internal sealed class StepAttempt
     internal long LastTickAt = Environment.TickCount64;
     internal bool MovementStarted;
     internal readonly NavigationStopProgress NavigationStop = new();
+    internal readonly MovementProgress Progress = new();
+    internal long RetryAfter;
     internal Vector3 StartPosition;
     internal string? LastFailReason;
     internal string? SkippedReason;

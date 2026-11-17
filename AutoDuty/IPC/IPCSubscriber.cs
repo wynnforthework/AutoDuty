@@ -257,7 +257,12 @@ internal static class VNavmesh_IPCSubscriber
     internal static bool  Nav_IsReady                                 => Vnavmesh.IsReady();
     internal static bool  SimpleMove_PathfindInProgress               => Vnavmesh.PathfindInProgress();
     internal static bool  Path_IsRunning                              => Vnavmesh.IsRunning();
-    internal static void  Path_MoveTo(List<Vector3> points, bool fly) => Vnavmesh.MoveTo(points, fly);
+    internal static void Path_MoveTo(List<Vector3> points, bool fly,
+        [System.Runtime.CompilerServices.CallerMemberName] string caller = "", [System.Runtime.CompilerServices.CallerFilePath] string file = "", [System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
+    {
+        NavigationDiagnostics.Record("nav-direct-move", $"{System.IO.Path.GetFileName(file)}:{line}:{caller}", new { points, fly });
+        Vnavmesh.MoveTo(points, fly);
+    }
     internal static bool  GetNav_Rebuild()  => Vnavmesh.Rebuild();
     internal static float Nav_BuildProgress => Vnavmesh.BuildProgress();
     internal static bool SimpleMove_PathfindAndMoveTo(Vector3 position, bool canFly,
@@ -270,7 +275,11 @@ internal static class VNavmesh_IPCSubscriber
     }
     internal static int      Path_NumWaypoints                                   => Vnavmesh.NumWaypoints();
     internal static float    Path_GetTolerance                                   => Vnavmesh.GetTolerance();
-    internal static void     Path_SetTolerance(float tolerance)                  => Vnavmesh.SetTolerance(tolerance);
+    internal static void Path_SetTolerance(float tolerance)
+    {
+        if (Vnavmesh.GetTolerance() != tolerance) NavigationDiagnostics.Record("nav-tolerance", detail: tolerance);
+        Vnavmesh.SetTolerance(tolerance);
+    }
     internal static bool     Path_GetAlignCamera                                 => Vnavmesh.GetAlignCamera();
     internal static void     Path_SetAlignCamera(bool        align)              => Vnavmesh.SetAlignCamera(align);
     internal static Vector3? Query_Mesh_PointOnFloor(Vector3 p, bool a, float b) => Vnavmesh.PointOnFloor(p, a, b);

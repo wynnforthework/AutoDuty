@@ -64,6 +64,7 @@ public partial class AutoDuty
             attempt.ActionStartedAt = 0;
             attempt.MovementStarted = false;
             attempt.StuckCount = 0;
+            attempt.RetryAfter = Environment.TickCount64 + 1000;
             StuckHelper.ResetForStep();
             this.Stage = Stage.Reading_Path;
             return;
@@ -119,6 +120,8 @@ public partial class AutoDuty
 
     internal void SeekToStep(int index, bool resume = true, bool broadcast = true, bool manual = true)
     {
+        this.transitionPending = false;
+        this.returnObservedUntil = 0;
         this.combatCheckpoints.Reset();
         if (manual) this.MetricsProblem("manual-seek", true);
         this.CancelStepWork();

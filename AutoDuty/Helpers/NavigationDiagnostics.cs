@@ -34,6 +34,10 @@ internal static class NavigationDiagnostics
                 finding = VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress,
                 running = VNavmesh_IPCSubscriber.Path_IsRunning, waypoints = VNavmesh_IPCSubscriber.Path_NumWaypoints,
                 tolerance = VNavmesh_IPCSubscriber.Path_GetTolerance,
+                meshReady = VNavmesh_IPCSubscriber.Nav_IsReady,
+                casting = Player.Available && PlayerHelper.IsCasting,
+                betweenAreas = Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.BetweenAreas],
+                betweenAreas51 = Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.BetweenAreas51],
                 task = Plugin.taskManager.CurrentTask?.Name
             });
             lock (gate)
@@ -56,7 +60,10 @@ internal static class NavigationDiagnostics
     {
         try
         {
-            Record("export", detail: reason);
+            Record("export", detail: new { reason, routeHash = AutomationReports.Fingerprint(Plugin.Actions),
+                mode = AutoDuty.Configuration.Meta.DutyModeEnum.ToString(),
+                managesBossMovement = AutoDuty.Configuration.DutyConfig.AutoManageBossModAISettings,
+                version = typeof(AutoDuty).Assembly.GetName().Version?.ToString() });
             string directory = Path.Combine(AutoDuty.PluginInterface.ConfigDirectory.FullName, "navigation-diagnostics");
             Directory.CreateDirectory(directory);
             string path = Path.Combine(directory, $"navigation-{DateTime.UtcNow:yyyyMMdd-HHmmss-fff}.jsonl");

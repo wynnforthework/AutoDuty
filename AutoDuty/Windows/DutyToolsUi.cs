@@ -53,14 +53,14 @@ internal static class DutyToolsUi
 
     internal static void ExecutionStatus()
     {
-        if (Plugin.Stage == Stage.Stopped || Plugin.indexer < 0 || Plugin.indexer >= Plugin.Actions.Count) return;
-        var step = Plugin.Actions[Plugin.indexer];
         if (ImGui.SmallButton(Text("ExportNavigation")))
         {
             Helpers.NavigationDiagnostics.Export("manual");
             if (Helpers.NavigationDiagnostics.LastExport is { } path) ImGui.SetClipboardText(path);
         }
         if (ImGui.IsItemHovered() && Helpers.NavigationDiagnostics.LastExport is { } exported) ImGui.SetTooltip(exported);
+        if (Plugin.Stage == Stage.Stopped || Plugin.indexer < 0 || Plugin.indexer >= Plugin.Actions.Count) return;
+        var step = Plugin.Actions[Plugin.indexer];
         string phase = Plugin.Stage switch
         {
             Stage.Moving => Loc.Get("LevelingPlan.ProgressMoving"),

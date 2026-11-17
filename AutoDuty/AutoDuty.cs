@@ -154,10 +154,12 @@ public sealed partial class AutoDuty : IDalamudPlugin
                     if (VNavmesh_IPCSubscriber.Path_NumWaypoints > 0)
                         VNavmesh_IPCSubscriber.Path_Stop();
                     FollowHelper.SetFollow(null);
+                    BossMod_IPCSubscriber.SetMovement(false);
                     if (!this.taskManager.StepMode) this.taskManager.StepMode = true;
                     this.States               |= PluginState.Paused;
                     break;
                 case Stage.Action:
+                    BossMod_IPCSubscriber.SetMovement(this.pathAction.Name != "Interactable");
                     if (PauseResumePolicy.ShouldInvokeAction(field)) this.ActionInvoke();
                     break;
                 case Stage.Condition:
@@ -166,6 +168,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
                                                    () => !Svc.Condition[ConditionFlag.BetweenAreas] && !Svc.Condition[ConditionFlag.BetweenAreas51] && !Svc.Condition[ConditionFlag.Jumping61]);
                     break;
                 case Stage.Waiting_For_Combat:
+                    BossMod_IPCSubscriber.SetMovement(true);
+                    this.DutyData?.StayCloseToTank = !this.pathAction.Flags.HasFlag(PathActionFlags.NoPartyCoherency);
                     BossMod_IPCSubscriber.SetRange(Configuration.DutyConfig.BossMod.MaxDistanceToTargetFloat);
                     break;
                 case Stage.Reading_Path:
@@ -1045,15 +1049,19 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
         }
         //Svc.Log.Debug($"{flag} : {value}");
-        if (StepRecoveryPolicy.UnexpectedTransition(this.Stage) && !this.recentlyWatchedCutscene && !Conditions.Instance()->WatchingCutscene &&
-            (flag is not (ConditionFlag.WatchingCutscene or ConditionFlag.WatchingCutscene78 or ConditionFlag.OccupiedInCutSceneEvent) and (ConditionFlag.BetweenAreas or ConditionFlag.BetweenAreas51 or ConditionFlag.Jumping61) ||
-             (flag is ConditionFlag.SufferingStatusAffliction63 && PlayerHelper.HasStatus(1268))) && 
+        if ((StepRecoveryPolicy.UnexpectedTransition(this.Stage) || Environment.TickCount64 < this.returnObservedUntil)
+            && !this.recentlyWatchedCutscene && !Conditions.Instance()->WatchingCutscene
+            && flag is (ConditionFlag.BetweenAreas or ConditionFlag.BetweenAreas51) &&
             value && this.States.HasFlag(PluginState.Navigating))
         {
             // A zone/load/jump flag is not evidence that navigation or an
             // interaction succeeded. In particular Return used to skip the
             // failed step while relocating the character to the entrance.
             this.MetricsProblem("unexpected-position-transition");
+            this.transitionPending = true;
+            this.transitionObservedAt = Environment.TickCount64;
+            this.transitionOrigin = Player.Position;
+            this.transitionWasReturn = Environment.TickCount64 < this.returnObservedUntil;
             this.FailCurrentStep("unexpected-position-transition", $"flag={flag}; step={this.indexer + 1}; position={Player.Position}", forcePause: true);
         }
         if (Conditions.Instance()->WatchingCutscene || flag is ConditionFlag.WatchingCutscene or ConditionFlag.WatchingCutscene78 or ConditionFlag.OccupiedInCutSceneEvent)
@@ -1395,6 +1403,18 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (!PlayerHelper.IsValid || !EzThrottler.Check("PathFindFailure") || this.indexer == -1 || this.indexer >= this.Actions.Count)
             return;
 
+        if (this.currentAttempt is { } retry && retry.Index == this.indexer && retry.RetryAfter > 0)
+        {
+            if (Environment.TickCount64 < retry.RetryAfter) return;
+            if (!VNavmesh_IPCSubscriber.Nav_IsReady)
+            {
+                if (Environment.TickCount64 - retry.RetryAfter > Math.Max(1000, Configuration.DutyConfig.NavmeshRebuildTimeoutMs))
+                    this.FailCurrentStep("navmesh-not-ready", "Waiting for rebuilt mesh before retry", forcePause: true);
+                return;
+            }
+            retry.RetryAfter = 0;
+        }
+
         this.action = $"{(this.Actions.Count >= this.indexer ? Plugin.Actions[this.indexer].ToCustomString() : "")}";
 
         this.pathAction = this.Actions[this.indexer];
@@ -1518,6 +1538,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
             VNavmesh_IPCSubscriber.Path_Stop();
 
         Chat.ExecuteCommand("/automove off");
+        FollowHelper.SetFollow(null);
+        BossMod_IPCSubscriber.SetMovement(false);
+        this.DutyData?.StayCloseToTank = false;
         if (this.currentAttempt == null) this.BeginAttempt(this.indexer);
         VNavmesh_IPCSubscriber.Path_SetTolerance(CombatCheckpointProgress.ArrivalRadius(this.pathAction, this.currentAttempt?.Attempts ?? 0));
         if (this.pathAction is { Name: "MoveTo", Arguments.Count: > 0 } && bool.TryParse(this.pathAction.Arguments[0], out bool useMesh) && !useMesh)
@@ -1529,6 +1552,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         }
 
         this.currentAttempt!.StartedAt = Environment.TickCount64;
+        this.currentAttempt.Progress.Reset(Player.Position, Environment.TickCount64);
         this.currentAttempt.NavigationStop.Reset();
         this.Stage = Stage.Moving;
     }
@@ -1571,7 +1595,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
         }
 
-        if (!PlayerHelper.IsCasting && StuckHelper.IsStuck(out _))
+        if (PlayerHelper.IsCasting) this.currentAttempt?.Progress.Reset(Player.Position, Environment.TickCount64);
+        if (!PlayerHelper.IsCasting && this.currentAttempt is { } progressAttempt
+            && progressAttempt.Progress.IsStuck(Player.Position, Environment.TickCount64, Configuration.DutyConfig.Stuck.MinStuckTime))
         {
             // Recovery must remain inside the same bounded step attempt. Return
             // invalidates route prerequisites and must never run as stuck recovery.
@@ -1842,6 +1868,11 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.lootTreasure = false;
         }
         Svc.Log.Info("Starting Navigation");
+        if (startFromZero && (this.entrancePosition == null || this.entranceTerritory != Svc.ClientState.TerritoryType))
+        {
+            this.entranceTerritory = Svc.ClientState.TerritoryType;
+            this.entrancePosition = Player.Position;
+        }
         if (startFromZero) 
             this.indexer = 0;
         this.BeginRouteMetrics();
@@ -2169,6 +2200,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
     {
         FileHelper.Tick();
         NavigationDiagnostics.Tick();
+        this.TickPositionRecovery();
         if (Player.Available && !InDungeon) this.GetJobAndLevelingCheck();
         this.TickMetrics();
         this.Recorder.Tick();
@@ -2258,6 +2290,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private void StopAndResetAll()
     {
+        this.transitionPending = false;
+        this.returnObservedUntil = 0;
         this.combatCheckpoints.Reset();
         this.EndMetricsSession();
         this.currentAttempt = null;

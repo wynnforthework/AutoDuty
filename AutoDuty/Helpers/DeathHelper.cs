@@ -1,4 +1,4 @@
-﻿using AutoDuty.IPC;
+using AutoDuty.IPC;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
 using ECommons;
@@ -191,6 +191,15 @@ namespace AutoDuty.Helpers
                 Plugin.indexer = oldIndex;
                 Stop();
                 return ;
+            }
+
+            if (Plugin.IsAtRouteEntrance())
+            {
+                Svc.Framework.Update -= OnRevive;
+                deathState = PlayerLifeState.Alive;
+                SchedulerHelper.DescheduleAction("FindShortcut");
+                Plugin.RestartAtEntrance("death-returned-to-entrance");
+                return;
             }
 
             IGameObject? shortcutObject       = GameObject;
