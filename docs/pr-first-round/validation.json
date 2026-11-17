@@ -1,0 +1,190 @@
+{
+  "merge_matrix": {
+    "base": "ee4eced8bfd5f01201e002f09f17a00e3ea3e389",
+    "branches": {
+      "fix/action-editor-width": "52ffea593edfc6d54f39ca9dd35a75e4a55f3265",
+      "fix/stable-path-selector": "b131082c987fca0fc5e00f194e043b1e6333910c",
+      "fix/brayflox-key-interaction": "1031bc417adfa708bab2638a150aef8e39a038e1",
+      "fix/navigation-waypoint-tolerance": "524d90ac715dd74728625b98d8d4b1bf8de2109f",
+      "fix/boss-identification-and-completion": "9f3f13a53ecb404da2d6c08658796a7445e5eb49"
+    },
+    "orders": 120,
+    "merge_operations": 320,
+    "final_tree": "0ea4244738a2200e271a468a45dcdb3423f18be2",
+    "combined_commit": "251d692364cb8d93206ee608a9e2c7ebe3e1898e"
+  },
+  "subset_builds": [
+    {
+      "prs": "1-2",
+      "commit": "915cbb2587b66c47a112ffe14ca1c60085c4daae",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-3",
+      "commit": "453fcfa6fc0375f1ab9738c59ff648ca0762fa61",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-4",
+      "commit": "2517db5cd49aedbe4af1bd01eeee5bb058c57603",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-5",
+      "commit": "4492136f3c04ce07c15f4c7eb0275e95e1a8e147",
+      "exit_code": 0
+    },
+    {
+      "prs": "2-3",
+      "commit": "7c6d4d9bd480e8168dccce63a395008ae882f190",
+      "exit_code": 0
+    },
+    {
+      "prs": "2-4",
+      "commit": "cc94a20bf4a56c12c77deb787577e25e20bcc59a",
+      "exit_code": 0
+    },
+    {
+      "prs": "2-5",
+      "commit": "5c56983cc25dc2527207b92e14201410c3bc1717",
+      "exit_code": 0
+    },
+    {
+      "prs": "3-4",
+      "commit": "e05c97cc4155f021bf85a14b7ecfe4b21809d2ab",
+      "exit_code": 0
+    },
+    {
+      "prs": "3-5",
+      "commit": "c01227274e55128d3fb7d2900b026d13f2d5a9e1",
+      "exit_code": 0
+    },
+    {
+      "prs": "4-5",
+      "commit": "f17de06106e10035ebe327367e34eb284b03691b",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-2-3",
+      "commit": "a8c90df26dcc477ab60c46a0adf3fa2b6316a12c",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-2-4",
+      "commit": "068b7fc7d7576ed28da4ddc9cb3d626034061575",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-2-5",
+      "commit": "af68a2cc9129a5a2cea233305c38d51f355afc6d",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-3-4",
+      "commit": "34129c999f993f3ffbd2466752383ffb5204b2f5",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-3-5",
+      "commit": "e428549e14709522324f4d026e76f160bae2cb35",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-4-5",
+      "commit": "b2a66cf1ea550a94c53595232e0b4a875a8cd267",
+      "exit_code": 0
+    },
+    {
+      "prs": "2-3-4",
+      "commit": "6e20644e2bbf117e879dcaf980ca1320a7e6ee3c",
+      "exit_code": 0
+    },
+    {
+      "prs": "2-3-5",
+      "commit": "0384c0432d915aec94b2da61f9b60862bb7d29a0",
+      "exit_code": 0
+    },
+    {
+      "prs": "2-4-5",
+      "commit": "b894aa51744a40e59ef4c4ce710be1b77e3ffff8",
+      "exit_code": 0
+    },
+    {
+      "prs": "3-4-5",
+      "commit": "c5bbfaf9d700c27aae88867bae4ec99f2b50a331",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-2-3-4",
+      "commit": "0c09da3a2b0d563367d68da0a3df3456a8f55811",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-2-3-5",
+      "commit": "d45fb5d80fbb56d8fb0576d9148000cc1320133a",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-2-4-5",
+      "commit": "8edcd4f06a37340075a278954e4a7a4cdf7c03e6",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-3-4-5",
+      "commit": "f807f0ac3f8fb72c5ffd639ade0777f5fa259c2d",
+      "exit_code": 0
+    },
+    {
+      "prs": "2-3-4-5",
+      "commit": "5e32fec63c729593d7a52f9f44ecd690f650f3c3",
+      "exit_code": 0
+    },
+    {
+      "prs": "1-2-3-4-5",
+      "commit": "8eec511fcef02afaab2a3c94c3366432f9fd7c74",
+      "exit_code": 0
+    }
+  ],
+  "prs": [
+    {
+      "id": "P01",
+      "branch": "fix/action-editor-width",
+      "commit": "52ffea593edfc6d54f39ca9dd35a75e4a55f3265",
+      "issue_url": "https://github.com/erdelf/AutoDuty/issues/643",
+      "pr_url": "https://github.com/erdelf/AutoDuty/pull/644",
+      "draft": true
+    },
+    {
+      "id": "P02",
+      "branch": "fix/stable-path-selector",
+      "commit": "b131082c987fca0fc5e00f194e043b1e6333910c",
+      "issue_url": "https://github.com/erdelf/AutoDuty/issues/645",
+      "pr_url": "https://github.com/erdelf/AutoDuty/pull/646",
+      "draft": true
+    },
+    {
+      "id": "P03",
+      "branch": "fix/brayflox-key-interaction",
+      "commit": "1031bc417adfa708bab2638a150aef8e39a038e1",
+      "issue_url": "https://github.com/erdelf/AutoDuty/issues/647",
+      "pr_url": "https://github.com/erdelf/AutoDuty/pull/648",
+      "draft": true
+    },
+    {
+      "id": "P04",
+      "branch": "fix/navigation-waypoint-tolerance",
+      "commit": "524d90ac715dd74728625b98d8d4b1bf8de2109f",
+      "issue_url": "https://github.com/erdelf/AutoDuty/issues/649",
+      "pr_url": "https://github.com/erdelf/AutoDuty/pull/650",
+      "draft": true
+    },
+    {
+      "id": "P05",
+      "branch": "fix/boss-identification-and-completion",
+      "commit": "9f3f13a53ecb404da2d6c08658796a7445e5eb49",
+      "issue_url": "https://github.com/erdelf/AutoDuty/issues/651",
+      "pr_url": "https://github.com/erdelf/AutoDuty/pull/652",
+      "draft": true
+    }
+  ]
+}
