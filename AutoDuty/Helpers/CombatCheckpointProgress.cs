@@ -50,11 +50,12 @@ internal sealed class CombatCheckpointProgress
     {
         float radius = ArrivalRadius(step, retries);
         Vector3 delta = position - step.Position;
-        // A combat switch is a ground location, not a precise 3D waypoint.
+        // Combat switches and interaction approach points are ground locations,
+        // not precise 3D waypoints. Object interaction still checks its own range.
         // Slopes must not leave navmesh stopped within its horizontal tolerance
         // while AutoDuty waits forever for a smaller 3D distance. Bound height
         // separately so another floor cannot satisfy this checkpoint.
-        return step.Name == "StopForCombat"
+        return step.Name is "StopForCombat" or "Interactable"
             ? delta.X * delta.X + delta.Z * delta.Z <= radius * radius && MathF.Abs(delta.Y) <= 2f
             : delta.LengthSquared() <= radius * radius;
     }

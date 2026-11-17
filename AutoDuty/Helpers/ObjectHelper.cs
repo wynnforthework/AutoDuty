@@ -57,6 +57,32 @@ namespace AutoDuty.Helpers
 
         internal static IBattleChara? GetBossObject(int radius = 100, Vector3? position = null) => (position.HasValue ? GetObjectsByRadius(position.Value, radius) : GetObjectsByRadius(radius))?.OfType<IBattleChara>().FirstOrDefault(IsBoss);
 
+        internal static IBattleChara? GetBossForStep(PathAction step, int radius = 100)
+        {
+            Vector3 origin = step.Position == Vector3.Zero ? Player.Position : step.Position;
+            var candidates = Svc.Objects.OfType<IBattleChara>()
+                .Where(o => o.ObjectKind == ObjectKind.BattleNpc && o.CurrentHp > 0 && o.IsTargetable
+                    && Vector3.DistanceSquared(origin, o.Position) <= radius * radius && MathF.Abs(origin.Y - o.Position.Y) <= 10)
+                .OrderBy(o => Vector3.DistanceSquared(origin, o.Position)).ToArray();
+            // Rank and BossMod module availability are not a complete NPC identity database.
+            // Existing routes often carry the exact English boss name in Note.
+            var named = candidates.FirstOrDefault(o => BossIdentity.Matches(step.Note, o.Name.TextValue,
+                Svc.Data.GetExcelSheet<BNpcName>(Dalamud.Game.ClientLanguage.English).GetRowOrDefault(o.NameId)?.Singular.ToString() ?? ""));
+            if (named != null) return named;
+            return candidates.FirstOrDefault(IsBoss);
+        }
+
+        internal static void TraceBossCandidates(PathAction step)
+        {
+            if (!EzThrottler.Throttle("BossCandidateTrace", 1000)) return;
+            NavigationDiagnostics.Record("boss-candidates", detail: new { expected = step.Note, target = step.Position,
+                candidates = Svc.Objects.OfType<IBattleChara>().Where(o => o.ObjectKind == ObjectKind.BattleNpc
+                    && Vector3.DistanceSquared(o.Position, Player.Position) < 10000).Select(o => new {
+                        name = o.Name.TextValue, o.NameId, dataId = o.BaseId, o.CurrentHp, o.IsTargetable, o.Position,
+                        rank = GetObjectNPC(o)?.Rank, module = BossMod_IPCSubscriber.HasModuleByDataId(o.BaseId)
+                    }).ToArray() });
+        }
+
         internal static unsafe float GetDistanceToPosSquared(Vector3 pos, Vector3 target) => Vector3.DistanceSquared(pos, target);
         internal static unsafe float GetDistanceToPlayer(IGameObject gameObject) => GetDistanceToPlayer(gameObject.Position);
 

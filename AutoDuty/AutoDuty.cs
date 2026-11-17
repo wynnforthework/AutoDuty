@@ -1441,7 +1441,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
                 if (this.pathAction.Name.Equals("Boss") && this.pathAction.Position != Vector3.Zero && ObjectHelper.BelowDistanceToPlayer(this.pathAction.Position, 50, 10))
                 {
-                    if (ObjectHelper.GetBossObject(25) != null)
+                    if (ObjectHelper.GetBossForStep(this.pathAction, 50) != null)
                     {
                         if (MultiboxUtility.Config.Host)
                             MultiboxUtility.MultiboxBlockingNextStep = false;
@@ -1579,7 +1579,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (EzThrottler.Throttle("BossChecker", 25) && this.pathAction.Name.Equals("Boss") && this.pathAction.Position != Vector3.Zero && ObjectHelper.BelowDistanceToPlayer(this.pathAction.Position, 50, 10))
         {
-            if (ObjectHelper.GetBossObject(25) != null)
+            if (ObjectHelper.GetBossForStep(this.pathAction, 50) != null)
             {
                 VNavmesh_IPCSubscriber.Path_Stop();
                 this.Stage = Stage.Action;
@@ -1713,7 +1713,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (this.pathAction.Name.Equals("Boss") && this.pathAction.Position != Vector3.Zero && ObjectHelper.GetDistanceToPlayer(this.pathAction.Position) < 50)
         {
-            if (ObjectHelper.GetBossObject(25) != null)
+            if (ObjectHelper.GetBossForStep(this.pathAction, 50) != null)
             {
                 VNavmesh_IPCSubscriber.Path_Stop();
                 this.Stage = Stage.Action;
