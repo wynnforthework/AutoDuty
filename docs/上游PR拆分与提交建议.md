@@ -53,6 +53,8 @@
 
 只处理自动尺寸与内容宽度相互放大，打开时合理初始化尺寸，允许手动调整和内容滚动。不带新步骤菜单、版本选择和自动保存。
 
+对应 Issue 草稿见 [P01-Issue草稿.md](P01-Issue草稿.md)。后续每个 Issue 按 `[type] title` 命名，保留上游模板字段，并说明受影响版本/源码基线、修改范围、实际修改、原因和收益、已执行测试的方法与结果、尚未验证的项目。不能将上游基线版本写成已复现版本，不能将集成分支构建结果写成独立 PR 分支验证结果。
+
 **Title:** Fix action editor width growth while open
 
 **Body:** The action editor can grow wider each frame because its content width feeds back into automatic window sizing. Initialize a bounded window size when opened and let long content scroll while preserving manual resizing.
