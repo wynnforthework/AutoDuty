@@ -179,6 +179,29 @@ static void TestRunMetrics()
     run.Finish(DateTime.UtcNow, "recovered");
     Check(record.CompletionPercent == 50 && !record.VerifiedComplete && record.ProblemStep == 2 && record.CompletedSteps == 4, "recovery never erases first interruption");
     record = Record(); run = new(record);
+    run.CompleteStep(0); run.Problem("stuck", 1, automaticRetry: true);
+    run.CompleteStep(1); run.Problem("stuck", 2, automaticRetry: true);
+    run.CompleteStep(2); run.CompleteStep(3);
+    record.DutyCompleted = record.RouteFinished = true;
+    run.Finish(DateTime.UtcNow, "duty-complete");
+    Check(record.CompletionPercent == 100 && record.Failures == 2 && record.Interventions == 0 && record.AutonomousSteps == 4,
+        "automatic retries preserve autonomous completion and retain diagnostics");
+    record = Record(); run = new(record);
+    run.CompleteStep(0); run.Problem("stuck", 1, automaticRetry: true);
+    Check(record.CompletionPercent == 25, "pending retry does not award unfinished steps");
+    run.Problem("retry-exhausted", 1); run.CompleteStep(1); run.CompleteStep(2); run.CompleteStep(3);
+    record.DutyCompleted = record.RouteFinished = true;
+    Check(record.CompletionPercent == 25 && !record.VerifiedComplete, "terminal pause after retries freezes completion");
+    record = Record(46); record.CompletedSteps = 46; record.ExecutedSteps = 46; record.AutonomousSteps = 45;
+    record.FirstProblem = "stuck"; record.Failures = 1; record.RouteFinished = record.DutyCompleted = true;
+    Check(record.VerifiedComplete && record.CompletionPercent == 100, "reported legacy 45/46 fully completed automatic run is compatible");
+    record.Interventions = 1;
+    Check(!record.VerifiedComplete, "legacy manual intervention is never upgraded");
+    record.Interventions = 0; record.CompletedSteps = 45;
+    Check(!record.VerifiedComplete, "legacy missing final step is not upgraded");
+    record.CompletedSteps = 46; record.CompletionInterrupted = true;
+    Check(!record.VerifiedComplete, "explicit interruption cannot use legacy compatibility");
+    record = Record(); run = new(record);
     for (int i = 0; i < 4; i++) run.CompleteStep(i);
     record.RouteFinished = true;
     Check(record.CompletionPercent == 99.9 && !record.VerifiedComplete, "end of route without duty complete is not 100 percent");
@@ -222,7 +245,7 @@ static void TestAutomationReports()
         DutyCompleted = true, RouteFinished = true, Experience = 600000, Outcome = "complete",
     };
     var good = Clean(); var failed = Clean();
-    failed.FirstProblem = "stuck"; failed.ProblemStep = 1; failed.Failures = 1; failed.AutonomousSteps = 1;
+    failed.FirstProblem = "stuck"; failed.ProblemStep = 1; failed.Failures = 1; failed.AutonomousSteps = 1; failed.CompletionInterrupted = true;
     var groups = AutomationReports.Summarize([good, failed]);
     Check(groups.Count == 1 && groups[0].Reliability == 50 && groups[0].MeanCompletion == 75 && groups[0].Participants == 2, "failed attempts and multiple contributors are included");
     Check(AutomationReports.CompletionEvidence([failed], 1037, hash, 19, good.Mode, false)!.BestCompletion == 50,

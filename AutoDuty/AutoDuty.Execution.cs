@@ -65,7 +65,7 @@ public partial class AutoDuty
         if (this.currentAttempt?.Index != this.indexer) this.BeginAttempt(this.indexer);
         if (this.currentAttempt == null) return;
         var attempt = this.currentAttempt;
-        this.MetricsProblem(reason);
+        this.MetricsProblem(reason, automaticRetry: true);
         attempt.LastFailReason = reason;
         attempt.Attempts++;
         NavigationDiagnostics.Record("step-failure", detail: new { reason, detail });
@@ -95,6 +95,8 @@ public partial class AutoDuty
     internal void FailCurrentStep(string reason, string detail = "", bool forcePause = false)
     {
         if (this.currentFailure != null) return;
+        // Exhausted retries or a direct protection stop are real interruptions.
+        if (this.MetricsRun is { } run) run.Record.CompletionInterrupted = true;
         NavigationDiagnostics.Record("step-paused", detail: new { reason, detail });
         NavigationDiagnostics.Export(reason);
         this.interactionTransition.Reset();

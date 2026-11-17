@@ -14,13 +14,14 @@ internal sealed class RouteRunTracker(RouteRunRecord record)
         if (index < 0 || index >= this.Record.TotalSteps || !this.completed.Add(index)) return;
         this.Record.CompletedSteps++;
         if (policySkip) this.Record.PolicySkippedSteps++; else this.Record.ExecutedSteps++;
-        // Freeze the uninterrupted prefix at the first failure/intervention. Recovery cannot erase it.
-        if (this.Record.FirstProblem.Length == 0 && this.Record.StartedAtFirstStep && index == this.Record.AutonomousSteps)
+        // Successful automatic retries remain autonomous. Pause/manual recovery does not.
+        if (!this.Record.HasCompletionInterruption && this.Record.StartedAtFirstStep && index == this.Record.AutonomousSteps)
             this.Record.AutonomousSteps++;
     }
 
-    internal void Problem(string reason, int index, bool manual = false)
+    internal void Problem(string reason, int index, bool manual = false, bool automaticRetry = false)
     {
+        this.Record.CompletionInterrupted = this.Record.HasCompletionInterruption || !automaticRetry;
         if (manual) this.Record.Interventions++; else this.Record.Failures++;
         if (this.Record.FirstProblem.Length != 0) return;
         this.Record.FirstProblem = reason;

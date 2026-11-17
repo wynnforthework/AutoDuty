@@ -61,11 +61,15 @@ public sealed partial class AutoDuty
             StartingLevel = PlayerHelper.GetCurrentLevelFromSheet(),
             PartySize = Math.Max(1, Svc.Party.Length), Multibox = MultiboxUtility.Config.MultiBox,
             StartedAt = this.lastDutyStart >= this.MetricsSession.StartedAt && this.lastDutyStart <= now ? this.lastDutyStart : now,
-            UpdatedAt = now, TotalSteps = this.Actions.Count, StartedAtFirstStep = this.indexer == 0,
+            UpdatedAt = now, TotalSteps = this.Actions.Count, StartedAtFirstStep = this.indexer == 0, CompletionInterrupted = false,
         };
         if (!record.StartedAtFirstStep) { record.FirstProblem = "started-mid-route"; record.ProblemStep = Math.Max(0, this.indexer); }
         // Starting a script after the completion event cannot prove a clean duty run.
-        if (this.dutyState == DutyState.DutyComplete) record.FirstProblem = "started-after-duty-completion";
+        if (this.dutyState == DutyState.DutyComplete)
+        {
+            record.FirstProblem = "started-after-duty-completion";
+            record.CompletionInterrupted = true;
+        }
         this.manualMovementHeld = false;
         this.MetricsRun = new(record);
         ConfigurationMain.Instance.stats.routeRuns.Add(record);
@@ -73,10 +77,10 @@ public sealed partial class AutoDuty
         this.SaveMetrics();
     }
 
-    internal void MetricsProblem(string reason, bool manual = false)
+    internal void MetricsProblem(string reason, bool manual = false, bool automaticRetry = false)
     {
         if (this.MetricsRun == null) return;
-        this.MetricsRun.Problem(reason, this.indexer, manual);
+        this.MetricsRun.Problem(reason, this.indexer, manual, automaticRetry);
         this.SaveMetrics();
     }
 

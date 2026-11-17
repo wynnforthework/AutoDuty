@@ -32,6 +32,8 @@ public sealed class RouteRunRecord
     public bool DutyCompleted { get; set; }
     public int Failures { get; set; }
     public int Interventions { get; set; }
+    // Null identifies old records, which did not distinguish retries from interruptions.
+    public bool? CompletionInterrupted { get; set; }
     public string FirstProblem { get; set; } = "";
     public int? ProblemStep { get; set; }
     public string Outcome { get; set; } = "running";
@@ -39,8 +41,15 @@ public sealed class RouteRunRecord
     public int LevelsGained { get; set; }
     public bool Imported { get; set; }
 
-    [JsonIgnore] public bool VerifiedComplete => StartedAtFirstStep && TotalSteps > 0 && AutonomousSteps == TotalSteps
-        && CompletedSteps == TotalSteps && RouteFinished && DutyCompleted && FirstProblem.Length == 0 && Failures == 0 && Interventions == 0;
+    private bool LegacyRecoveredComplete => CompletionInterrupted == null && StartedAtFirstStep && TotalSteps > 0
+        && CompletedSteps == TotalSteps && RouteFinished && DutyCompleted && Interventions == 0
+        && FirstProblem is "stuck" or "navigation-stopped-short" or "move-timeout" or "no-path" or "pathfind-rejected"
+            or "task-timeout" or "boss-timeout" or "action-timeout" or "interaction-transfer-timeout";
+    [JsonIgnore] public bool HasCompletionInterruption => Interventions > 0
+        || (CompletionInterrupted ?? (FirstProblem.Length != 0 && !LegacyRecoveredComplete));
+    [JsonIgnore] public bool VerifiedComplete => StartedAtFirstStep && TotalSteps > 0
+        && (AutonomousSteps == TotalSteps || LegacyRecoveredComplete)
+        && CompletedSteps == TotalSteps && RouteFinished && DutyCompleted && !HasCompletionInterruption;
     [JsonIgnore] public double CompletionPercent => VerifiedComplete ? 100 : Math.Min(99.9, TotalSteps > 0 ? 100d * AutonomousSteps / TotalSteps : 0);
     [JsonIgnore] public TimeSpan Duration => (EndedAt ?? UpdatedAt) > StartedAt ? (EndedAt ?? UpdatedAt) - StartedAt : TimeSpan.Zero;
 }
