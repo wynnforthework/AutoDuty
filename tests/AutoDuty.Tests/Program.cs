@@ -147,6 +147,7 @@ static void Run()
     Check(!new InteractionDialogueProgress().Observe(false, false), "new interaction cannot reuse previous dialogue evidence");
     TestInteractionTransfer();
     TestMovementTransfer();
+    TestLaunchTransfer();
     var loadingRecovery = new LoadingRecoveryProgress();
     Check(!loadingRecovery.Ready(0, false), "delayed area loading suspends execution");
     Check(!loadingRecovery.Ready(5000, true), "load clear alone cannot resume movement");
@@ -719,6 +720,33 @@ static void TestMovementTransfer()
     progress.TrackMovement(step, 22, 1366, trigger + new System.Numerics.Vector3(40, 0, 0), 10100);
     Check(!progress.ObserveTrackedMovementLoading(step, 22, 10200, false), "moving away from portal invalidates cached approach");
     Console.WriteLine("PASS: Dusk Vigil movement portal, duplicate flags, stable destination, ownership, reset, timeout and death/Return exclusion");
+}
+static void TestLaunchTransfer()
+{
+    var progress = new InteractionTransitionProgress();
+    PathAction step = new() { Name = "MoveTo", Position = new(-.02f, -700, -1.35f), Arguments = ["true"] };
+    PathAction ready = new() { Name = "WaitFor", Arguments = ["IsReady"] };
+    PathAction landing = new() { Name = "Wait", Position = new(19.98f, -600, -45.01f), Arguments = ["1000"] };
+    var source = new System.Numerics.Vector3(-.025f, -699.74f, 2.04f);
+    var airborne = new System.Numerics.Vector3(.38f, -686.18f, 2.05f);
+    var destination = new System.Numerics.Vector3(9.93f, -599.82f, -17.26f);
+    progress.TrackMovement(step, 36, 974, source, 1000, ready);
+    Check(!progress.ObserveForcedMovement(step, 36, 974, source, 1100, false, ready, landing), "approaching pad is not completed movement");
+    Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 1200, true, ready, landing), "death and Return cannot authorize a launch");
+    Check(!progress.ObserveForcedMovement(step, 37, 974, airborne, 1200, false, ready, landing), "launch evidence belongs to one index");
+    Check(!progress.ObserveForcedMovement(step, 36, 974, source + new System.Numerics.Vector3(0, 2, 0), 1200, false, ready, landing), "ordinary jump cannot authorize launch");
+    Check(!progress.ObserveForcedMovement(step, 36, 974, source - new System.Numerics.Vector3(0, 12, 0), 1200, false, ready, landing), "falling away from next floor is not successful launch");
+    Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 1200, false, new() { Name = "WaitFor", Arguments = ["Combat"] }, landing), "ordinary movement without transfer intent stays bounded");
+    progress.TrackMovement(step, 36, 974, source + new System.Numerics.Vector3(0, 4, 0), 1250, ready);
+    Check(progress.ObserveForcedMovement(step, 36, 974, airborne, 1300, false, ready, landing), "mesh MoveTo launch is recognized without any loading event despite airborne samples");
+    Check(!progress.Settled(2000, false, true, 974, airborne) && !progress.Settled(4000, false, true, 974, airborne), "readiness alone cannot complete while flying between floors");
+    Check(!progress.Settled(4100, false, false, 974, destination), "landing without player readiness waits");
+    Check(!progress.Settled(4200, false, true, 974, destination) && progress.Settled(5200, false, true, 974, destination), "ready on expected destination floor completes launch after settling");
+    progress.Reset();
+    Check(!progress.Pending && !progress.ObserveForcedMovement(step, 36, 974, airborne, 5300, false, ready, landing), "reset cannot reuse old launch evidence");
+    progress.TrackMovement(step, 36, 974, source, 6000, ready);
+    Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 8001, false, ready, landing), "stale pad sample cannot authorize unrelated displacement");
+    Console.WriteLine("PASS: no-loading launch pad, mesh movement, airborne readiness, expected floor, death/Return and stale-step isolation");
 }
 static void TestStepExecutionGates()
 {

@@ -260,6 +260,23 @@ public partial class AutoDuty
         return true;
     }
 
+    private unsafe void ObserveForcedMovementTransfer()
+    {
+        if (this.Stage is not (Stage.Moving or Stage.Reading_Path)
+            || !this.States.HasFlag(PluginState.Navigating) || this.currentFailure != null
+            || !Player.Available || this.currentAttempt?.Index != this.indexer
+            || this.indexer < 0 || this.indexer + 2 >= this.Actions.Count
+            || !ReferenceEquals(this.pathAction, this.Actions[this.indexer])) return;
+        bool deathOrReturn = DeathHelper.DeathState != PlayerLifeState.Alive || Player.IsDead
+            || Environment.TickCount64 < this.returnObservedUntil
+            || FFXIVClientStructs.FFXIV.Client.Game.ActionManager.Instance()->CastActionId == 6;
+        if (!this.interactionTransition.ObserveForcedMovement(this.pathAction, this.indexer,
+                Svc.ClientState.TerritoryType, Player.Position, Environment.TickCount64, deathOrReturn,
+                this.Actions[this.indexer + 1], this.Actions[this.indexer + 2])) return;
+        VNavmesh_IPCSubscriber.Path_Stop();
+        NavigationDiagnostics.Record("movement-launch-start", detail: new { target = this.pathAction.Position, landing = this.Actions[this.indexer + 2].Position });
+    }
+
     private bool TickInteractionTransition()
     {
         if (this.Stage is Stage.Stopped or Stage.Paused or Stage.Dead or Stage.Revived) return false;
@@ -291,7 +308,7 @@ public partial class AutoDuty
                 this.interactionTransitionCancelled = true;
             }
             bool loading = Svc.Condition[ConditionFlag.BetweenAreas] || Svc.Condition[ConditionFlag.BetweenAreas51];
-            if (this.interactionTransition.Settled(now, loading, PlayerHelper.IsValid,
+            if (this.interactionTransition.Settled(now, loading, PlayerHelper.IsReadyFull,
                     Svc.ClientState.TerritoryType, Player.Available ? Player.Position : default)
                 && this.pathAction.ConditionsUntil.TrueForAll(c => c.IsFulfilled()))
             {

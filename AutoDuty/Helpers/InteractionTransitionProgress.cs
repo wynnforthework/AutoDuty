@@ -23,6 +23,34 @@ internal sealed class InteractionTransitionProgress
     private int movementIndex;
     private uint movementTerritory;
     private Vector3 movementOrigin;
+    private Vector3? forcedLanding;
+    private PathAction? launchStep;
+    private int launchIndex;
+    private uint launchTerritory;
+    private Vector3 launchOrigin;
+    private long launchAt;
+
+    internal bool ObserveForcedMovement(PathAction step, int index, uint territory, Vector3 position,
+        long now, bool deathOrReturn, PathAction? next, PathAction? landing)
+    {
+        // Launch pads need not raise BetweenAreas at all. Require route intent,
+        // a recent approach on the source floor, and actual travel toward a
+        // different destination floor. Ordinary jumps/knockbacks are insufficient.
+        if (this.Pending || deathOrReturn || step.Name != "MoveTo"
+            || next is not { Name: "WaitFor", Arguments.Count: 1 } || next.Position != Vector3.Zero
+            || WaitForArguments.Normalize(next.Arguments[0]) is not ["IsReady"]
+            || landing == null || landing.Position == Vector3.Zero
+            || !ReferenceEquals(this.launchStep, step) || this.launchIndex != index
+            || this.launchTerritory != territory || now < this.launchAt || now - this.launchAt > 2000) return false;
+        float floorChange = landing.Position.Y - step.Position.Y;
+        float travelled = position.Y - this.launchOrigin.Y;
+        if (System.MathF.Abs(floorChange) < 10 || travelled * System.MathF.Sign(floorChange) < 6
+            || System.MathF.Abs(position.Y - landing.Position.Y) >= System.MathF.Abs(this.launchOrigin.Y - landing.Position.Y)) return false;
+        Vector3 source = this.launchOrigin;
+        this.Click(step, index, territory, source, now);
+        this.forcedLanding = landing.Position;
+        return this.ObserveLoading(step, index, now, false);
+    }
 
     internal static bool IsScriptedTransfer(PathAction step, PathAction? next) => step.Name == "MoveTo"
         && step.Arguments.Count > 0 && bool.TryParse(step.Arguments[0], out bool mesh) && !mesh
@@ -35,6 +63,7 @@ internal sealed class InteractionTransitionProgress
         if (this.Pending) return;
         if (!ReferenceEquals(this.movementStep, step) || this.movementIndex != index || this.movementTerritory != territory)
         {
+            this.launchStep = null;
             this.movementStep = step;
             this.movementIndex = index;
             this.movementTerritory = territory;
@@ -55,6 +84,14 @@ internal sealed class InteractionTransitionProgress
         this.approachingTerritory = territory;
         this.approachingPosition = position;
         this.approachedAt = now;
+        if (ReferenceEquals(this.approachingStep, step) && System.MathF.Abs(position.Y - step.Position.Y) <= 3)
+        {
+            this.launchStep = step;
+            this.launchIndex = index;
+            this.launchTerritory = territory;
+            this.launchOrigin = position;
+            this.launchAt = now;
+        }
     }
 
     internal bool ObserveTrackedMovementLoading(PathAction step, int index, long now, bool deathOrReturn)
@@ -107,6 +144,10 @@ internal sealed class InteractionTransitionProgress
     {
         if (!this.Pending) return false;
         if (loading || !valid) { this.readySince = null; return false; }
+        if (this.forcedLanding is { } landing
+            && (System.MathF.Abs(position.Y - landing.Y) > 3
+                || new Vector2(position.X - landing.X, position.Z - landing.Z).LengthSquared() > 10000))
+        { this.readySince = null; return false; }
         this.readySince ??= now;
         return now - this.readySince.Value >= 1000
             && (territory != this.territory || Vector3.DistanceSquared(this.origin, position) > 4);
@@ -123,5 +164,7 @@ internal sealed class InteractionTransitionProgress
         this.Index = -1;
         this.Pending = false;
         this.readySince = null;
+        this.forcedLanding = null;
+        this.launchStep = null;
     }
 }
