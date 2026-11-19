@@ -102,7 +102,9 @@ internal sealed class PathRecorder
         if (!Player.Available) return;
         if (Plugin.Actions.Count >= 10000) { this.Stop(); return; }
         if (this.manualTransfer != null) { this.RecordTransferSample(this.lastTick); return; }
-        string? displacement = this.transitionMonitor.Observe(Svc.ClientState.TerritoryType, Player.Position, this.lastTick);
+        // Recording is one continuous observation stream rather than route
+        // execution, so it deliberately uses a stable synthetic owner.
+        string? displacement = this.transitionMonitor.Observe(0, Svc.ClientState.TerritoryType, Player.Position, this.lastTick);
         if (Player.IsDead || PartyHelper.PartyInCombat())
         { this.recordingSource = null; this.recordingTrace = null; this.lastReadyPosition = null; this.landingStability.Reset(); }
         else

@@ -343,10 +343,14 @@ public partial class AutoDuty
             || FFXIVClientStructs.FFXIV.Client.Game.ActionManager.Instance()->CastActionId == 6;
         if (deathOrReturn || this.pathAction.Name == "TeleportTo")
         { this.displacementMonitor.Reset(); this.displacementSource = null; return; }
+        bool navigationActive = VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress
+            || VNavmesh_IPCSubscriber.Path_IsRunning || VNavmesh_IPCSubscriber.Path_NumWaypoints > 0;
+        if (!DisplacementOwnership.ShouldObserve(this.pathAction, navigationActive))
+        { this.displacementMonitor.Reset(); this.displacementSource = null; return; }
         long now = Environment.TickCount64;
         var position = Player.Position;
         uint territory = Svc.ClientState.TerritoryType;
-        string? anomaly = this.displacementMonitor.Observe(territory, position, now);
+        string? anomaly = this.displacementMonitor.Observe(this.indexer, territory, position, now);
         if (Svc.Condition[ConditionFlag.BeingMoved]) anomaly ??= "forced-movement";
         var source = anomaly != null ? this.displacementMonitor.Source : this.displacementSource ?? position;
         this.displacementSource = position;

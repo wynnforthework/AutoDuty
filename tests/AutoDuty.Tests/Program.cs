@@ -822,19 +822,26 @@ static void TestTransitionRegions()
     Check(!transfer.ActivateExpectedMovement(step, 6, 974, region.Center, 1200), "interaction evidence cannot advance another index");
     Check(transfer.ActivateExpectedMovement(step, 5, 974, region.Center, 1200), "configured same-height or gradual interaction transfer requires no loading flag");
     var monitor = new DisplacementMonitor();
-    Check(monitor.Observe(974, new(0, 0, 0), 0) == null, "first displacement sample has no history");
+    Check(monitor.Observe(2, 974, new(0, 0, 0), 0) == null, "first displacement sample has no history");
     for (int i = 1; i <= 100; i++)
-        Check(monitor.Observe(974, new(i * .06f, 0, 0), i * 10) == null, "ordinary walking at high frame rate is not a transition");
-    Check(monitor.Observe(974, new(100, 0, 0), 1100) == "forced-displacement", "same-height instant relocation cancels old path");
-    monitor.Reset(); monitor.Observe(974, new(0, 0, 0), 0);
+        Check(monitor.Observe(2, 974, new(i * .06f, 0, 0), i * 10) == null, "ordinary walking at high frame rate is not a transition");
+    Check(monitor.Observe(2, 974, new(100, 0, 0), 1100) == "forced-displacement", "same-height instant relocation cancels old path");
+    Check(monitor.Observe(3, 974, new(100, -10, 0), 1110) == null, "new step never inherits the previous step velocity sample");
+    monitor.Reset(); monitor.Observe(2, 974, new(0, 0, 0), 0);
     string? observed = null;
-    for (int i = 1; i <= 20; i++) observed ??= monitor.Observe(974, new(0, i * .5f, 0), i * 10);
+    for (int i = 1; i <= 20; i++) observed ??= monitor.Observe(2, 974, new(0, i * .5f, 0), i * 10);
     Check(observed == "forced-displacement", "continuous fast launch is detected despite sub-two-metre frames");
-    monitor.Reset(); monitor.Observe(974, region.Center, 0);
-    Check(monitor.Observe(975, region.Center, 200) == "territory-changed", "territory change does not need coordinate change");
+    monitor.Reset(); monitor.Observe(2, 974, region.Center, 0);
+    Check(monitor.Observe(2, 975, region.Center, 200) == "territory-changed", "territory change does not need coordinate change");
     Check(monitor.SourceTerritory == 974, "transition retains source territory rather than destination territory");
-    monitor.Reset(); monitor.Observe(974, region.Center, 0);
-    Check(monitor.Observe(975, region.Center, 10) == "territory-changed", "map changes are observed even inside the displacement sampling interval");
+    monitor.Reset(); monitor.Observe(2, 974, region.Center, 0);
+    Check(monitor.Observe(2, 975, region.Center, 10) == "territory-changed", "map changes are observed even inside the displacement sampling interval");
+    var readinessWait = new PathAction { Name = "WaitFor", Arguments = ["IsReady"] };
+    Check(!DisplacementOwnership.ShouldObserve(readinessWait, false), "zero-position readiness wait cannot inherit a jump landing");
+    Check(DisplacementOwnership.ShouldObserve(readinessWait, true), "active navigation remains protected even during a zero-position wait");
+    Check(!DisplacementOwnership.ShouldObserve(new() { Name = "Jump", Position = new(1, 2, 3) }, false), "scripted jump is ordinary movement, not an unknown transfer");
+    var declaredJump = new PathAction { Name = "Jump", Position = new(1, 2, 3), Transition = region };
+    Check(DisplacementOwnership.ShouldObserve(declaredJump, false), "explicit jump destination opts into transfer validation");
     transfer.Reset();
     transfer.BeginDisplacement(step, 36, 974, region.Center, 0, new() { Territory = 975, Center = region.Center });
     Check(!transfer.Settled(1000, false, true, 975, region.Center)

@@ -85,10 +85,19 @@ internal sealed class DisplacementMonitor
     private Vector3 previous;
     private uint territory;
     private long? at;
+    private int step = -1;
     internal Vector3 Source { get; private set; }
     internal uint SourceTerritory { get; private set; }
-    internal string? Observe(uint territory, Vector3 position, long now)
+    internal string? Observe(int step, uint territory, Vector3 position, long now)
     {
+        // A velocity sample belongs to one route entry. Movement initiated by
+        // the previous entry (for example Jump followed by WaitFor IsReady)
+        // must not be attributed to the new entry.
+        if (this.step != step)
+        {
+            this.Reset();
+            this.step = step;
+        }
         string? reason = null;
         if (this.at is { } at && now > at && now - at <= 10000)
         {
@@ -104,5 +113,22 @@ internal sealed class DisplacementMonitor
         this.at = now; this.previous = position; this.territory = territory;
         return reason;
     }
-    internal void Reset() => this.at = null;
+    internal void Reset() { this.at = null; this.step = -1; }
+}
+
+internal static class DisplacementOwnership
+{
+    internal static bool ShouldObserve(PathAction step, bool navigationActive)
+    {
+        // An explicit destination opts the entry into transfer validation.
+        if (step.Transition != null) return true;
+
+        // These entries intentionally create ordinary movement. Treating that
+        // movement as an unknown transfer makes their landing fail by design.
+        if (step.Name is "Jump" or "JumpTo" or "TeleportTo") return false;
+
+        // With neither a coordinate nor an active path there is no stale
+        // navigation to cancel. A zero-position readiness wait is such a case.
+        return step.Position != Vector3.Zero || navigationActive;
+    }
 }
