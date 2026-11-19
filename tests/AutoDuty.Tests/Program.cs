@@ -160,6 +160,7 @@ static void Run()
         Check(!LoadingRecoveryProgress.CanResume(name, false, false), "unknown action cannot replay after loading: " + name);
     Console.WriteLine("PASS: delayed loading recovery, stable readiness, same-step movement replay and unsafe replay exclusions");
     TestNavigationReadiness();
+    TestStepExecutionGates();
     TestPathPersistence();
     var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>
     {
@@ -650,6 +651,62 @@ static void TestMovementTransfer()
     progress.TrackMovement(step, 22, 1366, trigger + new System.Numerics.Vector3(40, 0, 0), 10100);
     Check(!progress.ObserveTrackedMovementLoading(step, 22, 10200, false), "moving away from portal invalidates cached approach");
     Console.WriteLine("PASS: Dusk Vigil movement portal, duplicate flags, stable destination, ownership, reset, timeout and death/Return exclusion");
+}
+static void TestStepExecutionGates()
+{
+    var gate = new StepExecutionGate();
+    Check(!gate.Ready(false, 0) && !gate.Ready(false, 120000), "slow loading cannot open a step through elapsed wall time");
+    Check(!gate.Ready(true, 120001) && !gate.Ready(true, 121000), "first ready frame is not permission to execute");
+    Check(gate.Ready(true, 121001), "continuously ready state permits execution");
+    Check(!gate.Ready(false, 121002) && !gate.Ready(true, 180000), "later loading invalidates earlier readiness");
+    Check(gate.Ready(true, 181000), "recovered player starts a fresh readiness window");
+    gate.Reset();
+    Check(!gate.Ready(true, 200000), "next step cannot reuse previous completion/start evidence");
+    foreach (bool world in new[] { false, true })
+    foreach (bool paused in new[] { false, true })
+    foreach (bool transfer in new[] { false, true })
+    foreach (bool failure in new[] { false, true })
+    {
+        bool allowed = StepExecutionGate.CanTick(true, paused, world, transfer, failure);
+        if (!world || paused || transfer || failure)
+            Check(!allowed, "route queue cannot run across loading, pause, transfer or pending failure");
+        else Check(allowed, "healthy route queue may tick");
+    }
+    Check(StepExecutionGate.CanTick(false, false, false, true, true), "queue-entry and between-run tasks may observe not-ready states");
+    Check(!StepExecutionGate.CanTick(false, true, true, false, false), "manual pause also protects non-route queues");
+    Check(!StepExecutionGate.NeedsMesh("SelectYesno", false, false), "dialogue selection does not require navmesh");
+    Check(!StepExecutionGate.NeedsMesh("WaitFor", false, false), "state observation does not require navmesh");
+    Check(!StepExecutionGate.NeedsMesh("TeleportTo", true, false), "explicit teleport does not wait for mesh");
+    Check(!StepExecutionGate.NeedsMesh("MoveTo", true, true), "explicit direct movement does not require mesh readiness");
+    Check(StepExecutionGate.NeedsMesh("MoveTo", true, false) && StepExecutionGate.NeedsMesh("Boss", true, false), "positioned movement and boss approach require mesh");
+    var attempt = new StepAttempt { Index = 5, Action = new() { Name = "Interactable" },
+        StartedAt = 1000, ActionStartedAt = 2000, LastTickAt = 3000, Attempts = 2 };
+    long taskDeadline = 13000;
+    taskDeadline += attempt.Suspend(63000, default);
+    Check(attempt.StartedAt == 61000 && attempt.ActionStartedAt == 62000
+        && taskDeadline == 73000, "one-minute loading freezes movement, action and task deadlines together");
+    Check(attempt.Suspend(63000, default) == 0 && attempt.StartedAt == 61000,
+        "main and queue callbacks cannot double-charge the same paused interval");
+    Check(attempt.Attempts == 2 && attempt.Index == 5, "suspension neither replenishes retries nor advances step");
+    attempt.LastTickAt = 64000; // One second of actual execution.
+    taskDeadline += attempt.Suspend(124000, default); // Manual pause.
+    Check(124000 - attempt.ActionStartedAt == 2000 && taskDeadline - 124000 == 9000,
+        "multiple pauses preserve only actual execution time");
+    var notStarted = new StepAttempt { Index = 0, Action = new() { Name = "Wait" }, LastTickAt = 0 };
+    notStarted.Suspend(120000, default);
+    Check(notStarted.ActionStartedAt == 0, "loading before invocation never creates an action start timestamp");
+    notStarted.RetryAfter = 121000;
+    notStarted.Suspend(180000, default, suspendRetry: true);
+    Check(notStarted.RetryAfter == 181000, "loading suspends retry cooldown and mesh retry deadline");
+    notStarted.Suspend(240000, default);
+    Check(notStarted.RetryAfter == 181000, "waiting for mesh itself cannot extend its own readiness deadline forever");
+    long Limit(string name, params string[] args) => StepTimeoutPolicy.Limit(new() { Name = name, Arguments = [.. args] }, 600000, 0, 30000);
+    Check(Limit("Boss") == 600000 && Limit("KillInRange", "30") == 600000, "normal combat cannot hit the generic thirty-second action limit");
+    Check(Limit("WaitFor", "Combat") == long.MaxValue, "disabled wait timeout remains disabled");
+    Check(Limit("AutoMoveFor", "60000") == 90000 && Limit("Wait", "60000") == 90000, "script duration is never shorter than its action timeout");
+    Check(Limit("Wait", int.MaxValue.ToString()) > int.MaxValue, "long duration plus grace cannot overflow");
+    Check(Limit("Interactable", "2000001") == 30000, "interaction keeps bounded action timeout");
+    Console.WriteLine("PASS: execution and completion readiness, queue ordering guards, mesh-free actions and shared suspended deadlines");
 }
 static void TestNavigationReadiness()
 {

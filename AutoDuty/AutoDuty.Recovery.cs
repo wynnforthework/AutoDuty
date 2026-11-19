@@ -26,7 +26,6 @@ public sealed partial class AutoDuty
         if (!this.transitionWorkCancelled)
         {
             this.CancelStepWork();
-            this.pendingStepFailure = null;
             this.transitionWorkCancelled = true;
         }
         if (Environment.TickCount64 - this.transitionObservedAt > 60000)
@@ -47,7 +46,7 @@ public sealed partial class AutoDuty
         else if (this.Stage != Stage.Paused && RouteCompletionPolicy.HasStep(this.indexer, this.Actions.Count)
             && LoadingRecoveryProgress.CanResume(this.Actions[this.indexer].Name,
                 this.transitionWasReturn || DeathHelper.DeathState != PlayerLifeState.Alive,
-                this.currentFailure != null))
+                this.currentFailure != null || this.pendingStepFailure != null))
         {
             NavigationDiagnostics.Record("position-transition-resume-same-step", detail: new { origin = this.transitionOrigin, position = Player.Position });
             Svc.Log.Info($"Step {this.indexer}: loading settled; restarting the same movement from the new position (no step skipped).");

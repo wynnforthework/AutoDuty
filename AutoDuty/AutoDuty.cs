@@ -197,7 +197,6 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
             if (value is not Stage.Paused)
             {
-                if (this.taskManager.StepMode) this.taskManager.StepMode = false;
                 this.States               &= ~PluginState.Paused;
             }
 
@@ -370,6 +369,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
                                                    ShowDebug = true
                                                });
 
+            this.taskManager.StepMode = true;
             this.taskManager.DefaultConfiguration.OnTaskTimeout += (ECommons.Automation.NeoTaskManager.TaskManagerTask task, ref long remaining) =>
             {
                 if (this.Stage != Stage.Action || this.currentAttempt == null || task.Configuration is OptionalWaitConfiguration) return;
@@ -629,6 +629,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             PluginInterface.UiBuilder.OpenMainUi   += this.OpenMainUI;
 
             Svc.Framework.Update             += this.Framework_Update;
+            Svc.Framework.Update             += this.TickTaskQueue;
             Svc.Framework.Update             += SchedulerHelper.ScheduleInvoker;
             Svc.ClientState.TerritoryChanged += this.ClientState_TerritoryChanged;
             Svc.ClientState.Login            += this.ClientStateOnLogin;
@@ -1445,7 +1446,11 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (this.currentAttempt is { } retry && retry.Index == this.indexer && retry.RetryAfter > 0)
         {
             if (Environment.TickCount64 < retry.RetryAfter) return;
-            if (!VNavmesh_IPCSubscriber.Nav_IsReady)
+            if (StepExecutionGate.NeedsMesh(this.Actions[this.indexer].Name,
+                    this.Actions[this.indexer].Position != Vector3.Zero,
+                    this.Actions[this.indexer].Name == "MoveTo" && this.Actions[this.indexer].Arguments.Count > 0
+                        && bool.TryParse(this.Actions[this.indexer].Arguments[0], out bool retryMesh) && !retryMesh)
+                && !VNavmesh_IPCSubscriber.Nav_IsReady)
             {
                 if (Environment.TickCount64 - retry.RetryAfter > Math.Max(1000, Configuration.DutyConfig.NavmeshRebuildTimeoutMs))
                     this.FailCurrentStep("navmesh-not-ready", "Waiting for rebuilt mesh before retry", forcePause: true);
@@ -1681,7 +1686,18 @@ public sealed partial class AutoDuty : IDalamudPlugin
     private bool TryAdvanceAtDestination()
     {
         if (!Player.Available || (PartyHelper.PartyInCombat() && (this.DutyData?.StopForCombat ?? true))
-            || !CombatCheckpointProgress.HasArrived(this.pathAction, Player.Position, this.currentAttempt?.Attempts ?? 0)) return false;
+            || !CombatCheckpointProgress.HasArrived(this.pathAction, Player.Position, this.currentAttempt?.Attempts ?? 0))
+        {
+            this.movementCompletionGate.Reset();
+            return false;
+        }
+        if (VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress || VNavmesh_IPCSubscriber.Path_IsRunning)
+            VNavmesh_IPCSubscriber.Path_Stop();
+        if (!this.movementCompletionGate.Ready(this.ExecutionWorldReady(), Environment.TickCount64))
+        {
+            this.action = "已到达，等待位置和游戏状态稳定";
+            return true;
+        }
         if (EzThrottler.Throttle("AdvanceStep" + this.indexer, 100))
         {
             VNavmesh_IPCSubscriber.Path_Stop();
@@ -1720,20 +1736,18 @@ public sealed partial class AutoDuty : IDalamudPlugin
         
         if (this.currentAttempt is { ActionStartedAt: > 0 } attempt && this.taskManager.IsBusy)
         {
-            long limit = attempt.Action.Name switch
-            {
-                "Boss" => Configuration.DutyConfig.BossStepTimeoutMs,
-                "WaitFor" => Configuration.DutyConfig.WaitForStepTimeoutMs <= 0 ? long.MaxValue : Configuration.DutyConfig.WaitForStepTimeoutMs,
-                "Wait" when attempt.Action.Arguments.Count > 0 && int.TryParse(attempt.Action.Arguments[0], out int wait) => Math.Max(0L, wait) + 30_000L,
-                _ => Configuration.DutyConfig.ActionStepTimeoutMs,
-            };
+            long limit = StepTimeoutPolicy.Limit(attempt.Action, Configuration.DutyConfig.BossStepTimeoutMs,
+                Configuration.DutyConfig.WaitForStepTimeoutMs, Configuration.DutyConfig.ActionStepTimeoutMs);
             if (Environment.TickCount64 - attempt.ActionStartedAt > Math.Max(1000L, limit))
             {
                 this.RegisterStepFailure("action-timeout", attempt.Action.Name);
                 return;
             }
         }
-        if (!this.taskManager.IsBusy && EzThrottler.Throttle("AdvanceStep" + this.indexer, 100))
+        if (this.taskManager.IsBusy) this.actionCompletionGate.Reset();
+        if (!this.taskManager.IsBusy
+            && this.actionCompletionGate.Ready(this.ExecutionWorldReady(), Environment.TickCount64)
+            && EzThrottler.Throttle("AdvanceStep" + this.indexer, 100))
         {
             // Flow-sand objects may disappear before the loading flags arrive.
             // Keep the interaction as owner until its observed transfer settles.
@@ -2434,7 +2448,6 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (this.taskManager != null)
         {
-            this.taskManager.StepMode = false;
             this.taskManager.Abort();
         }
 
@@ -2483,6 +2496,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.StopAndResetAll();
         MultiboxUtility.Config?.MultiBox =  false;
         Svc.Framework.Update             -= this.Framework_Update;
+        Svc.Framework.Update             -= this.TickTaskQueue;
         Svc.Framework.Update             -= SchedulerHelper.ScheduleInvoker;
         InstanceContentCrucible.Dispose();
         FileHelper.FileSystemWatcher?.Dispose();

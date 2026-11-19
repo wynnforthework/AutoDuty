@@ -564,6 +564,7 @@ namespace AutoDuty.Managers
                 return;
             
             Plugin.action = $"Killing in {range}y";
+            var emptyArea = new StepExecutionGate();
 
             taskManager.Enqueue(() => BossMod_IPCSubscriber.SetMovement(true), "KillInRange-StopForCombat");
 
@@ -575,7 +576,8 @@ namespace AutoDuty.Managers
                                     List<IGameObject> gameObjects = Svc.Objects.Where(igo => igo is { ObjectKind: ObjectKind.BattleNpc, IsTargetable: true } && igo.IsHostile() && BelowDistanceToPoint(igo.Position, action.Position, range, range / 2f))
                                                                               .ToList();
                                     if (gameObjects.Count == 0)
-                                        return true;
+                                        return emptyArea.Ready(IsValid && !PartyHelper.PartyInCombat(), Environment.TickCount64);
+                                    emptyArea.Reset();
 
                                     if (Svc.Targets.Target != null && gameObjects.Contains(Svc.Targets.Target))
                                     {
@@ -743,7 +745,7 @@ namespace AutoDuty.Managers
                 }
                 else if (gameObject == null)
                 {
-                    taskManager.Abort();
+                    Plugin.ReportTaskFailure("interaction-object-missing", string.Join(",", dataIds));
                 }
             }, "Interactable-InCombatCheck");
             taskManager.Enqueue(() => gameObject?.IsTargetable ?? true, "Interactable-WaitGameObjectTargetable");

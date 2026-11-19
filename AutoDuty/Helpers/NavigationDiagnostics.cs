@@ -28,6 +28,7 @@ internal static class NavigationDiagnostics
                 territory = Svc.ClientState.TerritoryType, step = Plugin.indexer, stepNumberBase = 0, stage = Plugin.Stage.ToString(),
                 route = Path.GetFileName(Plugin.pathFile),
                 action = Plugin.currentAttempt?.Action.ToCustomString(), attempt = (Plugin.currentAttempt?.Attempts ?? 0) + 1,
+                executionStatus = Plugin.action,
                 position = Player.Available ? Player.Position : default,
                 rotation = Player.Available ? Player.Character->Rotation : 0,
                 combat = PartyHelper.PartyInCombat(),

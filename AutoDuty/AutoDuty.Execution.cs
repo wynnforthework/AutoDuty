@@ -13,6 +13,10 @@ public partial class AutoDuty
 {
     internal readonly CombatCheckpointProgress combatCheckpoints = new();
     private readonly NavigationReadiness navigationReadiness = new();
+    private readonly StepExecutionGate stepStartGate = new();
+    private readonly StepExecutionGate actionCompletionGate = new();
+    private readonly StepExecutionGate movementCompletionGate = new();
+    private readonly StepExecutionGate taskResumeGate = new();
     internal readonly InteractionTransitionProgress interactionTransition = new();
     private bool interactionTransitionCancelled;
     private bool interactionRequiresTransfer;
@@ -24,6 +28,9 @@ public partial class AutoDuty
 
     internal void BeginAttempt(int index)
     {
+        this.stepStartGate.Reset();
+        this.actionCompletionGate.Reset();
+        this.movementCompletionGate.Reset();
         this.interactionTransition.Reset();
         this.interactionTransitionCancelled = false;
         this.interactionRequiresTransfer = false;
@@ -89,6 +96,7 @@ public partial class AutoDuty
             attempt.StuckCount = 0;
             attempt.CombatApproach.Reset();
             attempt.RetryAfter = Environment.TickCount64 + 1000;
+            this.stepStartGate.Reset();
             StuckHelper.ResetForStep();
             this.Stage = Stage.Reading_Path;
             return;
@@ -331,19 +339,49 @@ public partial class AutoDuty
     {
         if (this.currentAttempt?.Index != this.indexer) this.BeginAttempt(this.indexer);
         long now = Environment.TickCount64;
+        if (this.Stage is Stage.Paused or Stage.Dead or Stage.Revived)
+        {
+            this.stepStartGate.Reset();
+            this.movementCompletionGate.Reset();
+            this.actionCompletionGate.Reset();
+            this.SuspendAttemptClock(now, suspendRetry: true);
+            return true;
+        }
         bool navigationStage = this.Stage is Stage.Reading_Path or Stage.Moving;
+        bool worldReady = this.ExecutionWorldReady();
+        bool taskReady = this.taskResumeGate.Ready(worldReady, now);
+        if (!worldReady || (this.Stage == Stage.Action && !taskReady)
+            || (this.Stage == Stage.Reading_Path && !this.stepStartGate.Ready(this.CanStartStep(), now)))
+        {
+            if (!worldReady) this.stepStartGate.Reset();
+            this.actionCompletionGate.Reset();
+            this.movementCompletionGate.Reset();
+            this.SuspendAttemptClock(now, suspendRetry: true);
+            this.action = !worldReady ? "等待角色就绪：加载、过场或不可操作" : "等待步骤前置状态持续就绪";
+            if (this.Stage == Stage.Moving)
+            {
+                VNavmesh_IPCSubscriber.Path_Stop();
+                this.Stage = Stage.Reading_Path;
+            }
+            return false;
+        }
         if (!navigationStage) this.navigationReadiness.Reset();
-        bool canNavigate = !navigationStage || this.navigationReadiness.Observe(PlayerHelper.IsReadyFull,
-            !InDungeon || Svc.DutyState.IsDutyStarted, VNavmesh_IPCSubscriber.Nav_IsReady, now);
+        var step = this.currentAttempt?.Action;
+        bool needsMesh = step != null && StepExecutionGate.NeedsMesh(step.Name,
+            step.Position != System.Numerics.Vector3.Zero,
+            step.Name == "MoveTo" && step.Arguments.Count > 0 && bool.TryParse(step.Arguments[0], out bool mesh) && !mesh);
+        bool canNavigate = !navigationStage || this.navigationReadiness.Observe(this.CanStartStep(),
+            !InDungeon || Svc.DutyState.IsDutyStarted, !needsMesh || VNavmesh_IPCSubscriber.Nav_IsReady, now);
         if (navigationStage && !canNavigate)
         {
-            if (this.currentAttempt is { } waiting)
+            if (needsMesh && this.currentAttempt is { RetryAfter: > 0 } retry && PlayerHelper.IsReadyFull
+                && !VNavmesh_IPCSubscriber.Nav_IsReady
+                && now - retry.RetryAfter > Math.Max(1000, Configuration.DutyConfig.NavmeshRebuildTimeoutMs))
             {
-                waiting.StartedAt += now - waiting.LastTickAt;
-                waiting.LastTickAt = now;
-                waiting.Progress.Reset(Player.Available ? Player.Position : default, now);
-                waiting.NavigationStop.Reset();
+                this.FailCurrentStep("navmesh-not-ready", "rebuilt mesh did not become ready within retry readiness limit", forcePause: true);
+                return false;
             }
+            this.SuspendAttemptClock(now);
             if (this.Stage == Stage.Moving)
             {
                 VNavmesh_IPCSubscriber.Path_Stop();
@@ -359,19 +397,57 @@ public partial class AutoDuty
             return false;
         }
         if (this.currentAttempt is not { } attempt) return true;
-        if (this.Stage is Stage.Paused or Stage.Waiting_For_Combat or Stage.Dead or Stage.Revived
+        if (this.Stage is Stage.Waiting_For_Combat
+            || (this.Stage == Stage.Action && PartyHelper.PartyInCombat()
+                && (this.taskManager.CurrentTask?.Name is "Wait" or "Interactable-InCombatWait"))
             || Svc.Condition[ConditionFlag.WatchingCutscene] || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
             || Svc.Condition[ConditionFlag.OccupiedInQuestEvent] || Svc.Condition[ConditionFlag.BetweenAreas]
             || Svc.Condition[ConditionFlag.BetweenAreas51])
         {
-            long delta = now - attempt.LastTickAt;
-            attempt.StartedAt += delta;
-            if (attempt.ActionStartedAt != 0) attempt.ActionStartedAt += delta;
-            this.taskManager.RemainingTimeMS += delta;
-            attempt.Progress.Reset(Player.Available ? Player.Position : default, now);
-            attempt.NavigationStop.Reset();
+            this.SuspendAttemptClock(now);
         }
         attempt.LastTickAt = now;
         return true;
+    }
+
+    private bool ExecutionWorldReady() => PlayerHelper.IsValid
+        && !Svc.Condition[ConditionFlag.WatchingCutscene]
+        && !Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
+        && !Svc.Condition[ConditionFlag.WatchingCutscene78];
+
+    private bool CanStartStep() => this.ExecutionWorldReady() &&
+        (PlayerHelper.IsReadyFull || Svc.Condition[ConditionFlag.CarryingItem]
+            || Svc.Condition[ConditionFlag.CarryingObject]
+            || (RouteCompletionPolicy.HasStep(this.indexer, this.Actions.Count)
+                && this.Actions[this.indexer].Name is "SelectString" or "SelectYesno" or "SelectJournalResult" or "WaitFor" or "ClickTalk"));
+
+    private void SuspendAttemptClock(long now, bool suspendRetry = false)
+    {
+        if (this.currentAttempt is not { } attempt) return;
+        long delta = attempt.Suspend(now, Player.Available ? Player.Position : default, suspendRetry);
+        if (this.taskManager.CurrentTask != null) this.taskManager.RemainingTimeMS += delta;
+    }
+
+    // The route and its queue share one framework ordering. A separate queue
+    // callback must not consume work after readiness was rejected by the route.
+    private void TickTaskQueue(Dalamud.Plugin.Services.IFramework _)
+    {
+        bool route = this.States.HasFlag(PluginState.Navigating);
+        if (!route) this.taskResumeGate.Reset();
+        bool allowed = StepExecutionGate.CanTick(route, this.Stage == Stage.Paused,
+            this.ExecutionWorldReady(), this.transitionPending || this.interactionTransition.Pending,
+            this.currentFailure != null || this.pendingStepFailure != null);
+        if (!allowed)
+        {
+            this.taskResumeGate.Reset();
+            if (route) this.SuspendAttemptClock(Environment.TickCount64, suspendRetry: true);
+            return;
+        }
+        if (route && !this.taskResumeGate.Ready(true, Environment.TickCount64))
+        {
+            this.SuspendAttemptClock(Environment.TickCount64);
+            return;
+        }
+        if (this.taskManager.IsBusy) this.taskManager.Step();
     }
 }
