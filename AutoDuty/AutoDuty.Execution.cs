@@ -87,6 +87,7 @@ public partial class AutoDuty
             attempt.ActionStartedAt = 0;
             attempt.MovementStarted = false;
             attempt.StuckCount = 0;
+            attempt.CombatApproach.Reset();
             attempt.RetryAfter = Environment.TickCount64 + 1000;
             StuckHelper.ResetForStep();
             this.Stage = Stage.Reading_Path;

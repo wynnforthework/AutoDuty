@@ -68,6 +68,25 @@ static void Run()
     TestBossProgress();
     TestCombatCheckpoint();
     TestLevelingPlan();
+    var combatPursuit = new CombatApproachProgress();
+    var pursuitStart = new System.Numerics.Vector3(96, 24, -256);
+    var pursuitTarget = new System.Numerics.Vector3(24, 28, -211);
+    Check(!combatPursuit.IsStuck(pursuitStart, 0, 500), "combat approach starts its own progress window");
+    Check(combatPursuit.ShouldRequest(pursuitTarget, false), "first distant enemy approach requests mesh path");
+    for (int tick = 500; tick < 5000; tick += 500)
+    {
+        Check(!combatPursuit.ShouldRequest(pursuitTarget, true), "busy pursuit does not overwrite mesh path every combat tick");
+        Check(!combatPursuit.IsStuck(pursuitStart, tick, 500), "pursuit startup uses bounded grace");
+    }
+    Check(combatPursuit.IsStuck(pursuitStart, 5000, 500), "combat wall running fails even while pathfinding stays true");
+    Check(combatPursuit.ShouldRequest(pursuitTarget + new System.Numerics.Vector3(3, 0, 0), true), "moving enemy may update approach without resetting watchdog");
+    Check(combatPursuit.IsStuck(pursuitStart, 5500, 500), "target updates cannot hide stationary pursuit");
+    Check(combatPursuit.ShouldRequest(pursuitTarget, false), "stopped pursuit may request a fresh path");
+    Check(!combatPursuit.IsStuck(pursuitStart + new System.Numerics.Vector3(1, 0, 0), 6000, 500), "actual combat pursuit movement resets watchdog");
+    combatPursuit.Reset();
+    Check(!combatPursuit.IsStuck(pursuitStart, 20000, 500), "combat end, cast or retry resets pursuit window");
+    Check(combatPursuit.ShouldRequest(pursuitTarget, true), "fresh pursuit owns a new request even if another path is active");
+    Console.WriteLine("PASS: combat approach watchdog, persistent finding/running, duplicate request suppression, moving targets and recovery reset");
     var movementProgress = new MovementProgress();
     var anchor = new System.Numerics.Vector3(104, 0, 150);
     movementProgress.Reset(anchor, 0);

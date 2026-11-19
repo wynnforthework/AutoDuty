@@ -16,6 +16,7 @@ internal sealed class StepAttempt
     internal bool StartReported;
     internal readonly NavigationStopProgress NavigationStop = new();
     internal readonly MovementProgress Progress = new();
+    internal readonly CombatApproachProgress CombatApproach = new();
     internal long RetryAfter;
     internal Vector3 StartPosition;
     internal string? LastFailReason;

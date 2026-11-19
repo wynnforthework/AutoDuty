@@ -1530,7 +1530,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if ((this.skipTreasureCoffer || !Configuration.DutyConfig.LootTreasure || Configuration.DutyConfig.LootBossTreasureOnly) && this.pathAction.Tag.HasFlag(ActionTag.Treasure))
         {
-            Svc.Log.Debug($"Skipping path entry {this.Actions[this.indexer].Name} because we are either in revival mode, LootTreasure is off or BossOnly");
+            string reason = this.skipTreasureCoffer ? "revival mode" : !Configuration.DutyConfig.LootTreasure ? "LootTreasure disabled" : "Boss-only loot enabled";
+            Svc.Log.Info($"[AutoDuty] Step {this.indexer} ({this.pathAction.Name}) skipped by loot policy: {reason}.");
+            NavigationDiagnostics.Record("step-policy-skip", detail: reason);
             this.MetricsStepCompleted(true);
             this.indexer++;
             return;
@@ -1589,6 +1591,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
         }
 
+        bool directMovement = this.pathAction is { Name: "MoveTo", Arguments.Count: > 0 }
+            && bool.TryParse(this.pathAction.Arguments[0], out bool meshArgument) && !meshArgument;
+        Svc.Log.Info($"[AutoDuty] Step {this.indexer}: navigation started; mode={(directMovement ? "direct (MoveTo false)" : "vnavmesh pathfinding")}; target={this.pathAction.Position}.");
         this.currentAttempt!.StartedAt = Environment.TickCount64;
         this.currentAttempt.Progress.Reset(Player.Position, Environment.TickCount64);
         this.currentAttempt.NavigationStop.Reset();
@@ -1636,7 +1641,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
         }
 
-        if (PlayerHelper.IsCasting || VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress)
+        if (PlayerHelper.IsCasting)
             this.currentAttempt?.Progress.Reset(Player.Position, Environment.TickCount64);
         if (!PlayerHelper.IsCasting && this.currentAttempt is { } progressAttempt
             && progressAttempt.Progress.IsStuck(Player.Position, Environment.TickCount64, Configuration.DutyConfig.Stuck.MinStuckTime))
@@ -1754,6 +1759,18 @@ public sealed partial class AutoDuty : IDalamudPlugin
             }
         }
 
+        bool approaching = PartyHelper.PartyInCombat() && this.pathAction.Name != "Boss"
+            && Svc.Targets.Target is IBattleChara target && target.CurrentHp > 0
+            && ObjectHelper.GetBattleDistanceToPlayer(target) > 25;
+        if (PlayerHelper.IsCasting) this.currentAttempt?.CombatApproach.Reset();
+        if (approaching && !PlayerHelper.IsCasting && this.currentAttempt is { } pursuit
+            && pursuit.CombatApproach.IsStuck(Player.Position, Environment.TickCount64,
+                Configuration.DutyConfig.Stuck.MinStuckTime))
+        {
+            this.RegisterStepFailure("stuck", "combat approach; " + this.MovementFailureDetail());
+            return;
+        }
+
         if (PartyHelper.PartyInCombat())
         {
             if (Plugin.pathAction?.Name != "Boss")
@@ -1769,13 +1786,29 @@ public sealed partial class AutoDuty : IDalamudPlugin
                                                                               (ObjectHelper.GetDistanceToPlayer(x) > 25 ||
                                                                                !x.IsTargetable)))
                     {
+                        if (!PlayerHelper.IsCasting && this.currentAttempt is { } chase
+                            && chase.CombatApproach.IsStuck(Player.Position, Environment.TickCount64,
+                                Configuration.DutyConfig.Stuck.MinStuckTime))
+                        {
+                            this.RegisterStepFailure("stuck", "unreachable combat enemy; " + this.MovementFailureDetail());
+                            return;
+                        }
                         if (EzThrottler.Throttle("CombatRangeCheck", 500))
                             foreach (IBattleChara? enemy in inCombatEnemies)
                             {
                                 Vector3? vector3 = VNavmesh_IPCSubscriber.Query_Mesh_PointOnFloor(enemy!.Position, false, 5f);
                                 if (vector3.HasValue)
                                 {
-                                    VNavmesh_IPCSubscriber.SimpleMove_PathfindAndMoveTo(vector3.Value, false);
+                                    // Do not replace an in-flight request every 500ms.
+                                    bool busy = VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress || VNavmesh_IPCSubscriber.Path_IsRunning;
+                                    if (this.currentAttempt?.CombatApproach.ShouldRequest(vector3.Value, busy) != false)
+                                    {
+                                        BossMod_IPCSubscriber.SetMovement(false);
+                                        this.DutyData?.StayCloseToTank = false;
+                                        if (busy) VNavmesh_IPCSubscriber.Path_Stop();
+                                        if (!VNavmesh_IPCSubscriber.SimpleMove_PathfindAndMoveTo(vector3.Value, false))
+                                            this.RegisterStepFailure("pathfind-rejected", $"combat approach target={vector3.Value}");
+                                    }
                                     return;
                                 }
                             }
@@ -1785,10 +1818,12 @@ public sealed partial class AutoDuty : IDalamudPlugin
                     else
                     {
                         VNavmesh_IPCSubscriber.Path_Stop();
+                        BossMod_IPCSubscriber.SetMovement(true);
                     }
                 }
             }
 
+            if (!approaching) this.currentAttempt?.CombatApproach.Reset();
             if (Svc.Targets.Target == null)
             {
                 //find and target closest attackable npc, if we are not targeting
@@ -1825,6 +1860,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         }
         else if (!PartyHelper.PartyInCombat() && !VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress)
         {
+            this.currentAttempt?.CombatApproach.Reset();
             BossMod_IPCSubscriber.SetRange(Configuration.DutyConfig.BossMod.MaxDistanceToTargetFloat);
 
             VNavmesh_IPCSubscriber.Path_Stop();
