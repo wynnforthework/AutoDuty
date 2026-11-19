@@ -207,7 +207,10 @@ internal sealed class InteractionTransitionProgress
             bool arrived = expected.IsContinuationTarget || expected.Contains(territory, position);
             this.WaitingReason = !arrived ? "destination-region" : expected.RequireGround && !groundReady ? "ground-or-mesh" : "position-stability";
             bool destinationStable = this.stability.Observe(arrived && (!expected.RequireGround || groundReady)
-                && ((this.Signals & (TransitionSignal.Loading | TransitionSignal.ZoneInit | TransitionSignal.Territory)) != 0
+                // Loading proves that a transfer started, not that its destination
+                // was reached. Some duties briefly restore control between two
+                // loading phases while the player is still at the source.
+                && ((this.Signals & (TransitionSignal.ZoneInit | TransitionSignal.Territory)) != 0
                     || territory != this.territory || position != this.origin),
                 position, now, expected.StableMs, expected.RequireStillness);
             if (processEnded && destinationStable) this.Phase = TransitionPhase.DestinationConfirmed;

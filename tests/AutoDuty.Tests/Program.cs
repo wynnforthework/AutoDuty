@@ -662,7 +662,12 @@ static void TestMovementTransfer()
     progress.Expect(InteractionTransitionProgress.InferDestination(ready, target));
     Check(!progress.Settled(200000, true, false, 974, source), "slow loading remains pending");
     Check(!progress.Settled(201000, false, true, 974, source)
-        && progress.Settled(202000, false, true, 974, source), "same-coordinate transport can recover readiness without a fabricated displacement");
+        && !progress.Settled(202000, false, true, 974, source), "loading alone cannot confirm a same-coordinate destination");
+    Check(!progress.CompleteStep(step, 18, true, true, true), "a brief ready gap between loading phases cannot complete the movement step");
+    Check(progress.ObserveTrackedMovementLoading(step, 18, 203000, false), "a second loading phase remains owned by the same movement step");
+    var actualLanding = source + new System.Numerics.Vector3(20, 120, 5);
+    Check(!progress.Settled(204000, false, true, 974, actualLanding)
+        && progress.Settled(205000, false, true, 974, actualLanding), "actual post-loading relocation can settle the destination");
     Check(!progress.CompleteStep(step, 18, true, false, true), "ended loading and readiness alone cannot skip an unconnected step");
     Check(progress.CompleteStep(step, 18, true, true, true), "matching connectivity completes only the owning loaded movement");
     progress.Reset();
@@ -727,8 +732,9 @@ static void TestKtisisTransitionContinuation()
     progress.Expect(expected);
     Check(!progress.Settled(30000, true, false, 974, step.Position), "slow loading is not completion");
     Check(!progress.Settled(31000, false, true, 974, step.Position)
-        && progress.Settled(32000, false, true, 974, step.Position), "readiness may return before the actual transfer is confirmed");
+        && !progress.Settled(32000, false, true, 974, step.Position), "brief readiness at the source cannot confirm the transfer");
     Check(!progress.CompleteStep(step, 18, true, false, true), "old floor with no continuation path cannot complete step 18");
+    Check(progress.ObserveTrackedMovementLoading(step, 18, 32500, false), "Ktisis second loading phase remains attached to step 18");
     var landed = new System.Numerics.Vector3(step.Position.X, actions[21].Position.Y, step.Position.Z);
     Check(!progress.Settled(33000, false, true, 974, landed, false), "destination floor without required ground evidence waits");
     Check(!progress.Settled(34000, false, true, 974, landed)
