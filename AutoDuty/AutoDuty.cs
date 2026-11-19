@@ -638,6 +638,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
             Svc.Framework.Update             += this.TickTaskQueue;
             Svc.Framework.Update             += SchedulerHelper.ScheduleInvoker;
             Svc.ClientState.TerritoryChanged += this.ClientState_TerritoryChanged;
+            Svc.ClientState.ZoneInit         += this.ClientState_ZoneInit;
+            Svc.ClientState.MapIdChanged     += this.ClientState_MapIdChanged;
             Svc.ClientState.Login            += this.ClientStateOnLogin;
             Svc.Condition.ConditionChange    += this.Condition_ConditionChange;
             Svc.DutyState.DutyStarted        += this.DutyState_DutyStarted;
@@ -975,6 +977,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
     {
         this.MetricsTerritoryChanged(t);
         this.ResetDepartedDuty(t);
+        this.ObserveWorldChange(TransitionSignal.Territory);
         if (MultiboxUtility.Config.MultiBox)
         {
             bool isDuty = ContentHelper.DictionaryContent.ContainsKey(t);
@@ -2357,6 +2360,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         FileHelper.Tick();
         NavigationDiagnostics.Tick();
         this.TickBossProgress();
+        if (this.TickUnownedWorldChange()) return;
         this.ObserveForcedMovementTransfer();
         this.TickPositionRecovery();
         if (this.transitionPending) return;
@@ -2555,6 +2559,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.MainWindow?.Dispose();
         this.overrideCamera?.Dispose();
         Svc.ClientState.TerritoryChanged -= this.ClientState_TerritoryChanged;
+        Svc.ClientState.ZoneInit         -= this.ClientState_ZoneInit;
+        Svc.ClientState.MapIdChanged     -= this.ClientState_MapIdChanged;
         Svc.Condition.ConditionChange    -= this.Condition_ConditionChange;
         PctService.Dispose();
         PluginInterface.UiBuilder.Draw   -= this.UiBuilderOnDraw;

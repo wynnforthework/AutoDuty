@@ -1,36 +1,30 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Collections.Generic;
 
 namespace AutoDuty.Helpers;
 
+[System.Flags]
+internal enum TransitionSignal { None = 0, Loading = 1, ZoneInit = 2, Territory = 4, ForcedMotion = 8, PositionAnomaly = 16 }
+
 internal enum TransitionPhase { AwaitingTrigger, Suspected, Travelling, ValidatingDestination, DestinationConfirmed, StepCompleted }
 
-// Transfer evidence belongs to one step: an actual interaction, or loading triggered
-// while actively approaching a nearby MoveTo destination.
+// Transfer evidence belongs to one active step. Game signals establish observation;
+// subsequent ground/readiness/destination evidence establishes completion.
 internal sealed class InteractionTransitionProgress
 {
     internal PathAction? Step { get; private set; }
     internal int Index { get; private set; } = -1;
     internal bool Pending { get; private set; }
+    internal TransitionSignal Signals { get; private set; }
+    internal void RecordSignal(TransitionSignal signal) => this.Signals |= signal;
     private uint territory;
     private Vector3 origin;
     private long clickedAt;
     private long loadingAt;
-    private PathAction? approachingStep;
-    private int approachingIndex;
-    private uint approachingTerritory;
-    private Vector3 approachingPosition;
-    private long approachedAt;
     private PathAction? movementStep;
     private int movementIndex;
     private uint movementTerritory;
     private Vector3 movementOrigin;
-    private Vector3? forcedLanding;
-    private PathAction? launchStep;
-    private int launchIndex;
-    private uint launchTerritory;
-    private Vector3 launchOrigin;
-    private long launchAt;
     private readonly TransitionStability stability = new();
     private readonly TransitionStability processStability = new();
     internal TransitionPhase Phase { get; private set; }
@@ -41,7 +35,7 @@ internal sealed class InteractionTransitionProgress
     {
         if (this.Pending || step.Transition == null || !ReferenceEquals(this.Step, step) || this.Index != index
             || (territory == this.territory && Vector3.DistanceSquared(this.origin, position) <= 4)) return false;
-        return this.ObserveLoading(step, index, now, false);
+        return this.ObserveLoading(step, index, now, false, TransitionSignal.PositionAnomaly);
     }
 
     internal bool BeginDisplacement(PathAction step, int index, uint territory, Vector3 source, long now,
@@ -50,7 +44,7 @@ internal sealed class InteractionTransitionProgress
         if (destination == null || !destination.Valid) return false;
         this.Click(step, index, territory, source, now);
         this.Expect(destination);
-        return this.ObserveLoading(step, index, now, false);
+        return this.ObserveLoading(step, index, now, false, TransitionSignal.PositionAnomaly);
     }
 
     internal static TransitionRegion? InferDestination(PathAction? next, PathAction? after) =>
@@ -99,6 +93,9 @@ internal sealed class InteractionTransitionProgress
     {
         if (!ReferenceEquals(this.Step, step) || this.Index != index || !this.Pending
             || this.Phase != TransitionPhase.DestinationConfirmed || this.Destination == null) return false;
+        if (this.Destination.IsContinuationTarget
+            && (this.Signals & ~TransitionSignal.PositionAnomaly) == TransitionSignal.None)
+        { this.WaitingReason = "destination-unknown"; return false; }
         if (!conditions) { this.WaitingReason = "step-conditions"; return false; }
         if ((this.Destination.RequirePath && !pathConfirmed) || !pathWaitFinished)
         { this.WaitingReason = "path-evidence"; return false; }
@@ -107,78 +104,48 @@ internal sealed class InteractionTransitionProgress
     }
 
     internal bool ObserveForcedMovement(PathAction step, int index, uint territory, Vector3 position,
-        long now, bool deathOrReturn, PathAction? next, PathAction? landing)
+        long now, bool deathOrReturn, PathAction? next, PathAction? landing, bool forcedMotion = false)
     {
-        // Launch pads need not raise BetweenAreas at all. Require route intent,
-        // a recent approach on the source floor, and actual travel toward a
-        // different destination floor. Ordinary jumps/knockbacks are insufficient.
-        if (this.Pending || deathOrReturn || step.Name != "MoveTo"
-            || next is not { Name: "WaitFor", Arguments.Count: 1 } || next.Position != Vector3.Zero
-            || WaitForArguments.Normalize(next.Arguments[0]) is not ["IsReady"]
-            || landing == null || landing.Position == Vector3.Zero
-            || !ReferenceEquals(this.launchStep, step) || this.launchIndex != index
-            || this.launchTerritory != territory || now < this.launchAt || now - this.launchAt > 2000) return false;
-        float floorChange = landing.Position.Y - step.Position.Y;
-        float travelled = position.Y - this.launchOrigin.Y;
-        if (System.MathF.Abs(floorChange) < 10 || travelled * System.MathF.Sign(floorChange) < 6
-            || System.MathF.Abs(position.Y - landing.Position.Y) >= System.MathF.Abs(this.launchOrigin.Y - landing.Position.Y)) return false;
-        Vector3 source = this.launchOrigin;
+        // Only an actual game forced-motion signal may authorize legacy launch
+        // ownership. Position/speed heuristics merely stop unsafe navigation.
+        if (this.Pending || deathOrReturn || !forcedMotion || step.Name != "MoveTo"
+            || !ReferenceEquals(this.movementStep, step) || this.movementIndex != index
+            || this.movementTerritory != territory || landing == null
+            || landing.Position == Vector3.Zero || !HasReadinessBarrier(next)) return false;
+        Vector3 source = this.movementOrigin;
         this.Click(step, index, territory, source, now);
-        this.forcedLanding = landing.Position;
         this.Expect(step.Transition ?? ContinuationEvidence(landing.Position));
-        return this.ObserveLoading(step, index, now, false);
+        return this.ObserveLoading(step, index, now, false, TransitionSignal.ForcedMotion);
     }
 
+    private static bool HasReadinessBarrier(PathAction? next) => next is { Name: "WaitFor", Arguments.Count: 1 }
+        && next.Position == Vector3.Zero && WaitForArguments.Normalize(next.Arguments[0]) is ["IsReady"];
     internal static bool IsScriptedTransfer(PathAction step, PathAction? next) => step.Name == "MoveTo"
         && step.Arguments.Count > 0 && bool.TryParse(step.Arguments[0], out bool mesh) && !mesh
-        && next is { Name: "WaitFor", Arguments.Count: 1 } && next.Position == Vector3.Zero
-        && WaitForArguments.Normalize(next.Arguments[0]) is ["IsReady"];
+        && HasReadinessBarrier(next);
 
     internal void TrackMovement(PathAction step, int index, uint territory, Vector3 position, long now,
         PathAction? next = null)
     {
         if (this.Pending) return;
-        if (!ReferenceEquals(this.movementStep, step) || this.movementIndex != index || this.movementTerritory != territory)
-        {
-            this.launchStep = null;
-            this.movementStep = step;
-            this.movementIndex = index;
-            this.movementTerritory = territory;
-            this.movementOrigin = position;
-        }
-        // Direct MoveTo + WaitFor IsReady is an existing portal idiom. Its
-        // loading trigger can precede the destination by more than 10m. Accept
-        // actual progress along that specific segment, not arbitrary loading.
-        Vector3 segment = step.Position - this.movementOrigin;
-        float lengthSquared = segment.LengthSquared();
-        float fraction = lengthSquared > .25f ? Vector3.Dot(position - this.movementOrigin, segment) / lengthSquared : -1;
-        bool onTransferSegment = IsScriptedTransfer(step, next) && fraction > 0 && fraction <= 1
-            && Vector3.DistanceSquared(position, this.movementOrigin) >= .25f
-            && Vector3.DistanceSquared(position, this.movementOrigin + fraction * segment) <= 9;
-        this.approachingStep = step.Name == "MoveTo"
-            && ((step.Transition?.NearTrigger(step.Position, position) ?? (Vector3.DistanceSquared(step.Position, position) <= 100)) || onTransferSegment) ? step : null;
-        this.approachingIndex = index;
-        this.approachingTerritory = territory;
-        this.approachingPosition = position;
-        this.approachedAt = now;
-        if (ReferenceEquals(this.approachingStep, step) && System.MathF.Abs(position.Y - step.Position.Y) <= 3)
-        {
-            this.launchStep = step;
-            this.launchIndex = index;
-            this.launchTerritory = territory;
-            this.launchOrigin = position;
-            this.launchAt = now;
-        }
+        if (ReferenceEquals(this.movementStep, step) && this.movementIndex == index
+            && this.movementTerritory == territory) return;
+        this.movementStep = step;
+        this.movementIndex = index;
+        this.movementTerritory = territory;
+        this.movementOrigin = position;
     }
 
-    internal bool ObserveTrackedMovementLoading(PathAction step, int index, long now, bool deathOrReturn)
+    internal bool ObserveTrackedMovementLoading(PathAction step, int index, long now, bool deathOrReturn,
+        TransitionSignal signal = TransitionSignal.Loading)
     {
         if (deathOrReturn) return false;
-        if (this.Pending) return this.ObserveLoading(step, index, now, false);
-        if (!ReferenceEquals(this.approachingStep, step) || this.approachingIndex != index
-            || now < this.approachedAt || now - this.approachedAt > 2000) return false;
-        this.Click(step, index, this.approachingTerritory, this.approachingPosition, now);
-        return this.ObserveLoading(step, index, now, false);
+        if (this.Pending) return this.ObserveLoading(step, index, now, false, signal);
+        if (step.Name != "MoveTo" || !ReferenceEquals(this.movementStep, step) || this.movementIndex != index) return false;
+        uint sourceTerritory = this.movementTerritory;
+        Vector3 source = this.movementOrigin;
+        this.Click(step, index, sourceTerritory, source, now);
+        return this.ObserveLoading(step, index, now, false, signal);
     }
 
     internal static bool RequiresTransfer(uint territory, uint objectId)
@@ -197,21 +164,21 @@ internal sealed class InteractionTransitionProgress
     }
 
     internal bool ObserveMovementLoading(PathAction step, int index, bool moving,
-        uint territory, Vector3 position, long now, bool deathOrReturn)
+        uint territory, Vector3 position, long now, bool deathOrReturn, TransitionSignal signal = TransitionSignal.Loading)
     {
-        // Loading alone must never skip an arbitrary movement. A portal can trigger
-        // before the recorded destination (Dusk Vigil triggers about 7m before it).
-        // Restrict automatic ownership to a 10m sphere around that destination.
-        if (!moving || deathOrReturn || step.Name != "MoveTo"
-            || !(step.Transition?.NearTrigger(step.Position, position) ?? (Vector3.DistanceSquared(step.Position, position) <= 100))) return false;
+        // The loading signal belongs to the active movement, not to a guessed
+        // distance around its target. Completion still requires destination evidence.
+        if (!moving || deathOrReturn || step.Name != "MoveTo") return false;
         this.Click(step, index, territory, position, now);
-        return this.ObserveLoading(step, index, now, false);
+        return this.ObserveLoading(step, index, now, false, signal);
     }
 
-    internal bool ObserveLoading(PathAction step, int index, long now, bool deathOrReturn)
+    internal bool ObserveLoading(PathAction step, int index, long now, bool deathOrReturn,
+        TransitionSignal signal = TransitionSignal.Loading)
     {
         if (deathOrReturn || !ReferenceEquals(this.Step, step) || this.Index != index
             || (!this.Pending && now - this.clickedAt >= 30_000)) return false;
+        this.RecordSignal(signal);
         if (!this.Pending) this.loadingAt = now;
         this.Pending = true;
         this.Phase = TransitionPhase.Suspected;
@@ -240,15 +207,12 @@ internal sealed class InteractionTransitionProgress
             bool arrived = expected.IsContinuationTarget || expected.Contains(territory, position);
             this.WaitingReason = !arrived ? "destination-region" : expected.RequireGround && !groundReady ? "ground-or-mesh" : "position-stability";
             bool destinationStable = this.stability.Observe(arrived && (!expected.RequireGround || groundReady)
-                && (territory != this.territory || Vector3.DistanceSquared(this.origin, position) > 4),
+                && ((this.Signals & (TransitionSignal.Loading | TransitionSignal.ZoneInit | TransitionSignal.Territory)) != 0
+                    || territory != this.territory || position != this.origin),
                 position, now, expected.StableMs, expected.RequireStillness);
             if (processEnded && destinationStable) this.Phase = TransitionPhase.DestinationConfirmed;
             return processEnded && destinationStable;
         }
-        if (this.forcedLanding is { } landing
-            && (System.MathF.Abs(position.Y - landing.Y) > 3
-                || new Vector2(position.X - landing.X, position.Z - landing.Z).LengthSquared() > 10000))
-        { this.stability.Reset(); return false; }
         this.WaitingReason = "destination-unknown";
         return this.stability.Observe(territory != this.territory || Vector3.DistanceSquared(this.origin, position) > 4,
             position, now, 1000, true);
@@ -259,13 +223,11 @@ internal sealed class InteractionTransitionProgress
 
     internal void Reset()
     {
-        this.approachingStep = null;
         this.movementStep = null;
         this.Step = null;
         this.Index = -1;
         this.Pending = false;
-        this.forcedLanding = null;
-        this.launchStep = null;
+        this.Signals = TransitionSignal.None;
         this.Destination = null;
         this.stability.Reset();
         this.processStability.Reset();

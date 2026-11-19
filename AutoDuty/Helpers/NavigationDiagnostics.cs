@@ -26,6 +26,8 @@ internal static class NavigationDiagnostics
             {
                 utc = DateTime.UtcNow, sequence = System.Threading.Interlocked.Increment(ref sequence), operation, source, detail,
                 territory = Svc.ClientState.TerritoryType, step = Plugin.indexer, stepNumberBase = 0, stage = Plugin.Stage.ToString(),
+                map = Svc.ClientState.MapId, instance = Svc.ClientState.Instance,
+                transferSignals = Plugin.interactionTransition.Signals.ToString(),
                 route = Path.GetFileName(Plugin.pathFile),
                 action = Plugin.currentAttempt?.Action.ToCustomString(), attempt = (Plugin.currentAttempt?.Attempts ?? 0) + 1,
                 executionStatus = Plugin.action,

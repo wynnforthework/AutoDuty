@@ -649,106 +649,65 @@ static void TestInteractionTransfer()
 }
 static void TestMovementTransfer()
 {
-    var portal = new InteractionTransitionProgress();
-    var crossing = new AutoDuty.Data.Classes.PathAction { Name = "MoveTo", Position = new(-125.86f, 501.29f, -5.6f), Arguments = ["false"] };
-    var waitReady = new AutoDuty.Data.Classes.PathAction { Name = "WaitFor", Arguments = ["IsReady"] };
-    var entry = new System.Numerics.Vector3(-136.75784f, 500.28732f, 7.183294f);
-    var loadPosition = new System.Numerics.Vector3(-133.499f, 501.48148f, 3.3606186f);
-    var destination = new System.Numerics.Vector3(-155.4559f, 621.7324f, -2.44003f);
-    Check(System.Numerics.Vector3.Distance(loadPosition, crossing.Position) > 10, "reported Ktisis trigger lies outside old portal sphere");
-    portal.TrackMovement(crossing, 18, 974, entry, 0, waitReady);
-    Check(!portal.ObserveTrackedMovementLoading(crossing, 18, 10, false), "portal pattern alone without actual movement cannot skip a step");
-    portal.TrackMovement(crossing, 18, 974, loadPosition, 800, waitReady);
-    Check(!portal.ObserveTrackedMovementLoading(crossing, 18, 801, true), "scripted portal does not authorize death or Return");
-    Check(portal.ObserveTrackedMovementLoading(crossing, 18, 801, false), "Ktisis direct crossing owns observed loading before destination sphere");
-    Check(!portal.Settled(900, true, false, 974, loadPosition)
-        && !portal.Settled(1000, false, true, 974, loadPosition)
-        && !portal.Settled(2100, false, true, 974, loadPosition), "flag ending before teleport cannot complete or replay old coordinates");
-    Check(portal.ObserveTrackedMovementLoading(crossing, 18, 2300, false), "delayed second load flag keeps original portal owner");
-    Check(!portal.Settled(2400, false, true, 974, destination)
-        && portal.Settled(3400, false, true, 974, destination), "new floor settles before crossing completes");
-    portal.Reset();
-    portal.TrackMovement(crossing, 18, 974, entry, 0);
-    portal.TrackMovement(crossing, 18, 974, loadPosition, 800);
-    Check(!portal.ObserveTrackedMovementLoading(crossing, 18, 801, false), "ordinary distant movement retains strict portal guard");
-    portal.Reset();
-    portal.TrackMovement(crossing, 18, 974, entry, 0, waitReady);
-    portal.TrackMovement(crossing, 18, 974, entry + new System.Numerics.Vector3(0, 5, 0), 800, waitReady);
-    Check(!portal.ObserveTrackedMovementLoading(crossing, 18, 801, false), "another floor cannot authorize scripted segment");
-    Check(!InteractionTransitionProgress.IsScriptedTransfer(crossing, new() { Name = "WaitFor", Arguments = ["Combat"] }), "other waits do not imply portal intent");
     var progress = new InteractionTransitionProgress();
-    var step = new AutoDuty.Data.Classes.PathAction
+    PathAction step = new() { Name = "MoveTo", Position = new(-125.86f, 501.29f, -5.6f), Arguments = ["false"] };
+    PathAction ready = new() { Name = "WaitFor", Arguments = ["IsReady"] };
+    PathAction target = new() { Name = "MoveTo", Position = new(-155, 624, 20) };
+    var source = new System.Numerics.Vector3(-500, 500, 200);
+    progress.TrackMovement(step, 18, 974, source, 0, ready);
+    Check(!progress.Pending, "merely moving or having a readiness barrier supplies no transport signal");
+    Check(!progress.ObserveTrackedMovementLoading(step, 18, 100000, true), "death and Return cannot authorize loading");
+    Check(!progress.ObserveTrackedMovementLoading(step, 19, 100000, false), "world signal cannot consume another step");
+    Check(progress.ObserveTrackedMovementLoading(step, 18, 100000, false), "actual loading owns active movement regardless of distance or time since start");
+    progress.Expect(InteractionTransitionProgress.InferDestination(ready, target));
+    Check(!progress.Settled(200000, true, false, 974, source), "slow loading remains pending");
+    Check(!progress.Settled(201000, false, true, 974, source)
+        && progress.Settled(202000, false, true, 974, source), "same-coordinate transport can recover readiness without a fabricated displacement");
+    Check(!progress.CompleteStep(step, 18, true, false, true), "ended loading and readiness alone cannot skip an unconnected step");
+    Check(progress.CompleteStep(step, 18, true, true, true), "matching connectivity completes only the owning loaded movement");
+    progress.Reset();
+    Check(progress.Signals == TransitionSignal.None && !progress.ObserveTrackedMovementLoading(step, 18, 300000, false), "reset removes both ownership and signals");
+    foreach (var signal in new[] { TransitionSignal.ZoneInit, TransitionSignal.Territory })
     {
-        Name = "MoveTo", Position = new(192.01451f, -8.05f, -212.5612f)
-    };
-    var trigger = new System.Numerics.Vector3(191.99313f, -8.050052f, -205.81342f);
-    var upstairs = new System.Numerics.Vector3(196.04f, 24, -256.61f);
-    Check(!progress.ObserveMovementLoading(step, 22, false, 1366, trigger, 1000, false), "idle/reading/combat movement cannot authorize a transfer");
-    Check(!progress.ObserveMovementLoading(step, 22, true, 1366, trigger, 1000, true), "death or Return never completes a nearby MoveTo");
-    Check(!progress.ObserveMovementLoading(step, 22, true, 1366, trigger + new System.Numerics.Vector3(20, 0, 0), 1000, false), "remote loading remains unexpected");
-    var boss = new AutoDuty.Data.Classes.PathAction { Name = "Boss", Position = step.Position };
-    Check(!progress.ObserveMovementLoading(boss, 22, true, 1366, trigger, 1000, false), "Boss prerequisite movement must not skip the encounter");
-    Check(progress.Step == null && !progress.Pending, "rejected movement loading leaves no transferable evidence");
-    Check(progress.ObserveMovementLoading(step, 22, true, 1366, trigger, 1000, false), "Dusk Vigil index 22 portal triggers before original coordinate is reached");
-    Check(!progress.Settled(2000, true, false, 1366, upstairs), "old coordinate cannot complete while loading");
-    Check(!progress.ObserveLoading(step, 23, 2100, false), "next step cannot consume previous movement transfer");
-    Check(progress.ObserveLoading(step, 22, 2500, false), "second loading flag retains original owning step after displacement");
-    Check(!progress.Settled(3000, false, true, 1366, upstairs), "wait for destination to settle");
-    Check(progress.Settled(4000, false, true, 1366, upstairs), "same territory floor transfer completes movement without revisiting old coordinates");
-    progress.Reset();
-    Check(!progress.Pending && !progress.Settled(5000, false, true, 1366, upstairs), "stop/seek/death reset prevents duplicate advancement");
-    progress.ObserveMovementLoading(step, 22, true, 1366, trigger, 1000, false);
-    Check(!progress.Settled(2000, false, true, 1366, trigger)
-        && !progress.Settled(3000, false, true, 1366, trigger), "loading without position or territory change never completes movement");
-    Check(progress.TimedOut(61000), "unconfirmed movement transfer has a bounded timeout");
-    progress.Reset();
-    progress.ObserveMovementLoading(step, 22, true, 1366, trigger, 1000, false);
-    Check(!progress.Settled(2000, false, true, 999, trigger)
-        && progress.Settled(3000, false, true, 999, trigger), "changed territory also confirms movement transfer after settling");
-    progress.Reset();
-    progress.TrackMovement(step, 22, 1366, trigger, 1000);
-    Check(!progress.ObserveTrackedMovementLoading(step, 22, 1100, true), "cached portal approach cannot authorize death or Return");
-    Check(!progress.ObserveTrackedMovementLoading(step, 23, 1100, false), "cached approach belongs to the original index");
-    Check(!progress.ObserveTrackedMovementLoading(new AutoDuty.Data.Classes.PathAction { Name = "MoveTo", Position = step.Position }, 22, 1100, false), "replacement step cannot reuse cached approach");
-    Check(progress.ObserveTrackedMovementLoading(step, 22, 1100, false), "preload sample survives absent player, changed position or readiness fallback to Reading_Path");
-    Check(progress.ObserveTrackedMovementLoading(step, 22, 5000, false), "second loading flag preserves pending transfer beyond approach sample lifetime");
-    Check(!progress.Settled(5100, false, true, 1366, upstairs)
-        && progress.Settled(6100, false, true, 1366, upstairs), "cached origin confirms upstairs arrival without revisiting old coordinates");
-    progress.Reset();
-    Check(!progress.ObserveTrackedMovementLoading(step, 22, 6200, false), "reset removes pending and cached approach evidence");
-    progress.TrackMovement(step, 22, 1366, trigger, 7000);
-    Check(!progress.ObserveTrackedMovementLoading(step, 22, 9001, false), "stale approach cannot authorize unrelated loading");
-    progress.TrackMovement(step, 22, 1366, trigger, 10000);
-    progress.TrackMovement(step, 22, 1366, trigger + new System.Numerics.Vector3(40, 0, 0), 10100);
-    Check(!progress.ObserveTrackedMovementLoading(step, 22, 10200, false), "moving away from portal invalidates cached approach");
-    Console.WriteLine("PASS: Dusk Vigil movement portal, duplicate flags, stable destination, ownership, reset, timeout and death/Return exclusion");
+        progress.TrackMovement(step, 18, 974, source, 0, ready);
+        Check(progress.ObserveTrackedMovementLoading(step, 18, 1000, false, signal), "game world identity signal can be latched without BetweenAreas");
+        Check(progress.Signals == signal, "zone initialization is not falsely labelled as a loading flag");
+        progress.Reset();
+    }
+    var boss = new PathAction { Name = "Boss", Position = step.Position };
+    Check(!progress.ObserveMovementLoading(boss, 18, true, 974, source, 0, false), "boss combat is not completed by a world signal");
+    var inferred = InteractionTransitionProgress.InferDestination(ready, target);
+    progress.BeginDisplacement(step, 18, 974, source, 0, inferred);
+    progress.Settled(1000, false, true, 974, target.Position);
+    progress.Settled(2000, false, true, 974, target.Position);
+    Check(!progress.CompleteStep(step, 18, true, true, true), "position anomaly and path alone cannot prove a legacy transport");
+    Console.WriteLine("PASS: authoritative loading/zone/territory signals, slow and same-coordinate transport, no target-distance assumption, scoped ownership and anomaly-only rejection");
 }
 static void TestLaunchTransfer()
 {
     var progress = new InteractionTransitionProgress();
-    PathAction step = new() { Name = "MoveTo", Position = new(-.02f, -700, -1.35f), Arguments = ["true"] };
+    PathAction step = new() { Name = "MoveTo", Position = new(0, -700, 0), Arguments = ["true"] };
     PathAction ready = new() { Name = "WaitFor", Arguments = ["IsReady"] };
-    PathAction landing = new() { Name = "Wait", Position = new(19.98f, -600, -45.01f), Arguments = ["1000"] };
-    var source = new System.Numerics.Vector3(-.025f, -699.74f, 2.04f);
-    var airborne = new System.Numerics.Vector3(.38f, -686.18f, 2.05f);
-    var destination = new System.Numerics.Vector3(9.93f, -599.82f, -17.26f);
-    progress.TrackMovement(step, 36, 974, source, 1000, ready);
-    Check(!progress.ObserveForcedMovement(step, 36, 974, source, 1100, false, ready, landing), "approaching pad is not completed movement");
-    Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 1200, true, ready, landing), "death and Return cannot authorize a launch");
-    Check(!progress.ObserveForcedMovement(step, 37, 974, airborne, 1200, false, ready, landing), "launch evidence belongs to one index");
-    Check(!progress.ObserveForcedMovement(step, 36, 974, source + new System.Numerics.Vector3(0, 2, 0), 1200, false, ready, landing), "ordinary jump cannot authorize launch");
-    Check(!progress.ObserveForcedMovement(step, 36, 974, source - new System.Numerics.Vector3(0, 12, 0), 1200, false, ready, landing), "falling away from next floor is not successful launch");
-    Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 1200, false, new() { Name = "WaitFor", Arguments = ["Combat"] }, landing), "ordinary movement without transfer intent stays bounded");
-    progress.TrackMovement(step, 36, 974, source + new System.Numerics.Vector3(0, 4, 0), 1250, ready);
-    Check(progress.ObserveForcedMovement(step, 36, 974, airborne, 1300, false, ready, landing), "mesh MoveTo launch is recognized without any loading event despite airborne samples");
-    Check(!progress.Settled(2000, false, true, 974, airborne, false) && !progress.Settled(4000, false, true, 974, airborne, false), "readiness alone cannot complete while flying between floors");
-    Check(!progress.Settled(4100, false, false, 974, destination), "landing without player readiness waits");
-    Check(!progress.Settled(4200, false, true, 974, destination) && progress.Settled(5200, false, true, 974, destination), "ready on expected destination floor completes launch after settling");
+    PathAction next = new() { Name = "Wait", Position = new(20, -600, -45), Arguments = ["1000"] };
+    var source = new System.Numerics.Vector3(0, -700, 0);
+    var airborne = source + new System.Numerics.Vector3(0, 2, 0);
+    progress.TrackMovement(step, 36, 974, source, 0, ready);
+    Check(!progress.ObserveForcedMovement(step, 36, 974, source, 1000, false, ready, next), "approach without game signal is not transport");
+    Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 1000, true, ready, next, true), "forced movement cannot override death or Return");
+    Check(!progress.ObserveForcedMovement(step, 37, 974, airborne, 1000, false, ready, next, true), "forced motion cannot consume another step");
+    Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 1000, false, new() { Name = "WaitFor", Arguments = ["Combat"] }, next, true), "forced motion without transfer intent remains unconfirmed");
+    Check(progress.ObserveForcedMovement(step, 36, 974, airborne, 100000, false, ready, next, true), "actual forced signal does not need six metres of travel or a two-second approach sample");
+    Check(progress.Signals == TransitionSignal.ForcedMotion, "forced movement has its own evidence, never a fabricated loading flag");
+    Check(!progress.Settled(101000, false, true, 974, airborne, true, true)
+        && !progress.Settled(110000, false, true, 974, airborne, false), "ongoing forced motion and absent ground cannot settle");
+    var landed = new System.Numerics.Vector3(0, -720, 40);
+    Check(!progress.Settled(111000, false, true, 974, landed)
+        && progress.Settled(112000, false, true, 974, landed), "grounded motion end is independent of next point height or guessed travel direction");
+    Check(!progress.CompleteStep(step, 36, true, false, true), "wrong connected area cannot be assumed from forced movement alone");
+    Check(progress.CompleteStep(step, 36, true, true, true), "script intent plus completed forced motion, ground stability and path are required together");
     progress.Reset();
-    Check(!progress.Pending && !progress.ObserveForcedMovement(step, 36, 974, airborne, 5300, false, ready, landing), "reset cannot reuse old launch evidence");
-    progress.TrackMovement(step, 36, 974, source, 6000, ready);
-    Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 8001, false, ready, landing), "stale pad sample cannot authorize unrelated displacement");
-    Console.WriteLine("PASS: no-loading launch pad, mesh movement, airborne readiness, expected floor, death/Return and stale-step isolation");
+    Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 113000, false, ready, next, true), "reset invalidates source ownership");
+    Console.WriteLine("PASS: no-loading forced motion, game signal ownership, motion end, local ground, mandatory path and death/Return exclusion without height/direction thresholds");
 }
 static void TestKtisisTransitionContinuation()
 {
@@ -768,7 +727,8 @@ static void TestKtisisTransitionContinuation()
     progress.Expect(expected);
     Check(!progress.Settled(30000, true, false, 974, step.Position), "slow loading is not completion");
     Check(!progress.Settled(31000, false, true, 974, step.Position)
-        && !progress.Settled(32000, false, true, 974, step.Position), "old floor cannot confirm the destination");
+        && progress.Settled(32000, false, true, 974, step.Position), "readiness may return before the actual transfer is confirmed");
+    Check(!progress.CompleteStep(step, 18, true, false, true), "old floor with no continuation path cannot complete step 18");
     var landed = new System.Numerics.Vector3(step.Position.X, actions[21].Position.Y, step.Position.Z);
     Check(!progress.Settled(33000, false, true, 974, landed, false), "destination floor without required ground evidence waits");
     Check(!progress.Settled(34000, false, true, 974, landed)

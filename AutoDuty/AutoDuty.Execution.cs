@@ -41,6 +41,7 @@ public partial class AutoDuty
         this.interactionTransition.Reset();
         this.interactionTransitionCancelled = false;
         this.interactionRequiresTransfer = false;
+        this.unownedWorldSignal = TransitionSignal.None;
         this.currentAttempt = index >= 0 && index < this.Actions.Count
             ? new StepAttempt { Index = index, Action = this.Actions[index], StartPosition = Player.Available ? Player.Position : default }
             : null;
@@ -224,14 +225,14 @@ public partial class AutoDuty
         NavigationDiagnostics.Record("interaction-click", detail: new { objectId, requiresTransfer = this.interactionRequiresTransfer });
     }
 
-    private bool ObserveInteractionLoading()
+    private bool ObserveInteractionLoading(TransitionSignal signal = TransitionSignal.Loading)
     {
         if ((this.Stage is not (Stage.Action or Stage.Interactable)
                 && !(this.Stage == Stage.Moving && this.interactionTransition.Pending))
             || !this.States.HasFlag(PluginState.Navigating)) return false;
         if (!this.interactionTransition.ObserveLoading(this.pathAction, this.indexer, Environment.TickCount64,
                 this.Stage is Stage.Dead or Stage.Revived || DeathHelper.DeathState != PlayerLifeState.Alive
-                || Environment.TickCount64 < this.returnObservedUntil)) return false;
+                || Environment.TickCount64 < this.returnObservedUntil, signal)) return false;
         // Latch either load flag immediately. Queue mutation waits for Framework_Update.
         VNavmesh_IPCSubscriber.Path_Stop();
         this.SetTransferDestination();
@@ -239,7 +240,7 @@ public partial class AutoDuty
         return true;
     }
 
-    private unsafe bool ObserveMovementLoading()
+    private unsafe bool ObserveMovementLoading(TransitionSignal signal = TransitionSignal.Loading)
     {
         // Loading may already have invalidated the player or changed Moving to
         // Reading_Path. Use the last valid approach sample, not loading-time coordinates.
@@ -254,10 +255,10 @@ public partial class AutoDuty
             || Environment.TickCount64 < this.returnObservedUntil
             || FFXIVClientStructs.FFXIV.Client.Game.ActionManager.Instance()->CastActionId == 6;
         bool observed = this.interactionTransition.ObserveTrackedMovementLoading(this.pathAction,
-            this.indexer, Environment.TickCount64, deathOrReturn);
+            this.indexer, Environment.TickCount64, deathOrReturn, signal);
         if (!observed && Player.Available && this.Stage == Stage.Moving)
             observed = this.interactionTransition.ObserveMovementLoading(this.pathAction, this.indexer,
-                true, Svc.ClientState.TerritoryType, Player.Position, Environment.TickCount64, deathOrReturn);
+                true, Svc.ClientState.TerritoryType, Player.Position, Environment.TickCount64, deathOrReturn, signal);
         if (!observed)
         {
             NavigationDiagnostics.Record("movement-transfer-rejected", detail: new { deathOrReturn, playerAvailable = Player.Available });
@@ -270,6 +271,45 @@ public partial class AutoDuty
     }
 
     private readonly DisplacementMonitor displacementMonitor = new();
+    private TransitionSignal unownedWorldSignal;
+    private void ClientState_ZoneInit(Dalamud.Game.ClientState.ZoneInitEventArgs args)
+        => this.ObserveWorldChange(TransitionSignal.ZoneInit);
+    private void ClientState_MapIdChanged(uint map)
+    {
+        if (!this.States.HasFlag(PluginState.Navigating)) return;
+        // Map changes may simply select another map floor. Invalidate probes
+        // and record the change, but never infer transport from MapId alone.
+        this.transitionPathProbe.Reset();
+        this.nextGroundProbe = 0;
+        this.transferGroundReady = false;
+        NavigationDiagnostics.Record("map-id-changed", detail: new { map });
+    }
+    private void ObserveWorldChange(TransitionSignal signal)
+    {
+        if (!this.States.HasFlag(PluginState.Navigating) || this.Stage is Stage.Stopped or Stage.Paused or Stage.Dead or Stage.Revived
+            || this.currentFailure != null || DeathHelper.DeathState != PlayerLifeState.Alive
+            || Environment.TickCount64 < this.returnObservedUntil || this.dutyState == DutyState.DutyComplete) return;
+        // Initial duty entry has no executing step yet. Its zone initialization
+        // is not an unexpected mid-step transfer.
+        if (this.currentAttempt?.Index != this.indexer || this.indexer < 0 || this.indexer >= this.Actions.Count) return;
+        if (this.ObserveInteractionLoading(signal) || this.ObserveMovementLoading(signal))
+            NavigationDiagnostics.Record("world-transition-signal", detail: signal.ToString());
+        else
+        {
+            VNavmesh_IPCSubscriber.Path_Stop();
+            this.unownedWorldSignal |= signal;
+        }
+    }
+    private bool TickUnownedWorldChange()
+    {
+        if (this.unownedWorldSignal == TransitionSignal.None) return false;
+        var signal = this.unownedWorldSignal;
+        this.unownedWorldSignal = TransitionSignal.None;
+        if (!this.States.HasFlag(PluginState.Navigating) || this.Stage is Stage.Stopped or Stage.Dead or Stage.Revived) return false;
+        // Defer queue mutation from client callbacks to Framework_Update.
+        this.FailCurrentStep("transition-unconfirmed", $"{signal}: no owning step; old navigation cancelled", forcePause: true);
+        return true;
+    }
     private Vector3? displacementSource;
     private long nextGroundProbe;
     private bool transferGroundReady;
@@ -314,12 +354,12 @@ public partial class AutoDuty
         var after = InteractionTransitionProgress.ContinuationStep(this.Actions, this.indexer);
         bool launch = this.interactionTransition.ActivateExpectedMovement(this.pathAction, this.indexer, territory, position, now)
             || this.interactionTransition.ObserveForcedMovement(this.pathAction, this.indexer,
-                territory, position, now, false, next, after);
+                territory, position, now, false, next, after, Svc.Condition[ConditionFlag.BeingMoved]);
         if (!launch && anomaly == null) return;
         // An expected region alone is not proof that this displacement belongs
         // to it: require a source close to this step's trigger/interaction.
         var expected = this.pathAction.Transition ?? InteractionTransitionProgress.InferDestination(this.Actions, this.indexer);
-        bool owned = launch || (expected?.NearTrigger(this.pathAction.Position, source) == true
+        bool owned = launch || (this.pathAction.Transition?.NearTrigger(this.pathAction.Position, source) == true
             && this.interactionTransition.BeginDisplacement(this.pathAction, this.indexer, this.displacementMonitor.SourceTerritory, source, now, expected));
         VNavmesh_IPCSubscriber.Path_Stop();
         if (!owned)
