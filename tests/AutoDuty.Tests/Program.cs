@@ -90,6 +90,7 @@ static void Run()
     Console.WriteLine("PASS: idle duty entry, multibox activation boundary, route-owned cards and death recovery");
     TestDutyExecutionBoundary();
     TestBossProgress();
+    TestUnnamedBossTracking();
     TestCombatCheckpoint();
     TestLevelingPlan();
     var combatPursuit = new CombatApproachProgress();
@@ -220,6 +221,35 @@ static void TestBossProgress()
     Check(!BossProgress.ObjectiveMatches("Defeat all enemies", ""), "empty note never matches arbitrary completed objective");
     Check(!BossProgress.ObjectiveMatches("Defeat Koshchei", "Chudo-Yudo"), "another completed objective cannot complete current boss");
     Console.WriteLine("PASS: generic boss defeat evidence, early kills, corpse despawn, wipe/entrance restart, phase/respawn, objective names and fresh duty reset");
+}
+static void TestUnnamedBossTracking()
+{
+    var progress = new BossProgress();
+    var step = new BossProgress.Key(974, "", new(.37f, 630, 48.82f));
+    var other = step with { Position = new(-.34f, 0, -53.97f) };
+    // Recorded failure: a living, targetable rank-6 Ladon Lord was in the
+    // object table while Boss-GetBossObject kept retrying on an empty route note.
+    progress.Remember(step, 1073746932, 13349, "拉冬之王");
+    Check(progress.Matches(step, 1073746932, 13349), "unnamed Boss retains observed identity without a DutyData boss wrapper");
+    Check(!progress.Matches(step, 1073746932, 13269), "a reused entity ID with a different NPC base cannot prove death");
+    Check(!progress.Matches(step, 123, 13349), "an unseen entity with the same base is not an observed corpse");
+    Check(!progress.Matches(other, 1073746932, 13349), "identity cannot complete a different Boss step");
+    Check(progress.Observe(step, false, progress.Matches(step, 1073746932, 13349), false),
+        "observed death completes unnamed Boss even after its rank/module or temporary context is lost");
+    progress.Observe(step, false, false, false);
+    Check(progress.IsDefeated(step), "confirmed death survives corpse despawn and retries");
+    Check(BossProgress.ObjectiveComplete("击败拉冬之王", 1, 1, progress.Names(step)),
+        "observed localized name allows completion when corpse snapshot was missed");
+    Check(!BossProgress.ObjectiveComplete("突破创造生物评价室", 1, 1, progress.Names(step)),
+        "unrelated room objectives cannot guess victory");
+    progress.Remember(other, 0xE0000000, 13349, "unnetworked");
+    Check(!progress.Names(other).Any(), "non-networked placeholder is never bound to a Boss encounter");
+    progress.Reset();
+    Check(!progress.Matches(step, 1073746932, 13349) && !progress.Names(step).Any(), "new duty clears both entity and name evidence");
+    progress.Remember(step, 1073746932, 13349, "拉冬之王");
+    Check(!progress.Observe(step, false, false, false) && !progress.IsDefeated(step),
+        "having seen a Boss before disappearance is not itself victory");
+    Console.WriteLine("PASS: unnamed boss identity through context loss, rank loss, corpse despawn, localized objectives and run/encounter isolation");
 }
 static void TestLevelingPlan()
 {

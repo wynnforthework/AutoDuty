@@ -352,6 +352,7 @@ public partial class AutoDuty
         bool navigationStage = this.Stage is Stage.Reading_Path or Stage.Moving;
         if (this.Stage == Stage.Reading_Path && this.currentAttempt is { } routeAttempt)
         {
+            this.EnsureDutyContext();
             // Claim the next step before readiness waits, not after starting its path.
             this.pathAction = routeAttempt.Action;
             this.DutyData?.StopForCombat = RouteMovementPolicy.StopsForCombat(this.pathAction);

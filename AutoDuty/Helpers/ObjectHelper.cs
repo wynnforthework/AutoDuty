@@ -112,6 +112,8 @@ namespace AutoDuty.Helpers
         {
             if (!EzThrottler.Throttle("BossCandidateTrace", 1000)) return;
             NavigationDiagnostics.Record("boss-candidates", detail: new { expected = step.Note, names = BossNamesForStep(step), target = step.Position,
+                dutyContextPresent = Plugin.DutyData != null, storedBoss = Plugin.DutyData?.bossObject?.EntityId,
+                selectedBoss = GetBossForStep(step)?.EntityId,
                 defeated = Plugin.BossAlreadyDefeated(step), objectives = BossObjectives(),
                 candidates = Svc.Objects.OfType<IBattleChara>().Where(o => o.ObjectKind == ObjectKind.BattleNpc
                     && Vector3.DistanceSquared(o.Position, Player.Position) < 10000).Select(o => new {

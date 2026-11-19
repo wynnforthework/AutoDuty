@@ -356,7 +356,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.assemblyDirectoryInfo = this.assemblyFileInfo.Directory;
 
             this.Version = 
-                ((PluginInterface.IsDev     ? new Version(0,0,0, 402) :
+                ((PluginInterface.IsDev     ? new Version(0,0,0, 403) :
                   PluginInterface.IsTesting ? PluginInterface.Manifest.TestingAssemblyVersion ?? PluginInterface.Manifest.AssemblyVersion : PluginInterface.Manifest.AssemblyVersion)!).Revision;
 
             if (!this.configDirectory.Exists)
@@ -997,8 +997,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.currentTerritoryType = t;
         this.mainListClicked      = false;
 
-        this.DutyData = null;
-
+        // Departure/reset owns this context. Loading placeholders and internal
+        // territory notifications must not erase a running route's combat state.
         if (t == 0)
             return;
 
@@ -1958,6 +1958,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.States          |= PluginState.Navigating;
         this.Stage           =  Stage.Reading_Path;
 
+        this.DutyData?.Dispose();
         this.DutyData = new DutyDataTemporary();
 
         if (Configuration.DutyConfig.AutoManageVnavAlignCamera && !VNavmesh_IPCSubscriber.Path_GetAlignCamera)

@@ -828,12 +828,19 @@ namespace AutoDuty.Managers
             long idleSince = 0;
             List<IGameObject>? treasureCofferObjects = null;
             Plugin.skipTreasureCoffer = false;
+            Plugin.EnsureDutyContext();
             this.StopForCombat(true, false);
             taskManager.Enqueue(() =>
             {
                 if (Plugin.BossAlreadyDefeated(action)) return true;
                 TraceBossCandidates(action);
-                return (Plugin.DutyData?.bossObject = GetBossForStep(action)) != null;
+                // Finding the entity is independent of whether temporary duty
+                // storage survived a loading/territory event.
+                var boss = GetBossForStep(action);
+                if (boss == null) return false;
+                Plugin.EnsureDutyContext().bossObject = boss;
+                NavigationDiagnostics.Record("boss-acquired", detail: new { boss.EntityId, dataId = boss.BaseId, name = boss.Name.TextValue });
+                return true;
             }, "Boss-GetBossObject", new TaskManagerConfiguration(Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs)));
             taskManager.Enqueue(() => Plugin.BossAlreadyDefeated(action) || BossMoveCheck(action),                                                                                                            "Boss-MoveCheck", new TaskManagerConfiguration(Math.Max(1000, Configuration.DutyConfig.BossSpawnTimeoutMs)));
             taskManager.Enqueue(() => Plugin.action      = $"Boss: {Plugin.DutyData?.bossObject?.Name.TextValue ?? ""}",                                                         "Boss-SetActionVar");
