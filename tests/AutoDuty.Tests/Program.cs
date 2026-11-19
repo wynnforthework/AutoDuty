@@ -148,6 +148,7 @@ static void Run()
     TestInteractionTransfer();
     TestMovementTransfer();
     TestLaunchTransfer();
+    TestBossSelection();
     TestTransitionRegions();
     TestTransitionStages();
     TestTransitionPathProbe();
@@ -593,12 +594,7 @@ static void TestCombatCheckpoint()
     Check(CombatCheckpointProgress.HasArrived(sands, sandsEndpoint, 2), "interaction retries preserve ground arrival semantics");
     Check(!CombatCheckpointProgress.HasArrived(sands, sands.Position + new System.Numerics.Vector3(0, 3, 0), 0), "different floor cannot satisfy interaction arrival");
     Check(!CombatCheckpointProgress.HasArrived(sands, sands.Position + new System.Numerics.Vector3(2.1f, 0, 0), 0), "interaction still requires horizontal proximity");
-    Check(BossIdentity.Matches("Myrmidon Princess", "蚁后", "myrmidon princess"), "English route boss name matches localized NPC via English sheet");
-    Check(BossIdentity.Matches(" 蚁后 ", "蚁后", "myrmidon princess"), "localized exact boss identity is accepted");
-    Check(!BossIdentity.Matches("Myrmidon Princess", "蚁兵", "myrmidon soldier"), "combat add cannot substitute for named boss");
-    Check(!BossIdentity.Matches("", "蚁后", "myrmidon princess"), "empty note does not match arbitrary NPC");
-    Check(!BossIdentity.Matches("Myrmidon", "蚁后", "myrmidon princess"), "partial route note is not boss identity evidence");
-    Console.WriteLine("PASS: reported sands endpoint, height guard, exact localized/English boss identity and add rejection");
+    Console.WriteLine("PASS: reported sands endpoint and height guard");
     var navStop = new NavigationStopProgress();
     Check(!navStop.StoppedShort(false, 1000) && !navStop.StoppedShort(false, 2999), "idle navigation allows asynchronous path startup grace");
     Check(navStop.StoppedShort(false, 3000), "stopped short is detected after 2 seconds, not 60");
@@ -818,6 +814,38 @@ static void TestTransitionRegions()
     Check(rejected, "invalid transition region is rejected at file import");
     Console.WriteLine("PASS: transition regions, grounded stability, moving-platform exceptions, unknown displacement, high frame rates, serialization and recording boundaries");
 }
+static void TestBossSelection()
+{
+    var origin = new System.Numerics.Vector3(0, 0, 0);
+    var corpse = new { Id = 1, Name = "Boss", Position = new System.Numerics.Vector3(1, 0, 0), Rank = true, Module = false, Alive = false, Targetable = true, Tracked = false };
+    var add = corpse with { Id = 2, Position = new(2, 0, 0), Rank = false, Alive = true };
+    var localized = corpse with { Id = 3, Name = "localized name unrelated to note", Position = new(5, 0, 0), Alive = true };
+    var module = localized with { Id = 4, Position = new(7, 0, 0), Rank = false, Module = true };
+    var tracked = localized with { Id = 5, Position = new(8, 0, 0), Rank = false, Tracked = true };
+    var wrongFloor = tracked with { Id = 6, Position = new(0, 30, 0) };
+    var remote = tracked with { Id = 7, Position = new(101, 0, 0) };
+    var untargetable = tracked with { Id = 8, Targetable = false };
+    var objects = new[] { corpse, add, localized, module, tracked, wrongFloor, remote, untargetable };
+    var selected = BossIdentity.SelectLive(objects, origin, o => o.Position, o => o.Rank || o.Module,
+        o => o.Alive && o.Targetable, o => o.Tracked);
+    Check(selected?.Id == 5, "confirmed primitive identity survives rank/module loss and wins reacquisition");
+    selected = BossIdentity.SelectLive(objects, origin, o => o.Position, o => o.Rank || o.Module,
+        o => o.Alive && o.Targetable, _ => false);
+    Check(selected?.Id == 3, "nearest live ranked boss is selected despite closer corpse and identically named add");
+    selected = BossIdentity.SelectLive(new[] { corpse, add, module }, origin, o => o.Position, o => o.Rank || o.Module,
+        o => o.Alive && o.Targetable, _ => false);
+    Check(selected?.Id == 4, "BossMod module identifies unranked boss without reading names");
+    selected = BossIdentity.SelectLive(new[] { add, wrongFloor, remote, untargetable }, origin, o => o.Position, o => o.Rank || o.Module,
+        o => o.Alive && o.Targetable, o => o.Tracked);
+    Check(selected == null, "same-name add, other floor, distant and untargetable entities cannot replace boss");
+    PathAction first = new() { Name = "Boss", Note = "English note", Position = new(5, 0, 0) };
+    PathAction second = new() { Name = "Boss", Note = "Any remark", Position = new(40, 0, 0) };
+    Check(BossIdentity.OwnedBy(first, new[] { first, second }, localized.Position, a => a.Position)
+        && !BossIdentity.OwnedBy(second, new[] { first, second }, localized.Position, a => a.Position),
+        "one observed live boss is bound to its nearest route encounter, not every step in range");
+    Console.WriteLine("PASS: production boss selector, rank/module/tracked identity, corpse-before-live, add/floor rejection and encounter ownership without names");
+}
+
 static void TestTransitionStages()
 {
     var region = new TransitionRegion { Center = new(20, 10, 0), RequirePath = true };

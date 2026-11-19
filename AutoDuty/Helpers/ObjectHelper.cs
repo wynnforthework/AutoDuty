@@ -57,41 +57,16 @@ namespace AutoDuty.Helpers
 
         internal static IBattleChara? GetBossObject(int radius = 100, Vector3? position = null) => (position.HasValue ? GetObjectsByRadius(position.Value, radius) : GetObjectsByRadius(radius))?.OfType<IBattleChara>().FirstOrDefault(IsBoss);
 
-        private static readonly Dictionary<string, uint> bossNameIds = new(StringComparer.OrdinalIgnoreCase);
-
-        internal static string[] BossNamesForStep(PathAction step)
-        {
-            string hint = step.Note.Trim();
-            if (hint.Length == 0) return [];
-            if (!bossNameIds.TryGetValue(hint, out uint id))
-            {
-                id = Svc.Data.GetExcelSheet<BNpcName>(Dalamud.Game.ClientLanguage.English)
-                    .FirstOrDefault(row => string.Equals(row.Singular.ToString(), hint, StringComparison.OrdinalIgnoreCase)).RowId;
-                if (id == 0)
-                    id = Svc.Data.GetExcelSheet<BNpcName>().FirstOrDefault(row =>
-                        string.Equals(row.Singular.ToString(), hint, StringComparison.OrdinalIgnoreCase)).RowId;
-                bossNameIds[hint] = id;
-            }
-            return id == 0 ? [] : new[] { hint, Svc.Data.GetExcelSheet<BNpcName>().GetRowOrDefault(id)?.Singular.ToString() ?? "" }
-                .Where(name => !string.IsNullOrWhiteSpace(name)).Distinct().ToArray();
-        }
-
+        // Notes are presentation only. Candidate selection never resolves NPC names.
         internal static IBattleChara[] BossCandidatesForStep(PathAction step, IEnumerable<IBattleChara> objects, int radius = 100)
-        {
-            Vector3 origin = step.Position == Vector3.Zero ? Player.Position : step.Position;
-            var nearby = objects.Where(o => o.ObjectKind == ObjectKind.BattleNpc
-                && Vector3.DistanceSquared(origin, o.Position) <= radius * radius && MathF.Abs(origin.Y - o.Position.Y) <= 10)
-                .OrderBy(o => Vector3.DistanceSquared(origin, o.Position)).ToArray();
-            var names = BossNamesForStep(step);
-            if (names.Length > 0)
-                return nearby.Where(o => names.Any(name => string.Equals(name, o.Name.TextValue, StringComparison.OrdinalIgnoreCase))).ToArray();
-            // For unnamed legacy steps use only the nearest ranked/module boss. Never arbitrary adds.
-            return nearby.Where(IsBoss).Take(1).ToArray();
-        }
+            => BossIdentity.Candidates(objects, step.Position == Vector3.Zero ? Player.Position : step.Position,
+                o => o.Position, o => o.ObjectKind == ObjectKind.BattleNpc && IsBoss(o), radius).ToArray();
 
         internal static IBattleChara? GetBossForStep(PathAction step, int radius = 100) =>
-            BossCandidatesForStep(step, Svc.Objects.OfType<IBattleChara>(), radius)
-                .FirstOrDefault(o => o.CurrentHp > 0 && !o.IsDead && o.IsTargetable);
+            BossIdentity.SelectLive(Svc.Objects.OfType<IBattleChara>(), step.Position == Vector3.Zero ? Player.Position : step.Position,
+                o => o.Position, o => o.ObjectKind == ObjectKind.BattleNpc && IsBoss(o),
+                o => o.CurrentHp > 0 && !o.IsDead && o.IsTargetable,
+                o => Plugin.IsTrackedBoss(step, o.EntityId, o.BaseId), radius);
 
         internal readonly record struct BossObjective(string Text, int Current, int Needed);
         internal static unsafe BossObjective[] BossObjectives()
@@ -111,7 +86,7 @@ namespace AutoDuty.Helpers
         internal static void TraceBossCandidates(PathAction step)
         {
             if (!EzThrottler.Throttle("BossCandidateTrace", 1000)) return;
-            NavigationDiagnostics.Record("boss-candidates", detail: new { expected = step.Note, names = BossNamesForStep(step), target = step.Position,
+            NavigationDiagnostics.Record("boss-candidates", detail: new { note = step.Note, identityPolicy = "rank-or-bossmod-or-tracked-entity", target = step.Position,
                 dutyContextPresent = Plugin.DutyData != null, storedBoss = Plugin.DutyData?.bossObject?.EntityId,
                 selectedBoss = GetBossForStep(step)?.EntityId,
                 defeated = Plugin.BossAlreadyDefeated(step), objectives = BossObjectives(),

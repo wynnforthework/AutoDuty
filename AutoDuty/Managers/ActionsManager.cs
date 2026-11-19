@@ -784,7 +784,7 @@ namespace AutoDuty.Managers
         {
             // Reacquire from the object table: the previous wrapper may already have despawned.
             var boss = GetBossForStep(action);
-            Plugin.DutyData?.bossObject = boss;
+            Plugin.EnsureDutyContext().bossObject = boss;
             if (boss == null)
             {
                 VNavmesh_IPCSubscriber.Path_Stop();
