@@ -79,7 +79,7 @@ internal static class NavigationDiagnostics
             Record("export", detail: new { reason, routeHash = AutomationReports.Fingerprint(Plugin.Actions),
                 mode = AutoDuty.Configuration.Meta.DutyModeEnum.ToString(),
                 managesBossMovement = AutoDuty.Configuration.DutyConfig.AutoManageBossModAISettings,
-                version = typeof(AutoDuty).Assembly.GetName().Version?.ToString() });
+                version = AutoDuty.DisplayVersion });
             string directory = Path.Combine(AutoDuty.PluginInterface.ConfigDirectory.FullName, "navigation-diagnostics");
             Directory.CreateDirectory(directory);
             string path = Path.Combine(directory, $"navigation-{DateTime.UtcNow:yyyyMMdd-HHmmss-fff}.jsonl");

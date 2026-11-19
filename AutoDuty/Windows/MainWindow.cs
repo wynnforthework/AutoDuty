@@ -33,7 +33,7 @@ public sealed class MainWindow : Window, IDisposable
     private static string openTabName = "";
 
     public MainWindow() : base(
-        $"AutoDuty v0.0.0.{Plugin.Version}###Autoduty")
+        $"AutoDuty v{AutoDuty.DisplayVersion}###Autoduty")
     {
         this.SizeConstraints = new WindowSizeConstraints
                                {

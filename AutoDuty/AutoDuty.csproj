@@ -3,7 +3,13 @@
   <PropertyGroup>
     <Authors></Authors>
     <Company></Company>
-    <Version>0.0.0.407</Version>
+    <UpstreamVersion>0.0.0.399</UpstreamVersion>
+    <LocalRevision>1</LocalRevision>
+    <Version>$(UpstreamVersion)</Version>
+    <AssemblyVersion>$(UpstreamVersion)</AssemblyVersion>
+    <FileVersion>$(UpstreamVersion)</FileVersion>
+    <InformationalVersion>$(UpstreamVersion).$(LocalRevision)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Description>AutoDuty</Description>
     <Copyright></Copyright>
     <PackageProjectUrl></PackageProjectUrl>

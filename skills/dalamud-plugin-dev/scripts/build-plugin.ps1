@@ -102,6 +102,7 @@ try {
         DeployDirectory = $destination
         DeployedDll = $mainDestination
         AssemblyVersion = $deployedVersion
+        ProductVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($mainDestination).ProductVersion
         SHA256 = $deployedHash
         Bytes = (Get-Item -LiteralPath $mainDestination).Length
         LastWriteTimeUtc = (Get-Item -LiteralPath $mainDestination).LastWriteTimeUtc.ToString('o')

@@ -134,6 +134,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
     public   string?  currentlyActivePluginConfig;
 
     public   int   Version { get; set; }
+    public static string DisplayVersion => System.Reflection.CustomAttributeExtensions
+        .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(AutoDuty).Assembly)
+        ?.InformationalVersion ?? typeof(AutoDuty).Assembly.GetName().Version!.ToString();
     internal Stage previousStage = Stage.Stopped;
     internal bool HasAutomationWork => DutyActivationPolicy.CanStop(this.Stage,
         this.States.HasFlag(PluginState.Looping), this.States.HasFlag(PluginState.Navigating),
@@ -356,7 +359,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.assemblyDirectoryInfo = this.assemblyFileInfo.Directory;
 
             this.Version = 
-                ((PluginInterface.IsDev     ? new Version(0,0,0, 407) :
+                ((PluginInterface.IsDev     ? typeof(AutoDuty).Assembly.GetName().Version :
                   PluginInterface.IsTesting ? PluginInterface.Manifest.TestingAssemblyVersion ?? PluginInterface.Manifest.AssemblyVersion : PluginInterface.Manifest.AssemblyVersion)!).Revision;
 
             if (!this.configDirectory.Exists)

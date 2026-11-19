@@ -1,5 +1,10 @@
 # AutoDuty 本机开发
 
+## fork 版本号
+
+- 对外显示格式为 `<上游四段版本>.<本地修订>`，当前为 `0.0.0.399.1`。本地修改只递增 AutoDuty.csproj 的 LocalRevision；UpstreamVersion 仅在实际同步上游版本时调整。
+- .NET/Dalamud 的 AssemblyVersion 和 manifest 仅支持四段，保持 UpstreamVersion；完整五段版本使用 InformationalVersion（DLL ProductVersion），用于窗口、诊断和交付记录。不要将本地修订写进上游第四段，也不要给引用项目传全局 Version。
+
 ## 上游 AI 代码 PR 禁止规则（用户于 2026-11-19 明确要求）
 
 - 用户明确告知上游 `erdelf/AutoDuty` 禁止 AI 代码，并要求助手在其尝试向上游发送 PR 时主动阻止。此限制包括通过个人 fork 向上游创建 PR，不以推送目标是 origin 为例外。

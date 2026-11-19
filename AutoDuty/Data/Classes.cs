@@ -228,7 +228,7 @@ namespace AutoDuty.Data
             [JsonPropertyName("labels")]
             public List<string> Labels = ["bug", "unconfirmed"];
 
-            public static string Version => $"{Plugin.Version}";
+            public static string Version => AutoDuty.DisplayVersion;
 
             public static string LogFile => Plugin.dalamudLogEntries.SelectMulti(x => x.Message).ToList().ToCustomString("\n");
 
