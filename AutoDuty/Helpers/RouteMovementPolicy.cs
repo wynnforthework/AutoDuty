@@ -32,6 +32,9 @@ internal static class RouteMovementPolicy
     // A true switch owns combat only after its coordinate has been reached.
     internal static bool InterruptsApproach(PathAction step) => step.Name != "StopForCombat" && StopsForCombat(step);
     internal static bool PreferInstants(PathAction step, Stage stage)
-        => step.Name == "StopForCombat" && stage == Stage.Moving;
+        // Navigation owns the approach for every action, including a Wait or
+        // Interactable with a coordinate. Cast restrictions end at arrival;
+        // they must not turn the subsequent wait/action into a combat stop.
+        => stage == Stage.Moving && RotationEnabled(step);
     internal static bool ActionMovement(PathAction step) => StopsForCombat(step) && step.Name != "Interactable";
 }

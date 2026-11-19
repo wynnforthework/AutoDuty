@@ -1125,6 +1125,15 @@ static void TestNavigationReadiness()
     Check(!RouteMovementPolicy.StopsForCombat(new() { Name = "WaitFor", Arguments = ["OOC"] }),
         "explicit OOC condition owns its wait without enabling combat movement");
     Check(!RouteMovementPolicy.RotationEnabled(new() { Name = "MoveTo", Arguments = ["false"] }), "direct MoveTo uses the same rotation policy as navmesh MoveTo");
+    // Reproduce Vanaspati step 2: a coordinate Wait must keep moving while
+    // fighting on the way, then release the cast restriction for the wait.
+    foreach (string name in new[] { "Wait", "WaitFor", "Interactable", "TreasureCoffer", "Boss", "KillInRange" })
+    {
+        var approach = new PathAction { Name = name, Position = new(-330.68f, 41, -146.37f) };
+        Check(RouteMovementPolicy.PreferInstants(approach, AutoDuty.Data.Enums.Stage.Moving), $"{name} coordinate approach permits only instant casts");
+        foreach (var stage in Enum.GetValues<AutoDuty.Data.Enums.Stage>().Where(s => s != AutoDuty.Data.Enums.Stage.Moving))
+            Check(!RouteMovementPolicy.PreferInstants(approach, stage), $"{name} releases approach cast restriction in {stage}");
+    }
     foreach (var stage in new[] { AutoDuty.Data.Enums.Stage.Action, AutoDuty.Data.Enums.Stage.Waiting_For_Combat,
         AutoDuty.Data.Enums.Stage.Paused, AutoDuty.Data.Enums.Stage.Stopped, AutoDuty.Data.Enums.Stage.Interactable })
         Check(!RouteMovementPolicy.PreferInstants(pull, stage), "pull cast restriction ends outside route movement");
