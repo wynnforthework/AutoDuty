@@ -36,7 +36,9 @@ description: 开发、修改、编译和部署 FFXIV Dalamud 插件时使用。�
 
 AutoDuty 测试：设置 `AUTODUTY_TEST_DALAMUD` 为配置 DalamudLibPath，用配置 Dotnet 运行 `dotnet run --project tests/AutoDuty.Tests/AutoDuty.Tests.csproj -c Release -p:DalamudLibPath=<配置路径>`。不要用全局 `-p:Version=...` 改版号，它会传播到 ECommons 等引用项目；修改 AutoDuty.csproj 和现有开发显示版本。
 
-交付首先提供固定 DLL 路径、版本和构建/测试结果。ZIP 仅用于用户要求的分享或归档，不作为新的开发入口，不要求用户每次重新注册。
+修复或发布插件的交付必须完成实际构建和固定目录覆盖，不能停在 PlanOnly、BuildOnly、源码提交或旧日志。部署后核验磁盘上 DLL 的 AssemblyVersion 与 manifest 一致、哈希与本次构建一致，并记录结果到固定目录 build-result.json。
+
+最终回复必须给出可点击的固定目录和 DLL 链接、从 DLL 本身读出的版本及验证结果。不要只说“已覆盖”而不给路径。固定目录名不会变成 0.0.0.xxx；回复中明确“该固定目录当前内容为 x 版本”，避免用户寻找不存在的版本目录。ZIP 仅用于用户要求的分享或归档，不作为新的开发入口，不要求用户每次重新注册。没有实际观察到游戏重载时，只能说文件部署已核验，不能称游戏已更新。
 
 ## 热加载开发要求
 

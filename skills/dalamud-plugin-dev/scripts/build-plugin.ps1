@@ -69,6 +69,8 @@ try {
     Assert-File $manifestFile
     $manifest = Get-Content -LiteralPath $manifestFile -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($manifest.InternalName -ne $entry.InternalName) { throw 'Manifest InternalName does not match the fixed plugin identity.' }
+    $builtVersion = [Reflection.AssemblyName]::GetAssemblyName($builtDll).Version.ToString()
+    if ($builtVersion -ne $manifest.AssemblyVersion) { throw 'Built DLL version differs from manifest.' }
     if ([IO.Path]::GetFullPath($output).TrimEnd('\','/') -eq $destination.TrimEnd('\','/')) {
         throw 'Build output must be separate from the live deployment directory.'
     }
@@ -91,8 +93,23 @@ try {
     $sourceHash = (Get-FileHash -LiteralPath $builtDll).Hash
     $deployedHash = (Get-FileHash -LiteralPath $mainDestination).Hash
     if ($sourceHash -ne $deployedHash) { throw 'Deployed DLL hash mismatch.' }
+    $deployedVersion = [Reflection.AssemblyName]::GetAssemblyName($mainDestination).Version.ToString()
+    if ($deployedVersion -ne $builtVersion) { throw 'Deployed DLL version mismatch.' }
+    $receipt = [ordered]@{
+        VerifiedUtc = [DateTime]::UtcNow.ToString('o')
+        Project = $projectPath
+        BuildDll = $builtDll
+        DeployDirectory = $destination
+        DeployedDll = $mainDestination
+        AssemblyVersion = $deployedVersion
+        SHA256 = $deployedHash
+        Bytes = (Get-Item -LiteralPath $mainDestination).Length
+        LastWriteTimeUtc = (Get-Item -LiteralPath $mainDestination).LastWriteTimeUtc.ToString('o')
+        GameReloadVerified = $false
+    }
+    [IO.File]::WriteAllText((Join-Path $destination 'build-result.json'), ($receipt | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
     Write-Host "Updated fixed DLL: $mainDestination"
-    Write-Host "Version: $($manifest.AssemblyVersion); SHA256: $deployedHash"
+    Write-Host "Verified DLL version: $deployedVersion; SHA256: $deployedHash"
     Write-Host 'File deployment verified. In-game reload requires this exact entry with AutomaticReloading enabled.'
 } finally {
     if ($null -ne $lock) { $lock.Dispose() }
