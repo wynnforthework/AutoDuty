@@ -732,6 +732,21 @@ static void TestStepExecutionGates()
 }
 static void TestNavigationReadiness()
 {
+    var combatReady = new NavigationReadiness();
+    for (long now = 0; now <= 10000; now += 100)
+    {
+        bool animationLocked = now % 2500 < 700;
+        bool readyToWalk = StepExecutionGate.PlayerReady(true, true, !animationLocked);
+        Check(combatReady.Observe(readyToWalk, true, true, now) == (now >= 1000),
+            "repeated combat animation locks never interrupt navigation readiness");
+    }
+    Check(!StepExecutionGate.PlayerReady(true, false, false), "real occupancy still blocks navigation");
+    Check(!StepExecutionGate.PlayerReady(false, true, false), "non-navigation actions still wait for animation lock");
+    Check(StepExecutionGate.PlayerReady(false, true, true), "unlocked actions may start");
+    Check(!combatReady.Observe(StepExecutionGate.PlayerReady(true, false, false), true, true, 10100),
+        "actual loading or occupancy invalidates navigation evidence even during combat");
+    Check(!combatReady.Observe(true, true, true, 10200) && combatReady.Observe(true, true, true, 11200),
+        "after actual occupancy navigation still requires stable recovery");
     var ready = new NavigationReadiness();
     Check(!ready.Observe(false, false, false, 0), "loading never starts readiness timer");
     Check(!ready.Observe(false, true, true, 60000), "slow player loading cannot consume movement timeout");

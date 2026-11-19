@@ -162,7 +162,11 @@ public sealed partial class AutoDuty : IDalamudPlugin
                     this.States               |= PluginState.Paused;
                     break;
                 case Stage.Action:
-                    BossMod_IPCSubscriber.SetMovement(this.pathAction.Name != "Interactable");
+                    // A combat switch applies its requested ownership directly;
+                    // never briefly enable BossMod before processing "false".
+                    BossMod_IPCSubscriber.SetMovement(this.pathAction.Name == "StopForCombat"
+                        ? CombatCheckpointProgress.IsSwitchOn(this.pathAction)
+                        : this.pathAction.Name != "Interactable");
                     if (PauseResumePolicy.ShouldInvokeAction(field)) this.ActionInvoke();
                     break;
                 case Stage.Condition:

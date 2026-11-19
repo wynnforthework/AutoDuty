@@ -418,7 +418,8 @@ public partial class AutoDuty
         && !Svc.Condition[ConditionFlag.WatchingCutscene78];
 
     private bool CanStartStep() => this.ExecutionWorldReady() &&
-        (PlayerHelper.IsReadyFull || Svc.Condition[ConditionFlag.CarryingItem]
+        (StepExecutionGate.PlayerReady(this.Stage is Stage.Reading_Path or Stage.Moving,
+            PlayerHelper.IsReady, PlayerHelper.IsReadyFull) || Svc.Condition[ConditionFlag.CarryingItem]
             || Svc.Condition[ConditionFlag.CarryingObject]
             || (RouteCompletionPolicy.HasStep(this.indexer, this.Actions.Count)
                 && this.Actions[this.indexer].Name is "SelectString" or "SelectYesno" or "SelectJournalResult" or "WaitFor" or "ClickTalk"));

@@ -16,4 +16,10 @@ internal sealed class StepExecutionGate
 
     internal static bool NeedsMesh(string action, bool hasPosition, bool directMove)
         => hasPosition && action != "TeleportTo" && !directMove;
+
+    // Skill animation locks do not invalidate a walking route. Requiring a
+    // continuous lock-free second here repeatedly cancels paths during attacks.
+    // Non-navigation actions retain their stricter readiness requirement.
+    internal static bool PlayerReady(bool navigationStage, bool ready, bool readyFull)
+        => navigationStage ? ready : readyFull;
 }
