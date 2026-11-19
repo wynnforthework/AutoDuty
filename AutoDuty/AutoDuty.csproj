@@ -4,7 +4,7 @@
     <Authors></Authors>
     <Company></Company>
     <UpstreamVersion>0.0.0.399</UpstreamVersion>
-    <LocalRevision>3</LocalRevision>
+    <LocalRevision>4</LocalRevision>
     <Version>$(UpstreamVersion)</Version>
     <AssemblyVersion>$(UpstreamVersion)</AssemblyVersion>
     <FileVersion>$(UpstreamVersion)</FileVersion>

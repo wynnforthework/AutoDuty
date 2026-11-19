@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Collections.Generic;
 
 namespace AutoDuty.Helpers;
 
@@ -58,6 +59,36 @@ internal sealed class InteractionTransitionProgress
             ? new() { Center = after.Position, Radius = 100 }
             : next != null && next.Position != Vector3.Zero && next.Name is "MoveTo" or "Boss" or "Interactable"
                 ? new() { Center = next.Position } : null;
+
+    // Inspect only a bounded, linear sequence of harmless zero-position entries.
+    // Never search through a branch, interaction, combat checkpoint or teleport.
+    internal static PathAction? ContinuationStep(IReadOnlyList<PathAction> actions, int index)
+    {
+        if (index < 0 || index >= actions.Count) return null;
+        for (int i = index + 1; i < actions.Count && i - index <= 8; i++)
+        {
+            var step = actions[i];
+            if (step.Conditions.Count != 0 || step.ConditionsWhile.Count != 0 || step.ConditionsUntil.Count != 0)
+                return null;
+            if (step.Position != Vector3.Zero)
+                return step.Name is "MoveTo" or "Boss" or "Interactable" or "Wait" ? step : null;
+            bool ready = step.Name == "WaitFor" && step.Arguments.Count == 1
+                && WaitForArguments.Normalize(step.Arguments[0]) is ["IsReady"];
+            bool pull = step.Name == "StopForCombat" && step.Arguments.Count == 1
+                && bool.TryParse(step.Arguments[0], out bool stop) && !stop;
+            if (!ready && !pull && step.Name != "<-- Comment -->") return null;
+        }
+        return null;
+    }
+
+    internal static TransitionRegion? InferDestination(IReadOnlyList<PathAction> actions, int index)
+    {
+        if (index < 0 || index >= actions.Count - 1) return null;
+        // The recorded readiness barrier establishes transfer intent; intervening
+        // zero-position pull switches are still executed normally after completion.
+        var continuation = ContinuationStep(actions, index);
+        return continuation == null ? null : InferDestination(actions[index + 1], continuation);
+    }
 
     internal bool CompleteStep(PathAction step, int index, bool conditions, bool pathConfirmed, bool pathWaitFinished)
     {

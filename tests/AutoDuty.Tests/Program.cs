@@ -150,6 +150,7 @@ static void Run()
     TestLaunchTransfer();
     TestBossSelection();
     TestTransitionRegions();
+    TestKtisisTransitionContinuation();
     TestTransitionStages();
     TestTransitionPathProbe();
     TestTransitionRecordingTrace();
@@ -749,6 +750,50 @@ static void TestLaunchTransfer()
     Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 8001, false, ready, landing), "stale pad sample cannot authorize unrelated displacement");
     Console.WriteLine("PASS: no-loading launch pad, mesh movement, airborne readiness, expected floor, death/Return and stale-step isolation");
 }
+static void TestKtisisTransitionContinuation()
+{
+    var actions = AutoDuty.Data.PathJson.ReadFile(File.ReadAllText("AutoDuty/Paths/(974) Ktisis Hyperboreia.json")).Actions;
+    var step = actions[18];
+    Check(step.Name == "MoveTo" && step.Arguments[0] == "false"
+        && actions[19].Name == "WaitFor" && actions[20].Name == "StopForCombat", "regression uses the reported bundled 974 route");
+    Check(InteractionTransitionProgress.InferDestination(actions[19], actions[20]) == null,
+        "old two-entry inference reproduces destination-unknown at step 18");
+    var expected = InteractionTransitionProgress.InferDestination(actions, 18);
+    Check(expected != null && expected.Center == actions[21].Position
+        && ReferenceEquals(InteractionTransitionProgress.ContinuationStep(actions, 18), actions[21]),
+        "readiness plus zero-position false switch resolves the next spatial destination");
+    var progress = new InteractionTransitionProgress();
+    progress.TrackMovement(step, 18, 974, step.Position, 1000, actions[19]);
+    Check(progress.ObserveTrackedMovementLoading(step, 18, 1100, false), "step 18 owns the observed transfer");
+    progress.Expect(expected);
+    Check(!progress.Settled(30000, true, false, 974, step.Position), "slow loading is not completion");
+    Check(!progress.Settled(31000, false, true, 974, step.Position)
+        && !progress.Settled(32000, false, true, 974, step.Position), "old floor cannot confirm the destination");
+    var landed = new System.Numerics.Vector3(step.Position.X, actions[21].Position.Y, step.Position.Z);
+    Check(!progress.Settled(33000, false, true, 974, landed, false), "destination floor without required ground evidence waits");
+    Check(!progress.Settled(34000, false, true, 974, landed)
+        && progress.Settled(35000, false, true, 974, landed), "stable grounded arrival confirms the new floor");
+    Check(!progress.CompleteStep(actions[19], 19, true, true, true)
+        && progress.CompleteStep(step, 18, true, true, true), "only step 18 completes; 19 and 20 retain their own execution");
+    foreach (var barrier in new[] {
+        new PathAction { Name = "ModifyIndex", Arguments = ["21"] },
+        new PathAction { Name = "TeleportTo", Position = actions[21].Position },
+        new PathAction { Name = "ChatCommand", Arguments = ["/echo test"] },
+        new PathAction { Name = "StopForCombat", Arguments = ["true"] },
+        new PathAction { Name = "WaitFor", Arguments = ["Combat"] },
+        new PathAction { Name = "Interactable", Arguments = ["1"] },
+    })
+        Check(InteractionTransitionProgress.InferDestination(new[] { step, actions[19], barrier, actions[21] }, 0) == null,
+            $"destination inference cannot look through {barrier.Name}");
+    var bounded = new List<PathAction> { step, actions[19] };
+    bounded.AddRange(Enumerable.Range(0, 8).Select(_ => new PathAction { Name = "StopForCombat", Arguments = ["false"] }));
+    bounded.Add(actions[21]);
+    Check(InteractionTransitionProgress.InferDestination(bounded, 0) == null, "lookahead is bounded");
+    Check(InteractionTransitionProgress.InferDestination(actions, -1) == null
+        && InteractionTransitionProgress.InferDestination(actions, actions.Count) == null, "invalid route indices have no destination");
+    Console.WriteLine("PASS: actual Ktisis step 18 transition through readiness/pull switch, slow loading, destination floor, stable ground and control-flow barriers");
+}
+
 static void TestTransitionRegions()
 {
     var region = new TransitionRegion { Territory = 974, Center = new(20, -600, -45), Radius = 20 };

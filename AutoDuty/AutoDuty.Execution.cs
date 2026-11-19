@@ -277,10 +277,14 @@ public partial class AutoDuty
 
     private void SetTransferDestination()
     {
-        var destination = this.pathAction.Transition ?? InteractionTransitionProgress.InferDestination(
-            this.indexer + 1 < this.Actions.Count ? this.Actions[this.indexer + 1] : null,
-            this.indexer + 2 < this.Actions.Count ? this.Actions[this.indexer + 2] : null);
+        var destination = this.pathAction.Transition ?? InteractionTransitionProgress.InferDestination(this.Actions, this.indexer);
         this.interactionTransition.Expect(destination);
+        NavigationDiagnostics.Record("transfer-destination", detail: new
+        {
+            source = this.pathAction.Transition != null ? "explicit" : destination != null ? "route-inferred" : "unknown",
+            destination,
+            continuation = InteractionTransitionProgress.ContinuationStep(this.Actions, this.indexer)?.Position,
+        });
         this.transitionPathProbe.Reset();
         this.nextGroundProbe = 0;
         this.transferGroundReady = false;
@@ -307,14 +311,14 @@ public partial class AutoDuty
         var source = anomaly != null ? this.displacementMonitor.Source : this.displacementSource ?? position;
         this.displacementSource = position;
         var next = this.indexer + 1 < this.Actions.Count ? this.Actions[this.indexer + 1] : null;
-        var after = this.indexer + 2 < this.Actions.Count ? this.Actions[this.indexer + 2] : null;
+        var after = InteractionTransitionProgress.ContinuationStep(this.Actions, this.indexer);
         bool launch = this.interactionTransition.ActivateExpectedMovement(this.pathAction, this.indexer, territory, position, now)
             || this.interactionTransition.ObserveForcedMovement(this.pathAction, this.indexer,
                 territory, position, now, false, next, after);
         if (!launch && anomaly == null) return;
         // An expected region alone is not proof that this displacement belongs
         // to it: require a source close to this step's trigger/interaction.
-        var expected = this.pathAction.Transition ?? InteractionTransitionProgress.InferDestination(next, after);
+        var expected = this.pathAction.Transition ?? InteractionTransitionProgress.InferDestination(this.Actions, this.indexer);
         bool owned = launch || (expected?.NearTrigger(this.pathAction.Position, source) == true
             && this.interactionTransition.BeginDisplacement(this.pathAction, this.indexer, this.displacementMonitor.SourceTerritory, source, now, expected));
         VNavmesh_IPCSubscriber.Path_Stop();
