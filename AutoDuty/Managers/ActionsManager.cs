@@ -58,7 +58,7 @@ namespace AutoDuty.Managers
             ("KillInRange","Kills every enemy in range", ["Range"]),
             ("AutoMoveFor", "Adds an AutoMoveFor step to the path; AutoDuty will turn on Standard Mode and Auto Move for the time specified in milliseconds (or until player is not ready)", ["how long in ms?"]),
             ("ChatCommand","Adds a ChatCommand step to the path; after moving to the position, AutoDuty will execute the Command specified", ["chat command"]),
-            ("StopForCombat","Adds a StopForCombat step to the path; after moving to the position, AutoDuty will turn StopForCombat on or off", ["true/false"]),
+            ("StopForCombat","Combat movement for this step only: false keeps navigating with rotation; true stops navigation to fight. MoveTo disables rotation and combat movement independently.", ["true/false"]),
             ("Revival", "Adds a Revive flag to the path; this is just a flag to mark the positions of Revival Points, AutoDuty will ignore this step during navigation.\nUse this if the Revive Teleporter does not take you directly to the arena of the last boss you killed, such as Sohm Al", []),
             ("ForceAttack",  "Adds a ForceAttack step to the path; after moving to the position, AutoDuty will ForceAttack the closest mob", []),
             ("Jump", "Adds a Jump step to the path; after AutoMoving, AutoDuty will jump", ["automove duration before jump"]),

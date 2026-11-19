@@ -350,6 +350,15 @@ public partial class AutoDuty
             return true;
         }
         bool navigationStage = this.Stage is Stage.Reading_Path or Stage.Moving;
+        if (this.Stage == Stage.Reading_Path && this.currentAttempt is { } routeAttempt)
+        {
+            // Claim the next step before readiness waits, not after starting its path.
+            this.pathAction = routeAttempt.Action;
+            this.DutyData?.StopForCombat = RouteMovementPolicy.StopsForCombat(this.pathAction);
+            this.ApplyStepRotation();
+            BossMod_IPCSubscriber.SetMovement(false,
+                RouteMovementPolicy.PreferInstants(this.pathAction, Stage.Moving));
+        }
         bool worldReady = this.ExecutionWorldReady();
         bool taskReady = this.taskResumeGate.Ready(worldReady, now);
         if (!worldReady || (this.Stage == Stage.Action && !taskReady)

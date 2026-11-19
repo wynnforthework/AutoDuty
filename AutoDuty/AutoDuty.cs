@@ -164,9 +164,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
                 case Stage.Action:
                     // A combat switch applies its requested ownership directly;
                     // never briefly enable BossMod before processing "false".
-                    BossMod_IPCSubscriber.SetMovement(this.pathAction.Name == "StopForCombat"
-                        ? CombatCheckpointProgress.IsSwitchOn(this.pathAction)
-                        : this.pathAction.Name != "Interactable");
+                    this.ApplyStepRotation();
+                    BossMod_IPCSubscriber.SetMovement(RouteMovementPolicy.ActionMovement(this.pathAction));
                     if (PauseResumePolicy.ShouldInvokeAction(field)) this.ActionInvoke();
                     break;
                 case Stage.Condition:
@@ -357,7 +356,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.assemblyDirectoryInfo = this.assemblyFileInfo.Directory;
 
             this.Version = 
-                ((PluginInterface.IsDev     ? new Version(0,0,0, 401) :
+                ((PluginInterface.IsDev     ? new Version(0,0,0, 402) :
                   PluginInterface.IsTesting ? PluginInterface.Manifest.TestingAssemblyVersion ?? PluginInterface.Manifest.AssemblyVersion : PluginInterface.Manifest.AssemblyVersion)!).Revision;
 
             if (!this.configDirectory.Exists)
@@ -1466,6 +1465,10 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.action = $"{(this.Actions.Count >= this.indexer ? Plugin.Actions[this.indexer].ToCustomString() : "")}";
 
         this.pathAction = this.Actions[this.indexer];
+        this.DutyData?.StopForCombat = RouteMovementPolicy.StopsForCombat(this.pathAction);
+        this.ApplyStepRotation();
+        BossMod_IPCSubscriber.SetMovement(false,
+            RouteMovementPolicy.PreferInstants(this.pathAction, Stage.Moving));
 
         if (MultiboxUtility.MultiboxBlockingNextStep)
         {
@@ -1596,7 +1599,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         Chat.ExecuteCommand("/automove off");
         FollowHelper.SetFollow(null);
         BossMod_IPCSubscriber.SetMovement(false,
-            RouteMovementPolicy.PreferInstants(this.DutyData?.StopForCombat ?? true, Stage.Moving));
+            RouteMovementPolicy.PreferInstants(this.pathAction, Stage.Moving));
         this.DutyData?.StayCloseToTank = false;
         if (this.currentAttempt == null) this.BeginAttempt(this.indexer);
         this.ReportAttemptStart();
@@ -1628,8 +1631,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.interactionTransition.TrackMovement(this.pathAction, this.indexer, Svc.ClientState.TerritoryType,
             Player.Position, Environment.TickCount64, this.indexer + 1 < this.Actions.Count ? this.Actions[this.indexer + 1] : null);
         this.action = $"{Plugin.Actions[this.indexer].ToCustomString()}";
+        this.ApplyStepRotation();
         BossMod_IPCSubscriber.SetMovement(false,
-            RouteMovementPolicy.PreferInstants(this.DutyData?.StopForCombat ?? true, Stage.Moving));
+            RouteMovementPolicy.PreferInstants(this.pathAction, Stage.Moving));
         if (this.TryApplyNearbyCombatSwitch()) return;
 
         if (EzThrottler.Throttle("BossChecker", 25) && this.pathAction.Name.Equals("Boss") && this.pathAction.Position != Vector3.Zero && ObjectHelper.BelowDistanceToPlayer(this.pathAction.Position, 50, 10))
@@ -1739,7 +1743,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
         
         if (Configuration is { DutyConfig: { AutoManageRotationPluginState: true, UsingAlternativeRotationPlugin: false } } && !Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent])
-            this.SetRotationPluginSettings(true);
+            this.ApplyStepRotation();
         
         if (this.currentAttempt is { ActionStartedAt: > 0 } attempt && this.taskManager.IsBusy)
         {
@@ -1967,8 +1971,14 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (Configuration.DutyConfig.AutoManageBossModAISettings) 
             SetBMSettings();
-        if (Configuration is { DutyConfig: { AutoManageRotationPluginState: true, UsingAlternativeRotationPlugin: false } }) 
-            this.SetRotationPluginSettings(true);
+        if (this.indexer >= 0 && this.indexer < this.Actions.Count)
+        {
+            this.pathAction = this.Actions[this.indexer];
+            this.DutyData.StopForCombat = RouteMovementPolicy.StopsForCombat(this.pathAction);
+            this.ApplyStepRotation();
+            BossMod_IPCSubscriber.SetMovement(false,
+                RouteMovementPolicy.PreferInstants(this.pathAction, Stage.Moving));
+        }
 
         if (Configuration.DutyConfig.LootTreasure)
         {
@@ -2062,6 +2072,17 @@ public sealed partial class AutoDuty : IDalamudPlugin
         BossMod_IPCSubscriber.SetBasicSettings(on);
     }
 
+    private bool? lastRotationState;
+
+    private void ApplyStepRotation()
+    {
+        if (Configuration.DutyConfig.UsingAlternativeRotationPlugin) return;
+        bool enabled = RouteMovementPolicy.RotationEnabled(this.pathAction);
+        // Restore immediately after MoveTo, even inside the usual five-second throttle.
+        if (this.lastRotationState != enabled || enabled)
+            this.SetRotationPluginSettings(enabled, ignoreTimer: this.lastRotationState != enabled);
+    }
+
     internal void SetRotationPluginSettings(bool on, bool ignoreConfig = false, bool ignoreTimer = false)
     {
         // Only try to set the rotation state every few seconds
@@ -2073,6 +2094,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (!ignoreConfig && !Configuration.DutyConfig.AutoManageRotationPluginState)
             return;
+        this.lastRotationState = on;
 
         bool? EnableWrath(bool active)
         {

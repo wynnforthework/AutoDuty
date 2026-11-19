@@ -1,5 +1,6 @@
 using System.Runtime.Loader;
 using AutoDuty.Helpers;
+using PathAction = AutoDuty.Data.Classes.PathAction;
 
 // Load game API managed assemblies for model tests; no game services are initialized.
 AssemblyLoadContext.Default.Resolving += (_, name) =>
@@ -759,11 +760,24 @@ static void TestStepExecutionGates()
 }
 static void TestNavigationReadiness()
 {
-    Check(RouteMovementPolicy.PreferInstants(false, AutoDuty.Data.Enums.Stage.Moving), "pulling with StopForCombat false gives walking priority over cast bars");
-    Check(!RouteMovementPolicy.PreferInstants(true, AutoDuty.Data.Enums.Stage.Moving), "normal combat retains casting policy");
+    PathAction pull = new() { Name = "StopForCombat", Arguments = ["false"] };
+    PathAction move = new() { Name = "MoveTo", Arguments = ["true"] };
+    PathAction fight = new() { Name = "StopForCombat", Arguments = ["true"] };
+    foreach (var step in new[] { pull, move, fight, move, pull })
+    {
+        bool movingOnly = step.Name == "MoveTo";
+        bool stopping = ReferenceEquals(step, fight);
+        Check(RouteMovementPolicy.RotationEnabled(step) == !movingOnly, "rotation is owned by the current entry, independent of the preceding switch");
+        Check(RouteMovementPolicy.StopsForCombat(step) == stopping, "combat cannot interrupt MoveTo or false approach, but interrupts true approach");
+        Check(RouteMovementPolicy.ActionMovement(step) == stopping, "zero-position action cannot re-enable combat movement on MoveTo or false");
+        Check(RouteMovementPolicy.PreferInstants(step, AutoDuty.Data.Enums.Stage.Moving) == ReferenceEquals(step, pull), "only false combat movement limits cast bars");
+    }
+    Check(RouteMovementPolicy.StopsForCombat(new() { Name = "Boss" }), "Boss restores normal combat even after a false step");
+    Check(!RouteMovementPolicy.ActionMovement(new() { Name = "Interactable" }), "interaction retains ownership of movement");
+    Check(!RouteMovementPolicy.RotationEnabled(new() { Name = "MoveTo", Arguments = ["false"] }), "direct MoveTo uses the same rotation policy as navmesh MoveTo");
     foreach (var stage in new[] { AutoDuty.Data.Enums.Stage.Action, AutoDuty.Data.Enums.Stage.Waiting_For_Combat,
         AutoDuty.Data.Enums.Stage.Paused, AutoDuty.Data.Enums.Stage.Stopped, AutoDuty.Data.Enums.Stage.Interactable })
-        Check(!RouteMovementPolicy.PreferInstants(false, stage), "pull cast restriction ends outside route movement");
+        Check(!RouteMovementPolicy.PreferInstants(pull, stage), "pull cast restriction ends outside route movement");
     var combatReady = new NavigationReadiness();
     for (long now = 0; now <= 10000; now += 100)
     {
