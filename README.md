@@ -1,72 +1,66 @@
-# AutoDuty
+# AutoDuty — personal fork
+
+[English](README.md) · [简体中文](README.zh-CN.md)
 
 <img align="right" width="150" height="150" src="logo.png">
 
-AutoDuty (AD) is a Dalamud plugin for FFXIV that serves as a tool to assist in the creation and following of paths through dungeons and duties. It's designed to enable automatic looping of instanced content with Duty Support, Trusts, or Squadrons.
+AutoDuty is a Dalamud plugin for creating and following FFXIV duty routes, including repeat runs with Duty Support, Trusts, or Squadrons. This repository maintains an experimental, AI-assisted fork of [erdelf/AutoDuty](https://github.com/erdelf/AutoDuty) on **`dev_01`**. It is independently maintained and is not an upstream release.
 
-Support for it can be found in the [this channel](https://discord.com/channels/1001823907193552978/1236757595738476725) of the [Puni.sh Discord server](https://discord.gg/punishxiv).
+Current test version: **0.0.0.407**, targeting Dalamud API 15. The latest code passed a Release build with zero errors and 33 offline test groups. **This version has not been tested in game.** These results do not establish that every duty, transition, or an unattended level 16–100 run works.
 
-_Unlicensed code, which follows [default copyright law](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository#choosing-the-right-license)_
+## What this fork adds
 
-# Dungeon Paths
+| Area | Behavior |
+| --- | --- |
+| Route editing | Multiple route versions per duty, protected originals, editable copies, role-specific routes, step highlighting, deletion through the editor, and saved changes. |
+| Execution controls | Pause/resume, retry, skip, and restart from a selected step; an independent card view shows step details, actions, and progress. Manual intervention may invalidate later prerequisites. |
+| Recording and sharing | Record movement and supported events, supplement other actions manually, and share route configurations through import/export. Recording does not infer every game mechanic. |
+| Leveling | Include or skip duties, select role routes, inspect configured duties, and reselect eligible duties as the job levels. |
+| Measurements | Session duration, duty runs, XP and levels gained; route completion displays the highest recorded completion rather than an average. A clean full clear reaches 100%; recovered automatic retries alone do not count as manual intervention. |
+| Execution reliability | Game readiness gates, suspended action clocks, navigation diagnostics, session lifecycle fixes, and step-specific navigation/combat control. |
 
-<img align="right" height="250" src="Assets/paths.png">
+## Recent reliability work
 
-Each dungeon supported by AutoDuty has a pre-configured path laid out, which should complete the dungeon without any issues. If any issues are encountered, make sure to reach out in the [support Discord](https://discord.gg/punishxiv).
+Area transitions use separate checks for suspected movement, travel ending, destination confirmation, and completion of the owning step. Scripts can describe a destination territory, horizontal range, and height range. Ground checks and asynchronous, rate-limited vnavmesh path queries provide additional evidence. Unknown displacements stop navigation and pause when completion cannot be established. Older routes may need explicit destination configuration; this does not automatically fix every route.
 
-The paths will also run over all loot containers and, when configured, will pick up the loot and do something with it while either in between dungeon runs or after your set amount of runs are over.
+Combat control belongs to the current step: MoveTo disables managed BossMod movement and rotation; StopForCombat false disables BossMod movement while enabling rotation; StopForCombat true stops route navigation and enables combat movement and rotation.
 
-Creating paths is also supported and easily accomplished within AutoDuty by using the `Build` tab at the top. For path status, please refer to the [pinned spreadsheet](https://discord.com/channels/1001823907193552978/1236757595738476725/1243059104528994334) in the [AutoDuty channel](https://discord.com/channels/1001823907193552978/1236757595738476725) of the [support Discord](https://discord.gg/punishxiv).
+Boss discovery uses NPC Rank, BossMod module information, and tracked entity identity. The script-note/name lookup introduced by an earlier patch has been removed. Encounter completion requires evidence; an object disappearing or combat ending alone does not prove a kill. Bosses without usable identification evidence remain a limitation.
 
-# Automatic Leveling
+See the [change and maintenance record](docs/上游PR拆分与提交建议.md), [transition design](docs/区域转换判定与录制.md), [Boss audit](docs/Boss识别本地审查.md), and [usage/acceptance guide](docs/挂机功能使用与验收.md) (Chinese).
 
-<img align="right" height="250" src="Assets/leveling.png">
+The official-route download progress and clean-refresh behavior proposed in [upstream issue #654](https://github.com/erdelf/AutoDuty/issues/654) is **not implemented as a complete feature** in this fork.
 
-AutoDuty has a leveling feature that will continuously run you through the "correct" dungeon to level through. The dungeon is typically determined by path quality, support for boss fights, and obviously the level of the dungeon.
+## Build and load this fork
 
-With AutoDuty, you can level a job from 15 to the max level very quickly and fully AFK, provided you have the correct gear and the option in the AD configuration to automatically equip the best gear.
+The upstream installer repository installs upstream AutoDuty. To test this fork, build the `dev_01` sources and load the result as a Dalamud development plugin.
 
-This plugin can also level trusts for you in the same way it levels your jobs. It can intelligently select trust members and level them all to max, fully AFK.
+```powershell
+git clone --recurse-submodules --branch dev_01 https://github.com/wynnforthework/AutoDuty.git
+cd AutoDuty
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -PlanOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
+```
 
-# Automations
+The checked-in build workflow targets Windows x64, .NET SDK 10 and Dalamud SDK/API 15. Read the [development skill](skills/dalamud-plugin-dev/SKILL.md) and adapt its [local environment configuration](skills/dalamud-plugin-dev/references/local-environment.json) to your machine, including the Dalamud dependency and deployment paths. The wrapper prefers the installed skill under `%USERPROFILE%/.codex/skills/dalamud-plugin-dev` when present, otherwise it uses the repository copy. `-PlanOnly` checks the plan; `-BuildOnly` builds without deployment.
 
-AutoDuty supports a wide range of automations and integrations with other plugins. Below are just some of what AD can offer while automating instanced content:
+The maintainer's fixed hot-reload entry is `D:/UGit/AutoDuty/artifacts/AutoDuty-session-stop-fix/AutoDuty.dll`. Add the configured DLL once to Dalamud's development plugin locations, then overwrite the same location on subsequent builds. Do not add a new plugin entry for each version or commit. Open settings with `/ad`. Do not load upstream AutoDuty and this fork simultaneously.
 
-| Before runs | During the run | Between runs | After the runs |
-| -------- | -------- | -------- | -------- |
-| Move to an inn, house, or FC house <br /> Auto self- or NPC- repair <br /> Execute commands (i.e. SND scripts) <br /> Auto consume items | Loot treasure coffers <br /> Manage plugin states | Auto extract materia <br /> Auto desynth loot <br /> Auto turn in loot to GC <br /> Use AutoRetainer <br /> Auto equip best gear | Stop looping at a level <br /> Stop looping when you run out of rested XP <br /> Turn on AutoRetainer multi mode <br /> Shut down your computer |
+## Integrations
 
-<hr />
+- [vnavmesh](https://github.com/awgil/ffxiv_navmesh): route navigation and mesh queries.
+- [BossMod](https://github.com/awgil/ffxiv_bossmod) or BossModReborn: encounter support and combat movement.
+- [Rotation Solver Reborn](https://github.com/FFXIV-CombatReborn/RotationSolverReborn) or [Wrath Combo](https://github.com/PunishXIV/WrathCombo): rotation execution. Availability and compatibility depend on the client and plugin versions.
+- Optional integrations include Gearsetter and AutoRetainer; inherited automation also includes repairs, loot handling, and between-run actions.
 
-# Installation
+## Reports and contribution policy
 
-Add `https://puni.sh/api/repository/erdelf` to your plugin repositories and then search for `AutoDuty` in the Plugin Installer to install AutoDuty.
+Report fork-specific problems in [this repository](https://github.com/wynnforthework/AutoDuty/issues). Include the plugin/client version and region, duty, route filename/version, **zero-based** step index, relevant logs, and whether manual retry or intervention changed the outcome. Do not ask upstream to support this fork's changes.
 
-Settings can be accessed via the Plugin Installer or using the chat command `/ad`.
+This fork contains AI-assisted code. Following upstream's rejection of AI code and the owner's explicit policy, no AI-assisted code PRs will be prepared or submitted to `erdelf/AutoDuty`, including PRs opened through this fork. The local push guard blocks direct upstream pushes but cannot prevent browser/API PR creation; see [AGENTS.md](AGENTS.md). Personal fork maintenance continues here. Historical PR preparation documents are archived records, not an active submission plan.
 
-## Required Plugins
+## Attribution and licensing
 
-Additionally, the following plugins are required. Right-click the name of the plugin and copy the URL to use it to add to your repositories in-game.
+AutoDuty originates from [erdelf/AutoDuty](https://github.com/erdelf/AutoDuty); original authorship and notices are retained. This fork does not grant a new license to the original code.
 
-- [vnavmesh](https://puni.sh/api/repository/veyn): Automatic navigation with waypoints
-- [Wrath Combo](https://github.com/PunishXIV/WrathCombo) or [Rotation Solver Reborn](https://raw.githubusercontent.com/FFXIV-CombatReborn/CombatRebornRepo/main/pluginmaster.json): Automatic rotation execution, all jobs supported
-- [Veyn's Boss Mod](https://puni.sh/api/repository/veyn) or [BossmodReborn](https://raw.githubusercontent.com/FFXIV-CombatReborn/CombatRebornRepo/main/pluginmaster.json): Automatic fight execution for bosses
-
-## Optional Plugins
-
-The following plugins are optional. They integrate with AutoDuty well and in some cases can be triggered by AD itself.
-
-- [Gearsetter](https://plugins.carvel.li): Automatically finds equipment upgrades in your inventory
-- [AutoRetainer](https://love.puni.sh/ment.json): Automatically manages your retainers and submersibles as well as sends them out on ventures
- 
-# Getting help
-
-When you've found a bug or think you have an issue with the plugin, please ask in [this channel](https://discord.com/channels/1001823907193552978/1236757595738476725) in the [Puni.sh Discord server](https://discord.gg/punishxiv). It might be a known issue or people might be able to help you quickly. Additionally, sometimes it might be an issue with one of the required plugins. Users in Discord will be able to help triage the issue and send you to the right place.
-
-Best practice is to not say "I died in this dungeon and I don't know why." Please make sure to include as much detail as possible. What boss were you on? Did you get stuck in a specific spot?
-
-For support with Veyn's Boss Mod and vnavmesh, please ask in [this channel](https://discord.com/channels/1001823907193552978/1191076246860349450) in the [Puni.sh Discord server](https://discord.gg/punishxiv),
-or support for Wrath Combo in [this channel](https://discord.com/channels/1001823907193552978/1271175781569003590) in the Puni.sh server. For support with BossModReborn and 
-Rotation Solver Reborn, please ask in the [Combat Reborn Discord server](https://discord.gg/p54TZMPnC9).
-
-Lastly, feel free to create issues with feature requests and bug reports.
+_Unlicensed code, which follows [default copyright law](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository#choosing-the-right-license)._
