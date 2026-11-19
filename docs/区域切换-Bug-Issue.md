@@ -41,6 +41,28 @@ This should prevent premature execution on slower machines, avoid retries agains
 
 This is a bug report, not a claim that an upstream fix has already been tested. Local development changes exist, but do not establish a verified upstream resolution.
 
+**Proposed solution / local implementation approach**
+
+Use state-based transition handling shared by movement and interaction steps, rather than adding a fixed delay before every step:
+
+| Stage | Evidence | Behavior |
+| --- | --- | --- |
+| Suspected transition | Territory change, loading begins, abnormal displacement, forced movement, or a recognized launch/drop mechanism | Stop the old navigation and cancel obsolete step work, while retaining ownership of the current step. |
+| Travel has ended | Loading has ended, the character can act, forced movement has ended, and readiness/position remain stable over multiple samples | Begin destination verification; elapsed time alone must not mean success. Moving platforms need an explicit exception to world-position stillness. |
+| Destination confirmed | Expected territory, horizontal area and height range match; nearby floor/mesh evidence is checked where applicable | Confirm arrival in the destination region, allowing normal landing offsets while distinguishing vertically overlapping platforms. |
+| Owning step completed | The confirmed transition belongs to this step, its completion conditions hold, and any configured mandatory path check passes | Complete this step exactly once, then start the dependent step. Arrival alone must not imply that a separate required interaction succeeded. |
+
+Concrete implementation details:
+
+1. **Describe travel intent in the route.** Attach optional transition metadata to the triggering MoveTo/Interactable step: source trigger radius/height, destination territory, destination center/radius/height, stability window, overall timeout, and optional ground/path requirements. Existing routes can infer candidate destination regions from adjacent spatial steps or the MoveTo → WaitFor IsReady → destination idiom; ambiguous cases should request explicit configuration rather than guess a completed step. Record source, bounded motion/state samples and landing region for new routes so authors can review the intended mechanism.
+2. **Use vnavmesh as supporting evidence.** Query nearby ground and asynchronously query a path from the settled destination to the next spatial target. This must be a query, not a command to move. Limit it to one outstanding request and rate-limit new requests; reject empty/invalid paths and paths whose last point does not reach the requested endpoint within horizontal/height tolerances. Discard results after a step reset, territory change, target change, significant origin movement or mesh invalidation. A connected path cannot replace destination/interaction evidence. Missing mesh does not prove the character is still airborne; exceptional platforms need explicit route settings.
+3. **Wait for sustained state, not a machine-specific sleep.** Restart the short stability window whenever loading/readiness/forced movement becomes invalid. The overall timeout produces a recoverable "destination not confirmed" failure, not successful completion or a jump to the next step. Path evidence can be optional by default, or explicitly mandatory for a route that needs it.
+4. **Preserve prerequisites and recover safely.** On an unowned/unknown displacement, stop invalid navigation, pause and export before/after positions, territory, loading/readiness/forced-motion state, destination evidence and path-query status. Keep death/Return recovery separate from intentional travel; a confirmed return to the duty entrance should restart the route rather than continue from a stale middle step. If a mandatory interaction fails, retry only when the game is ready or pause on that step; do not continue into steps that depend on that interaction.
+
+For the reported Babil case, completing step 10 must wait until its transfer has actually reached a confirmed destination. Only then may step 11 start navigating to and interacting with its target. Step 11 must retain its own interaction/transfer completion evidence before subsequent travel is allowed.
+
+Local fork status: transition-region/stability handling was added in `cf6a0bc6`; separate destination/step-completion checks, forced-movement checks, asynchronous path evidence and bounded recording samples were added in `ab44b58e` (local build 0.0.0.406). Release compilation succeeded and 32 offline test groups passed, including delayed readiness, different floors, same coordinates in different territories, no-loading launch pads, stale/partial path results and completion ownership. These are local source references, **not an upstream PR or confirmation that this Babil reproduction is fixed in-game**. The reported affected version remains 0.0.0.399. Real-duty validation of the new local implementation is still required, including different loading durations and death/Return cases.
+
 ### Version Number
 
 AutoDuty **0.0.0.399**. **Chinese (CN) client/server.**
