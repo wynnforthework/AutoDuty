@@ -23,7 +23,7 @@ namespace AutoDuty.Helpers
             get => deathState;
             set
             {
-                if (Plugin.Stage == Stage.Stopped)
+                if (!DutyActivationPolicy.RouteActive(Plugin.Stage, Plugin.States.HasFlag(PluginState.Navigating)))
                     return;
 
                 if(deathState != value)
@@ -71,6 +71,11 @@ namespace AutoDuty.Helpers
 
         private static unsafe void OnDeath()
         {
+            if (!DutyActivationPolicy.RouteActive(Plugin.Stage, Plugin.States.HasFlag(PluginState.Navigating)))
+            {
+                CancelForDutyChange();
+                return;
+            }
             if (!Player.IsDead)
             {
                 DebugLog("Player is Alive, stopping OnDeath");

@@ -36,7 +36,8 @@ internal sealed class StepDeckWindow : Window
 
     internal void ObserveExecution()
     {
-        bool running = Plugin.Stage != Stage.Stopped && Plugin.Actions.Count > 0;
+        bool running = Helpers.DutyActivationPolicy.RouteActive(Plugin.Stage, Plugin.States.HasFlag(PluginState.Navigating))
+            && Plugin.Actions.Count > 0;
         if (running && !this.wasRunning && AutoDuty.Configuration.Overlay.AutoOpenStepDeck)
         {
             this.IsOpen = true;

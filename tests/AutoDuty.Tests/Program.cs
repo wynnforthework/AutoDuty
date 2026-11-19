@@ -64,6 +64,18 @@ static void Run()
     Check(RouteCompletionPolicy.DrainFinished(true, 10000), "stuck loot cannot block confirmed victory beyond ten seconds");
     Check(RouteCompletionPolicy.DrainFinished(false, 0), "completed queue exits without extra delay");
     Console.WriteLine("PASS: authoritative final Boss completion, bounded loot wait and manual pause preservation");
+    Check(!DutyActivationPolicy.AutoStartFollower(true, false, true, false), "idle multibox follower cannot start automation merely by entering duty");
+    Check(DutyActivationPolicy.AutoStartFollower(true, false, true, true), "explicit active follower loop may continue into next duty");
+    Check(!DutyActivationPolicy.AutoStartFollower(false, false, true, true), "disabled multibox cannot start follower");
+    Check(!DutyActivationPolicy.AutoStartFollower(true, true, true, true), "host does not run follower entry branch");
+    Check(!DutyActivationPolicy.AutoStartFollower(true, false, false, true), "outdoor entry cannot start follower");
+    foreach (var stage in new[] { AutoDuty.Data.Enums.Stage.Stopped, AutoDuty.Data.Enums.Stage.Looping, AutoDuty.Data.Enums.Stage.Dead, AutoDuty.Data.Enums.Stage.Revived, AutoDuty.Data.Enums.Stage.Paused, AutoDuty.Data.Enums.Stage.Reading_Path })
+        Check(!DutyActivationPolicy.RouteActive(stage, false), "non-navigation states never activate step cards, death recovery or route AI");
+    Check(!DutyActivationPolicy.RouteActive(AutoDuty.Data.Enums.Stage.Stopped, true), "stopped route cannot recover from a stale navigation flag");
+    Check(DutyActivationPolicy.RouteActive(AutoDuty.Data.Enums.Stage.Moving, true), "explicit navigation retains execution");
+    Check(DutyActivationPolicy.RouteActive(AutoDuty.Data.Enums.Stage.Paused, true), "paused active route retains step cards");
+    Check(DutyActivationPolicy.RouteActive(AutoDuty.Data.Enums.Stage.Revived, true), "active route may recover after death");
+    Console.WriteLine("PASS: idle duty entry, multibox activation boundary, route-owned cards and death recovery");
     TestDutyExecutionBoundary();
     TestBossProgress();
     TestCombatCheckpoint();

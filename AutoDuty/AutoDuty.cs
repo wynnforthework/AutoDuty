@@ -970,7 +970,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
             bool isDuty = ContentHelper.DictionaryContent.ContainsKey(t);
             if (!MultiboxUtility.Config.Host)
             {
-                if (isDuty)
+                if (DutyActivationPolicy.AutoStartFollower(MultiboxUtility.Config.MultiBox, MultiboxUtility.Config.Host,
+                        isDuty, this.States.HasFlag(PluginState.Looping)))
                 {
                     this.Run(t, 1);
                 }
@@ -1056,6 +1057,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         if (flag == ConditionFlag.Unconscious)
         {
+            if (!DutyActivationPolicy.RouteActive(this.Stage, this.States.HasFlag(PluginState.Navigating))) return;
             if (value) this.interactionTransition.Reset();
             switch (value)
             {
@@ -1922,8 +1924,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         this.mainListClicked =  false;
         DutyToolsUi.ResetSelection();
-        this.Stage           =  Stage.Reading_Path;
         this.States          |= PluginState.Navigating;
+        this.Stage           =  Stage.Reading_Path;
 
         this.DutyData = new DutyDataTemporary();
 
@@ -2293,7 +2295,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (Player.Available && !InDungeon) this.GetJobAndLevelingCheck();
         this.TickMetrics();
         this.Recorder.Tick();
-        if (this.Stage == Stage.Stopped)
+        if (!DutyActivationPolicy.RouteActive(this.Stage, this.States.HasFlag(PluginState.Navigating)))
             return;
 
         if (this.Stage != Stage.Paused && this.States.HasFlag(PluginState.Navigating))
@@ -2453,8 +2455,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (MapHelper.State == ActionState.Running)
             MapHelper.StopMoveToMapMarker();
 
-        if (DeathHelper.DeathState == PlayerLifeState.Revived)
-            DeathHelper.Stop();
+        // Stopping cancels recovery; DeathHelper.Stop resumes route movement and AI.
+        DeathHelper.CancelForDutyChange();
 
         foreach (IActiveHelper helper in ActiveHelper.activeHelpers) 
             helper.StopIfRunning();
