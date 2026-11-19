@@ -6,7 +6,7 @@
 
 AutoDuty is a Dalamud plugin for creating and following FFXIV duty routes, including repeat runs with Duty Support, Trusts, or Squadrons. This repository maintains an experimental, AI-assisted fork of [erdelf/AutoDuty](https://github.com/erdelf/AutoDuty) on **`dev_01`**. It is independently maintained and is not an upstream release.
 
-Current test version: **0.0.0.399.2**, targeting Dalamud API 15. The latest code passed a Release build with zero errors and 33 offline test groups. **This version has not been tested in game.** These results do not establish that every duty, transition, or an unattended level 16–100 run works.
+Current test version: **0.0.0.399.3**, targeting Dalamud API 15. The latest code passed a Release build with zero errors and 34 offline test groups. **This version has not been tested in game.** These results do not establish that every duty, transition, or an unattended level 16–100 run works.
 
 ## What this fork adds
 
@@ -29,11 +29,13 @@ Boss discovery uses NPC Rank, BossMod module information, and tracked entity ide
 
 See the [change and maintenance record](docs/上游PR拆分与提交建议.md), [transition design](docs/区域转换判定与录制.md), [Boss audit](docs/Boss识别本地审查.md), and [usage/acceptance guide](docs/挂机功能使用与验收.md) (Chinese).
 
+The [per-action combat audit](docs/动作战斗策略逐项审查.md) documents the full catalogue: only Boss, KillInRange, and StopForCombat true implicitly interrupt navigation for combat. Other actions retain their explicit conditions and commands; interactions no longer restore combat movement automatically, and ordinary waits do not add an out-of-combat wait.
+
 The official-route download progress and clean-refresh behavior proposed in [upstream issue #654](https://github.com/erdelf/AutoDuty/issues/654) is **not implemented as a complete feature** in this fork.
 
 ## Build and load this fork
 
-Fork versions use `<upstream four-part version>.<local revision>`, currently `0.0.0.399.2`. Local changes increment only the fifth part. Because .NET/Dalamud version fields support at most four parts, AssemblyVersion and the manifest remain `0.0.0.399`; the full fork version is stored as DLL ProductVersion and shown in the plugin window and diagnostics.
+Fork versions use `<upstream four-part version>.<local revision>`, currently `0.0.0.399.3`. Local changes increment only the fifth part. Because .NET/Dalamud version fields support at most four parts, AssemblyVersion and the manifest remain `0.0.0.399`; the full fork version is stored as DLL ProductVersion and shown in the plugin window and diagnostics.
 
 The upstream installer repository installs upstream AutoDuty. To test this fork, build the `dev_01` sources and load the result as a Dalamud development plugin.
 

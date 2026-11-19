@@ -324,7 +324,7 @@ namespace AutoDuty.Managers
             Plugin.DutyData?.StopForCombat = stop;
             taskManager.Enqueue(() => BossMod_IPCSubscriber.SetMovement(stop), "StopForCombat");
             if (stop && waitAfter)
-                this.Wait(500);
+                this.Wait(500, waitForCombat: true);
         }
 
 
@@ -409,14 +409,14 @@ namespace AutoDuty.Managers
             taskManager.Enqueue(() => Plugin.action = "");
         }
 
-        public unsafe void Wait(int ms)
+        public unsafe void Wait(int ms, bool waitForCombat = false)
         {
             var duration = new ActiveDurationProgress(ms);
-            if (Plugin.DutyData?.StopForCombat ?? true)
+            if (waitForCombat)
                 taskManager.Enqueue(() => !Player.Character->InCombat, "Wait", new TaskManagerConfiguration(int.MaxValue));
             taskManager.Enqueue(() => duration.Start(Plugin.ActiveActionTime), "Wait-StartTimer");
             taskManager.Enqueue(() => duration.Completed(Plugin.ActiveActionTime), "Wait-Duration", new TaskManagerConfiguration((int)Math.Min(int.MaxValue, Math.Max(0L, ms) + 1000)));
-            if (Plugin.DutyData?.StopForCombat ?? true)
+            if (waitForCombat)
                 taskManager.Enqueue(() => !Player.Character->InCombat, "Wait", new TaskManagerConfiguration(int.MaxValue));
         }
 
@@ -672,7 +672,9 @@ namespace AutoDuty.Managers
             taskManager.Enqueue(() => InteractableCheck(gameObject, dialogue), "Interactable-InteractableCheck");
             taskManager.Enqueue(() => IsCasting, "Interactable-WaitIsCasting", new OptionalWaitConfiguration(500));
             taskManager.Enqueue(() => !IsCasting, "Interactable-WaitNotIsCasting");
-            taskManager.Enqueue(() => BossMod_IPCSubscriber.SetMovement(true));
+            // Interaction owns movement through dialogue and any repeated click.
+            // The next route entry will apply its own combat movement policy.
+            taskManager.Enqueue(() => BossMod_IPCSubscriber.SetMovement(false));
             taskManager.EnqueueDelay(100);
             taskManager.Enqueue(() =>
             {
@@ -734,22 +736,17 @@ namespace AutoDuty.Managers
 
             IGameObject? gameObject = null;
             Plugin.action = $"Interactable";
-            taskManager.Enqueue(() => Player.Character->InCombat && (Plugin.DutyData?.StopForCombat ?? true) || 
-                                      (gameObject = Svc.Objects.Where(x => x.BaseId.EqualsAny(dataIds) && x.IsTargetable).OrderBy(GetDistanceToPlayer).FirstOrDefault()) != null, "Interactable-GetGameObjectUnlessInCombat");
+            taskManager.Enqueue(() =>
+                (gameObject = Svc.Objects.Where(x => x.BaseId.EqualsAny(dataIds) && x.IsTargetable)
+                    .OrderBy(GetDistanceToPlayer).FirstOrDefault()) != null, "Interactable-GetGameObject");
             taskManager.Enqueue(() => { Plugin.action = $"Interactable: {gameObject?.BaseId}"; }, "Interactable-SetActionVar");
             taskManager.Enqueue(() =>
             {
-                if (Player.Character->InCombat && (Plugin.DutyData?.StopForCombat ?? true))
-                {
-                    taskManager.Abort();
-                    taskManager.Enqueue(() => !Player.Character->InCombat, "Interactable-InCombatWait", new TaskManagerConfiguration(int.MaxValue));
-                    this.Interactable(action);
-                }
-                else if (gameObject == null)
+                if (gameObject == null)
                 {
                     Plugin.ReportTaskFailure("interaction-object-missing", string.Join(",", dataIds));
                 }
-            }, "Interactable-InCombatCheck");
+            }, "Interactable-ObjectCheck");
             taskManager.Enqueue(() => gameObject?.IsTargetable ?? true, "Interactable-WaitGameObjectTargetable");
             taskManager.Enqueue(() => this.Interactable(gameObject),       "Interactable-InteractableLoop");
         }

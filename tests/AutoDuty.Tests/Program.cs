@@ -168,6 +168,7 @@ static void Run()
         Check(!LoadingRecoveryProgress.CanResume(name, false, false), "unknown action cannot replay after loading: " + name);
     Console.WriteLine("PASS: delayed loading recovery, stable readiness, same-step movement replay and unsafe replay exclusions");
     TestNavigationReadiness();
+    TestActionCombatCatalogue();
     TestStepExecutionGates();
     TestPathPersistence();
     var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>
@@ -1000,6 +1001,32 @@ static void TestStepExecutionGates()
     Check(Limit("Interactable", "2000001") == 30000, "interaction keeps bounded action timeout");
     Console.WriteLine("PASS: execution and completion readiness, queue ordering guards, mesh-free actions and shared suspended deadlines");
 }
+static void TestActionCombatCatalogue()
+{
+    var catalogue = new AutoDuty.Managers.ActionsManager(null!, null!).actionsList;
+    var entryPoints = typeof(AutoDuty.Managers.ActionsManager).GetMethods()
+        .Where(m => m.Name != "InvokeAction" // Dispatcher, not a script action.
+            && m.GetParameters() is [{ ParameterType: var t }] && t == typeof(PathAction))
+        .Select(m => m.Name);
+    foreach (string name in catalogue.Select(a => a.actionName).Concat(entryPoints).Distinct())
+    {
+        Check(RouteMovementPolicy.IsReviewed(name), $"{name} requires an explicit combat policy review");
+        foreach (string arg in new[] { "", "false", "true", "on", "off", "OOC", "Combat" })
+        {
+            PathAction step = new() { Name = name, Arguments = [arg] };
+            bool fight = name is "Boss" or "KillInRange" || name == "StopForCombat" && arg == "true";
+            Check(RouteMovementPolicy.StopsForCombat(step) == fight,
+                $"{name}({arg}) must not wait for combat unless it is an explicit combat checkpoint");
+            Check(RouteMovementPolicy.ActionMovement(step) == fight,
+                $"{name}({arg}) must not grant implicit combat movement before invocation");
+        }
+    }
+    PathAction unknown = new() { Name = "FutureAction", Arguments = ["true"] };
+    Check(!RouteMovementPolicy.IsReviewed(unknown.Name) && !RouteMovementPolicy.StopsForCombat(unknown)
+        && !RouteMovementPolicy.ActionMovement(unknown), "unreviewed future actions default to no combat interruption");
+    Console.WriteLine("PASS: every editor action and PathAction entry point has reviewed combat ownership; explicit checkpoints and safe unknown defaults");
+}
+
 static void TestNavigationReadiness()
 {
     PathAction pull = new() { Name = "StopForCombat", Arguments = ["false"] };

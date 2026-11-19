@@ -510,7 +510,7 @@ public partial class AutoDuty
         if (this.currentAttempt is not { } attempt) return true;
         if (this.Stage is Stage.Waiting_For_Combat
             || (this.Stage == Stage.Action && PartyHelper.PartyInCombat()
-                && (this.taskManager.CurrentTask?.Name is "Wait" or "Interactable-InCombatWait"))
+                && this.taskManager.CurrentTask?.Name == "Wait")
             || Svc.Condition[ConditionFlag.WatchingCutscene] || Svc.Condition[ConditionFlag.OccupiedInCutSceneEvent]
             || Svc.Condition[ConditionFlag.OccupiedInQuestEvent] || Svc.Condition[ConditionFlag.BetweenAreas]
             || Svc.Condition[ConditionFlag.BetweenAreas51])
