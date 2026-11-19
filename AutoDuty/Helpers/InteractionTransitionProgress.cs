@@ -56,7 +56,11 @@ internal sealed class InteractionTransitionProgress
     internal static TransitionRegion? InferDestination(PathAction? next, PathAction? after) =>
         next is { Name: "WaitFor", Arguments.Count: 1 } && next.Position == Vector3.Zero
         && WaitForArguments.Normalize(next.Arguments[0]) is ["IsReady"] && after != null && after.Position != Vector3.Zero
-            ? new() { Center = after.Position, Radius = 100 }
+            // A legacy continuation coordinate is a point farther along the
+            // destination, not the landing pad. Allow a bounded slope envelope,
+            // but require mesh connectivity before accepting that wider region.
+            // Explicit recorded regions retain their author-specified bounds.
+            ? new() { Center = after.Position, Radius = 100, HeightTolerance = 12, RequirePath = true }
             : next != null && next.Position != Vector3.Zero && next.Name is "MoveTo" or "Boss" or "Interactable"
                 ? new() { Center = next.Position } : null;
 

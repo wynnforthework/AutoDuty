@@ -792,6 +792,38 @@ static void TestKtisisTransitionContinuation()
     Check(InteractionTransitionProgress.InferDestination(actions, -1) == null
         && InteractionTransitionProgress.InferDestination(actions, actions.Count) == null, "invalid route indices have no destination");
     Console.WriteLine("PASS: actual Ktisis step 18 transition through readiness/pull switch, slow loading, destination floor, stable ground and control-flow barriers");
+    var portal = actions[32];
+    var slopeRegion = InteractionTransitionProgress.InferDestination(actions, 32);
+    Check(portal.Name == "MoveTo" && portal.Arguments[0] == "false"
+        && slopeRegion != null && slopeRegion.Center == actions[34].Position,
+        "actual step 32 portal infers its destination from the positioned Wait after IsReady");
+    var landing = new System.Numerics.Vector3(.7863167f, -709.5715f, 64.58382f);
+    Check(!new TransitionRegion { Center = actions[34].Position, Radius = 100 }.Contains(974, landing),
+        "reported landing reproduces rejection by the old three-metre height bound");
+    Check(slopeRegion!.Contains(974, landing) && slopeRegion.RequirePath,
+        "legacy slope envelope requires path evidence instead of treating the next point as a flat platform");
+    progress.Reset();
+    progress.TrackMovement(portal, 32, 974, actions[31].Position, 1000, actions[33]);
+    Check(progress.ObserveTrackedMovementLoading(portal, 32, 1100, false), "portal approach owns step 32 transfer");
+    progress.Expect(slopeRegion);
+    Check(!progress.Settled(30000, true, false, 974, landing), "slow loading cannot complete step 32");
+    Check(!progress.Settled(31000, false, true, 974, landing, false), "slope landing still needs local ground evidence");
+    Check(!progress.Settled(32000, false, true, 974, landing)
+        && progress.Settled(33000, false, true, 974, landing), "reported grounded landing stabilizes in the inferred slope region");
+    Check(!progress.CompleteStep(portal, 32, true, false, true), "time or optional query timeout cannot waive slope connectivity");
+    Check(!progress.CompleteStep(actions[33], 33, true, true, true), "connectivity cannot skip the following readiness step");
+    Check(progress.CompleteStep(portal, 32, true, true, true), "confirmed connectivity completes only portal step 32");
+    Check(!slopeRegion.Contains(974, portal.Position)
+        && !slopeRegion.Contains(974, landing - new System.Numerics.Vector3(0, 10, 0))
+        && !slopeRegion.Contains(974, landing + new System.Numerics.Vector3(101, 0, 0)),
+        "old floor, another lower platform and far landing remain outside inference");
+    var explicitRegion = new TransitionRegion { Center = actions[34].Position };
+    portal.Transition = explicitRegion;
+    progress.Reset();
+    progress.Click(portal, 32, 974, portal.Position, 40000);
+    Check(ReferenceEquals(progress.Destination, explicitRegion) && !explicitRegion.Contains(974, landing),
+        "explicit destination keeps its strict author-specified height bounds");
+    Console.WriteLine("PASS: actual Ktisis step 32 sloped landing, mandatory path evidence, slow loading, ground, wrong-floor rejection and explicit region preservation");
 }
 
 static void TestTransitionRegions()
