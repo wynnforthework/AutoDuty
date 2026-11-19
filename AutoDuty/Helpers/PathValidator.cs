@@ -17,12 +17,15 @@ internal static class PathValidator
             if (action == null || action.Name == null || action.Arguments == null || action.Arguments.Any(a => a == null)
                 || action.Conditions == null || action.ConditionsWhile == null || action.ConditionsUntil == null
                 || action.Conditions.Concat(action.ConditionsWhile).Concat(action.ConditionsUntil).Any(c => c == null)
-                || !float.IsFinite(action.Position.X) || !float.IsFinite(action.Position.Y) || !float.IsFinite(action.Position.Z))
+                || !float.IsFinite(action.Position.X) || !float.IsFinite(action.Position.Y) || !float.IsFinite(action.Position.Z)
+                || (action.Transition != null && (!action.Transition.Valid || action.Name is not ("MoveTo" or "Interactable"))))
                 throw new JsonSerializationException("Invalid step structure or position");
     }
 
     internal static string? Error(PathAction action)
     {
+        if (action.Transition is { } transition && (!transition.Valid || action.Name is not ("MoveTo" or "Interactable")))
+            return "Invalid transition region (MoveTo/Interactable only)";
         bool Missing(int count) => action.Arguments.Count < count || action.Arguments.Take(count).Any(string.IsNullOrWhiteSpace);
         bool Integer(int i) => int.TryParse(action.Arguments[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
         int required = action.Name switch

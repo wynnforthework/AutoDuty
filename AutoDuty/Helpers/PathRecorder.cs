@@ -23,6 +23,33 @@ internal sealed class PathRecorder
     private readonly HashSet<string> visibleDialogs = [];
     private long lastTick;
     private string author = "", job = "";
+    private readonly DisplacementMonitor transitionMonitor = new();
+    private readonly TransitionStability landingStability = new();
+    private Vector3? lastReadyPosition, recordingSource;
+    private long recordingTransferAt;
+    private PathAction? manualTransfer;
+    internal bool HasManualTransfer => this.manualTransfer != null;
+
+    internal void MarkTransferStart()
+    {
+        if (!this.Recording || !PlayerHelper.IsReadyFull) throw new InvalidOperationException("请先开始录制，并在转换前标记起点");
+        this.recordingSource = null;
+        this.manualTransfer = new() { Name = "MoveTo", Position = Player.Position, Note = "区域转换：待标记落点" };
+        PathEditHelper.MutateActions(list => list.Add(this.manualTransfer), "record transfer start");
+    }
+
+    internal void MarkTransferEnd()
+    {
+        if (this.manualTransfer == null || !this.Recording || !PlayerHelper.IsReadyFull) throw new InvalidOperationException("请在落地并恢复操作后标记终点");
+        this.manualTransfer.Transition = new() { Center = Player.Position, Territory = Svc.ClientState.TerritoryType };
+        this.manualTransfer.Note = "录制的区域转换：请检查目的区域范围";
+        this.manualTransfer = null;
+        this.recordingSource = null;
+        this.lastReadyPosition = Player.Position;
+        this.transitionMonitor.Reset();
+        PathEditHelper.MutateActions(_ => { }, "record transition destination");
+        this.Add("MoveTo");
+    }
 
     internal void Start()
     {
@@ -33,6 +60,8 @@ internal sealed class PathRecorder
         this.author = Player.Name ?? "";
         this.job = Player.Job.ToString();
         this.seenObjects.Clear(); this.visibleDialogs.Clear();
+        this.transitionMonitor.Reset(); this.landingStability.Reset();
+        this.recordingSource = null; this.manualTransfer = null; this.lastReadyPosition = Player.Position;
         PathEditHelper.MutateActions(list => list.Clear(), "start recording");
         // A new recording must never retain an existing route as its save target.
         Plugin.pathFile = Path.Combine(Plugin.pathsDirectory.FullName, $"({this.Territory}) Recorded {DateTime.UtcNow:yyyyMMdd-HHmmss-fff}.json");
@@ -43,6 +72,7 @@ internal sealed class PathRecorder
     internal void Stop()
     {
         if (!this.Recording) return;
+        if (this.manualTransfer != null) throw new InvalidOperationException("请先标记转换终点，再停止录制");
         if (Player.Available && Svc.ClientState.TerritoryType == this.Territory && !PartyHelper.PartyInCombat()) this.Add("MoveTo");
         this.Recording = false;
         var simplified = Simplify(Plugin.Actions, this.SimplifyTolerance);
@@ -53,9 +83,41 @@ internal sealed class PathRecorder
     {
         if (!this.Recording || Environment.TickCount64 - this.lastTick < 200) return;
         this.lastTick = Environment.TickCount64;
-        if (Svc.ClientState.TerritoryType != this.Territory) { this.Stop(); Svc.Chat.Print("[AutoDuty] Recording stopped: territory changed."); return; }
+        if (Svc.ClientState.TerritoryType == 0) return;
+        if (Svc.ClientState.TerritoryType != this.Territory)
+        {
+            this.manualTransfer = null;
+            this.Stop(); Svc.Chat.Print("[AutoDuty] Recording stopped: territory changed; record the next territory separately."); return;
+        }
         if (!Player.Available) return;
         if (Plugin.Actions.Count >= 10000) { this.Stop(); return; }
+        if (this.manualTransfer != null) return;
+        string? displacement = this.transitionMonitor.Observe(Svc.ClientState.TerritoryType, Player.Position, this.lastTick);
+        if (Player.IsDead || PartyHelper.PartyInCombat())
+        { this.recordingSource = null; this.lastReadyPosition = null; this.landingStability.Reset(); }
+        else
+        {
+            if (this.recordingSource == null && this.lastReadyPosition is { } source
+                && (!PlayerHelper.IsReadyFull || displacement != null))
+            { this.recordingSource = source; this.recordingTransferAt = this.lastTick; this.landingStability.Reset(); }
+            if (this.recordingSource is { } start)
+            {
+                if (this.lastTick - this.recordingTransferAt > 60000) this.recordingSource = null;
+                else if (this.landingStability.Observe(PlayerHelper.IsReadyFull, Player.Position, this.lastTick, 1000, true))
+                {
+                    if (Vector3.DistanceSquared(start, Player.Position) >= 100)
+                    {
+                        this.Append(new() { Name = "MoveTo", Position = start,
+                            Transition = new() { Center = Player.Position, Territory = this.Territory },
+                            Note = "自动录制的区域转换：请检查触发点与目的区域" });
+                        this.Add("MoveTo");
+                    }
+                    this.recordingSource = null;
+                }
+                else return;
+            }
+            if (PlayerHelper.IsReadyFull) this.lastReadyPosition = Player.Position;
+        }
         if (PlayerHelper.IsReady && !PartyHelper.PartyInCombat())
         {
             var last = Plugin.Actions.LastOrDefault();
@@ -111,7 +173,8 @@ internal sealed class PathRecorder
 
     private void Append(PathAction action)
     {
-        if (Plugin.Actions.LastOrDefault() is { } last && last.Name == action.Name && Vector3.Distance(last.Position, action.Position) < 2) return;
+        if (Plugin.Actions.LastOrDefault() is { } last && last.Transition == null && action.Transition == null
+            && last.Name == action.Name && Vector3.Distance(last.Position, action.Position) < 2) return;
         PathEditHelper.MutateActions(list => list.Add(action), "record " + action.Name);
     }
 
@@ -119,10 +182,16 @@ internal sealed class PathRecorder
     {
         if (!this.Recording) PathFileStore.EnsureEditable(Plugin.pathFile);
         if (Plugin.Actions.Count > 0) PathEditHelper.MutateActions(list => list.RemoveAt(list.Count - 1), "record undo");
+        if (this.manualTransfer != null && !Plugin.Actions.Contains(this.manualTransfer)) this.manualTransfer = null;
+        this.recordingSource = null;
+        this.lastReadyPosition = Player.Available ? Player.Position : null;
+        this.transitionMonitor.Reset();
+        this.landingStability.Reset();
     }
 
     internal string Save(string name, bool append = false)
     {
+        if (this.recordingSource != null) throw new InvalidOperationException("区域转换尚未确认落地，请等待或手动标记终点");
         this.Stop();
         if (this.Territory == 0 || Plugin.Actions.Count == 0) throw new InvalidOperationException("No recording to save");
         string fileName = SafeName(name);
@@ -163,9 +232,9 @@ internal sealed class PathRecorder
         var result = new List<PathAction>();
         for (int start = 0; start < actions.Count;)
         {
-            if (actions[start].Name != "MoveTo") { result.Add(actions[start++]); continue; }
+            if (actions[start].Name != "MoveTo" || actions[start].Transition != null) { result.Add(actions[start++]); continue; }
             int end = start;
-            while (end + 1 < actions.Count && actions[end + 1].Name == "MoveTo") end++;
+            while (end + 1 < actions.Count && actions[end + 1].Name == "MoveTo" && actions[end + 1].Transition == null) end++;
             var keep = new HashSet<int> { start, end };
             var work = new Stack<(int A, int B)>(); work.Push((start, end));
             while (work.TryPop(out var segment))

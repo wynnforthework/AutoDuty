@@ -751,6 +751,38 @@ namespace AutoDuty.Windows
                     this.action.Position = actionPosition;
                 }
 
+                if (this.action.Name is "MoveTo" or "Interactable")
+                {
+                    bool transfer = this.action.Transition != null;
+                    if (ImGui.Checkbox(Loc.Get("BuildTab.TransferEnabled"), ref transfer))
+                        this.action.Transition = transfer ? new() { Center = Player.Available ? Player.Position : this.action.Position } : null;
+                    if (this.action.Transition is { } region)
+                    {
+                        ImGui.TextWrapped(Loc.Get("BuildTab.TransferHelp"));
+                        var center = region.Center;
+                        ImGui.SetNextItemWidth(250 * ImGuiHelpers.GlobalScale);
+                        ImGui.InputFloat3(Loc.Get("BuildTab.TransferCenter"), ref center);
+                        region.Center = center;
+                        if (Player.Available && ImGui.Button(Loc.Get("BuildTab.TransferUsePlayer")))
+                        { region.Center = Player.Position; region.Territory = Svc.ClientState.TerritoryType; }
+                        int territory = (int)region.Territory;
+                        ImGui.InputInt(Loc.Get("BuildTab.TransferTerritory"), ref territory);
+                        region.Territory = (uint)Math.Max(0, territory);
+                        float radius = region.Radius, height = region.HeightTolerance;
+                        ImGui.InputFloat(Loc.Get("BuildTab.TransferRadius"), ref radius);
+                        ImGui.InputFloat(Loc.Get("BuildTab.TransferHeight"), ref height);
+                        region.Radius = radius; region.HeightTolerance = height;
+                        int stable = region.StableMs, timeout = region.TimeoutMs;
+                        ImGui.InputInt(Loc.Get("BuildTab.TransferStable"), ref stable);
+                        ImGui.InputInt(Loc.Get("BuildTab.TransferTimeout"), ref timeout);
+                        region.StableMs = stable; region.TimeoutMs = timeout;
+                        bool ground = region.RequireGround, stillness = region.RequireStillness;
+                        ImGui.Checkbox(Loc.Get("BuildTab.TransferGround"), ref ground);
+                        ImGui.Checkbox(Loc.Get("BuildTab.TransferStill"), ref stillness);
+                        region.RequireGround = ground; region.RequireStillness = stillness;
+                        if (!region.Valid) ImGui.TextWrapped(Loc.Get("BuildTab.TransferInvalid"));
+                    }
+                }
                 bool strict = this.action.Flags.HasFlag(PathActionFlags.StrictConditions);
                 if (ImGui.Checkbox(DutyToolsUi.Text("StrictConditions"), ref strict))
                     this.action.Flags = strict ? this.action.Flags | PathActionFlags.StrictConditions : this.action.Flags & ~PathActionFlags.StrictConditions;

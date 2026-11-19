@@ -42,6 +42,27 @@
     "XDiff": "X-差值: ",
     "YDiff": "Y-差值: ",
     "ZDiff": "Z-差值: ",
-    "Diff": "差值: "
+    "Diff": "差值: ",
+    "TransferTimeout": "转换超时（毫秒）",
+    "TransferHeight": "高度容差（米）",
+    "TransferGround": "要求网格就绪并确认附近地面",
+    "TransferStill": "要求位置稳定（移动平台可关闭）",
+    "TransferRadius": "水平半径（米）",
+    "TransferHelp": "抵达触发点或交互后，等待目的区域及角色状态确认。坐标是目的区域中心，并非精确落点。",
+    "TransferStable": "持续稳定（毫秒）",
+    "TransferRecordStart": "标记转换起点",
+    "TransferInvalid": "区域配置无效：检查半径、高度、稳定时间和超时。",
+    "TransferRecordHelp": "录制会尝试识别强制移动。未识别的机制可在触发前标记起点，落地恢复操作后标记终点；保存前检查配置。",
+    "TransferUsePlayer": "用当前位置设置目的区域",
+    "TransferTerritory": "目的领地 ID（0 不限制）",
+    "TransferCenter": "目的区域中心",
+    "TransferEnabled": "本步包含区域转换",
+    "TransferRecordEnd": "标记转换终点",
+    "TransferWaiting": "区域转换：",
+    "TransferReason_waiting-for-transfer": "等待转换触发",
+    "TransferReason_player-or-loading": "等待角色和加载就绪",
+    "TransferReason_destination-region": "等待进入目的区域",
+    "TransferReason_ground-or-mesh": "等待网格和附近地面",
+    "TransferReason_position-stability": "等待位置稳定"
   }
 }

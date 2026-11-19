@@ -356,7 +356,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.assemblyDirectoryInfo = this.assemblyFileInfo.Directory;
 
             this.Version = 
-                ((PluginInterface.IsDev     ? new Version(0,0,0, 404) :
+                ((PluginInterface.IsDev     ? new Version(0,0,0, 405) :
                   PluginInterface.IsTesting ? PluginInterface.Manifest.TestingAssemblyVersion ?? PluginInterface.Manifest.AssemblyVersion : PluginInterface.Manifest.AssemblyVersion)!).Revision;
 
             if (!this.configDirectory.Exists)
@@ -1001,6 +1001,11 @@ public sealed partial class AutoDuty : IDalamudPlugin
         // territory notifications must not erase a running route's combat state.
         if (t == 0)
             return;
+
+        // A route-owned transfer may cross territory boundaries. Do not replace
+        // its action list with the destination's default file while settling.
+        if (this.States.HasFlag(PluginState.Navigating)
+            && (this.interactionTransition.Pending || this.transitionPending)) return;
 
         this.currentPath = -1;
 
@@ -1696,6 +1701,15 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     private bool TryAdvanceAtDestination()
     {
+        if (this.pathAction.Name == "MoveTo" && this.pathAction.Transition != null && Player.Available
+            && CombatCheckpointProgress.HasArrived(this.pathAction, Player.Position, this.currentAttempt?.Attempts ?? 0))
+        {
+            this.interactionTransition.BeginDisplacement(this.pathAction, this.indexer, Svc.ClientState.TerritoryType,
+                Player.Position, Environment.TickCount64, this.pathAction.Transition);
+            this.SetTransferDestination();
+            VNavmesh_IPCSubscriber.Path_Stop();
+            return true;
+        }
         if (!Player.Available || (PartyHelper.PartyInCombat() && (this.DutyData?.StopForCombat ?? true))
             || !CombatCheckpointProgress.HasArrived(this.pathAction, Player.Position, this.currentAttempt?.Attempts ?? 0))
         {

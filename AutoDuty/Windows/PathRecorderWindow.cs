@@ -37,6 +37,9 @@ internal sealed class PathRecorderWindow : Window
             ImGui.EndPopup();
         }
         ImGui.TextWrapped(Loc.Get("LevelingPlan.RecordingLimits"));
+        if (ImGui.Button(Loc.Get(recorder.HasManualTransfer ? "BuildTab.TransferRecordEnd" : "BuildTab.TransferRecordStart")))
+            this.Try(() => { if (recorder.HasManualTransfer) recorder.MarkTransferEnd(); else recorder.MarkTransferStart(); });
+        ImGui.TextWrapped(Loc.Get("BuildTab.TransferRecordHelp"));
         ImGui.Checkbox(DutyToolsUi.Text("DetectBoss"), ref recorder.DetectBoss);
         ImGui.Checkbox(DutyToolsUi.Text("DetectTreasure"), ref recorder.DetectTreasure);
         ImGui.Checkbox(DutyToolsUi.Text("DetectInteractions"), ref recorder.DetectInteractions);

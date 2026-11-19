@@ -45,6 +45,27 @@
     "YDiff": "Y-Diff: ",
     "ZDiff": "Z-Diff: ",
     "Diff": "Diff: ",
-    "NoPartyCoherency": "Disable Party Coherency"
+    "NoPartyCoherency": "Disable Party Coherency",
+    "TransferTimeout": "Transition timeout (ms)",
+    "TransferHeight": "Height tolerance (m)",
+    "TransferGround": "Require ready mesh and nearby ground",
+    "TransferStill": "Require stable position (disable for moving platforms)",
+    "TransferRadius": "Horizontal radius (m)",
+    "TransferHelp": "After reaching the trigger or interacting, wait for the destination region and player readiness. The center is an area, not an exact landing point.",
+    "TransferStable": "Stable duration (ms)",
+    "TransferRecordStart": "Mark transition start",
+    "TransferInvalid": "Invalid region: check radius, height, stable duration and timeout.",
+    "TransferRecordHelp": "Recording attempts to detect forced movement. For other mechanisms, mark the start before activation and the destination after landing. Review before saving.",
+    "TransferUsePlayer": "Use current location as destination",
+    "TransferTerritory": "Destination territory ID (0: any)",
+    "TransferCenter": "Destination center",
+    "TransferEnabled": "This step includes a region transition",
+    "TransferRecordEnd": "Mark transition destination",
+    "TransferWaiting": "Region transition: ",
+    "TransferReason_waiting-for-transfer": "waiting for transfer",
+    "TransferReason_player-or-loading": "waiting for player/loading",
+    "TransferReason_destination-region": "waiting for destination region",
+    "TransferReason_ground-or-mesh": "waiting for mesh and nearby ground",
+    "TransferReason_position-stability": "waiting for position stability"
   }
 }

@@ -45,6 +45,8 @@ internal static class NavigationDiagnostics
                 movementAllowed = VNavmesh_IPCSubscriber.Path_MovementAllowed,
                 interactionTransferPending = Plugin.interactionTransition.Pending,
                 interactionTransferStep = Plugin.interactionTransition.Index,
+                transferDestination = Plugin.interactionTransition.Destination,
+                transferWaiting = Plugin.interactionTransition.WaitingReason,
                 meshReady = VNavmesh_IPCSubscriber.Nav_IsReady,
                 casting = Player.Available && PlayerHelper.IsCasting,
                 betweenAreas = Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.BetweenAreas],

@@ -132,6 +132,7 @@ namespace AutoDuty.Data
 
             public string Note { get; set; } = string.Empty;
             public PathActionFlags Flags { get; set; } = PathActionFlags.None;
+            public TransitionRegion? Transition { get; set; }
         }
 
         public class PathFileMetaData

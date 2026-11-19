@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Numerics;
 using AutoDuty.Helpers;
 using AutoDuty.IPC;
+using AutoDuty.Managers;
 using AutoDuty.Multibox;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.Automation;
@@ -30,6 +32,8 @@ public partial class AutoDuty
 
     internal void BeginAttempt(int index)
     {
+        this.displacementMonitor.Reset();
+        this.displacementSource = null;
         this.stepStartGate.Reset();
         this.actionCompletionGate.Reset();
         this.movementCompletionGate.Reset();
@@ -213,7 +217,8 @@ public partial class AutoDuty
     {
         if (this.Stage != Stage.Action || this.pathAction.Name != "Interactable" || !Player.Available) return;
         this.interactionTransition.Click(this.pathAction, this.indexer, Svc.ClientState.TerritoryType, Player.Position, Environment.TickCount64);
-        this.interactionRequiresTransfer |= InteractionTransitionProgress.RequiresTransfer(Svc.ClientState.TerritoryType, objectId);
+        this.SetTransferDestination();
+        this.interactionRequiresTransfer |= this.pathAction.Transition != null || InteractionTransitionProgress.RequiresTransfer(Svc.ClientState.TerritoryType, objectId);
         NavigationDiagnostics.Record("interaction-click", detail: new { objectId, requiresTransfer = this.interactionRequiresTransfer });
     }
 
@@ -227,6 +232,7 @@ public partial class AutoDuty
                 || Environment.TickCount64 < this.returnObservedUntil)) return false;
         // Latch either load flag immediately. Queue mutation waits for Framework_Update.
         VNavmesh_IPCSubscriber.Path_Stop();
+        this.SetTransferDestination();
         NavigationDiagnostics.Record(this.pathAction.Name == "MoveTo" ? "movement-transfer-loading" : "interaction-transfer-start");
         return true;
     }
@@ -256,25 +262,65 @@ public partial class AutoDuty
             return false;
         }
         VNavmesh_IPCSubscriber.Path_Stop();
+        this.SetTransferDestination();
         NavigationDiagnostics.Record("movement-transfer-start", detail: new { target = this.pathAction.Position, playerAvailable = Player.Available });
         return true;
     }
 
+    private readonly DisplacementMonitor displacementMonitor = new();
+    private Vector3? displacementSource;
+    private long nextGroundProbe;
+    private bool transferGroundReady;
+
+    private void SetTransferDestination()
+    {
+        var destination = this.pathAction.Transition ?? InteractionTransitionProgress.InferDestination(
+            this.indexer + 1 < this.Actions.Count ? this.Actions[this.indexer + 1] : null,
+            this.indexer + 2 < this.Actions.Count ? this.Actions[this.indexer + 2] : null);
+        this.interactionTransition.Expect(destination);
+        this.nextGroundProbe = 0;
+        this.transferGroundReady = false;
+    }
+
     private unsafe void ObserveForcedMovementTransfer()
     {
-        if (this.Stage is not (Stage.Moving or Stage.Reading_Path)
+        if (this.Stage is not (Stage.Moving or Stage.Reading_Path or Stage.Action)
             || !this.States.HasFlag(PluginState.Navigating) || this.currentFailure != null
             || !Player.Available || this.currentAttempt?.Index != this.indexer
-            || this.indexer < 0 || this.indexer + 2 >= this.Actions.Count
-            || !ReferenceEquals(this.pathAction, this.Actions[this.indexer])) return;
+            || this.indexer < 0 || this.indexer >= this.Actions.Count || this.transitionPending
+            || this.interactionTransition.Pending
+            || !ReferenceEquals(this.pathAction, this.Actions[this.indexer])) { this.displacementMonitor.Reset(); this.displacementSource = null; return; }
         bool deathOrReturn = DeathHelper.DeathState != PlayerLifeState.Alive || Player.IsDead
             || Environment.TickCount64 < this.returnObservedUntil
             || FFXIVClientStructs.FFXIV.Client.Game.ActionManager.Instance()->CastActionId == 6;
-        if (!this.interactionTransition.ObserveForcedMovement(this.pathAction, this.indexer,
-                Svc.ClientState.TerritoryType, Player.Position, Environment.TickCount64, deathOrReturn,
-                this.Actions[this.indexer + 1], this.Actions[this.indexer + 2])) return;
+        if (deathOrReturn || this.pathAction.Name is not ("MoveTo" or "Interactable"))
+        { this.displacementMonitor.Reset(); this.displacementSource = null; return; }
+        long now = Environment.TickCount64;
+        var position = Player.Position;
+        uint territory = Svc.ClientState.TerritoryType;
+        string? anomaly = this.displacementMonitor.Observe(territory, position, now);
+        var source = anomaly != null ? this.displacementMonitor.Source : this.displacementSource ?? position;
+        this.displacementSource = position;
+        var next = this.indexer + 1 < this.Actions.Count ? this.Actions[this.indexer + 1] : null;
+        var after = this.indexer + 2 < this.Actions.Count ? this.Actions[this.indexer + 2] : null;
+        bool launch = this.interactionTransition.ActivateExpectedMovement(this.pathAction, this.indexer, territory, position, now)
+            || this.interactionTransition.ObserveForcedMovement(this.pathAction, this.indexer,
+                territory, position, now, false, next, after);
+        if (!launch && anomaly == null) return;
+        // An expected region alone is not proof that this displacement belongs
+        // to it: require a source close to this step's trigger/interaction.
+        var expected = this.pathAction.Transition ?? InteractionTransitionProgress.InferDestination(next, after);
+        bool owned = launch || (Vector3.DistanceSquared(source, this.pathAction.Position) <= 100
+            && this.interactionTransition.BeginDisplacement(this.pathAction, this.indexer, this.displacementMonitor.SourceTerritory, source, now, expected));
         VNavmesh_IPCSubscriber.Path_Stop();
-        NavigationDiagnostics.Record("movement-launch-start", detail: new { target = this.pathAction.Position, landing = this.Actions[this.indexer + 2].Position });
+        if (!owned)
+        {
+            if (this.IsAtRouteEntrance()) this.RestartAtEntrance("displacement-to-entrance");
+            else this.FailCurrentStep("transition-unconfirmed", $"{anomaly}: unexpected displacement; old navigation cancelled; configure destination region", forcePause: true);
+            return;
+        }
+        this.SetTransferDestination();
+        NavigationDiagnostics.Record(launch ? "movement-launch-start" : "displacement-transfer-start", detail: new { source, position, anomaly, expected });
     }
 
     private bool TickInteractionTransition()
@@ -308,8 +354,23 @@ public partial class AutoDuty
                 this.interactionTransitionCancelled = true;
             }
             bool loading = Svc.Condition[ConditionFlag.BetweenAreas] || Svc.Condition[ConditionFlag.BetweenAreas51];
+            if (now >= this.nextGroundProbe)
+            {
+                this.nextGroundProbe = now + 250;
+                this.transferGroundReady = false;
+                if (PlayerHelper.IsReadyFull && !loading && VNavmesh_IPCSubscriber.Nav_IsReady)
+                {
+                    try
+                    {
+                        var floor = VNavmesh_IPCSubscriber.Query_Mesh_PointOnFloor(Player.Position + new Vector3(0, .5f, 0), false, 2);
+                        this.transferGroundReady = floor is { } ground && MathF.Abs(ground.Y - Player.Position.Y) <= 1.5f;
+                    }
+                    catch (Exception ex) { Svc.Log.Debug($"Transfer floor probe unavailable: {ex.Message}"); }
+                }
+            }
+            this.action = Loc.Get("BuildTab.TransferWaiting") + Loc.Get("BuildTab.TransferReason_" + this.interactionTransition.WaitingReason);
             if (this.interactionTransition.Settled(now, loading, PlayerHelper.IsReadyFull,
-                    Svc.ClientState.TerritoryType, Player.Available ? Player.Position : default)
+                    Svc.ClientState.TerritoryType, Player.Available ? Player.Position : default, this.transferGroundReady)
                 && this.pathAction.ConditionsUntil.TrueForAll(c => c.IsFulfilled()))
             {
                 if (this.IsAtRouteEntrance())
@@ -333,11 +394,13 @@ public partial class AutoDuty
         if ((this.interactionTransition.Pending || this.interactionRequiresTransfer) && this.interactionTransition.TimedOut(now))
         {
             bool pending = this.interactionTransition.Pending;
+            string waiting = this.interactionTransition.WaitingReason;
+            NavigationDiagnostics.Record("transfer-timeout-evidence", detail: new { waiting, this.interactionTransition.Destination, this.transferGroundReady });
             this.interactionTransition.Reset();
             if (pending)
             {
                 this.MetricsProblem($"{transferKind}-transfer-timeout");
-                this.FailCurrentStep($"{transferKind}-transfer-timeout", "load, position or completion conditions did not settle; old coordinates will not be retried", forcePause: true);
+                this.FailCurrentStep($"{transferKind}-transfer-timeout", $"waiting for {waiting}; old coordinates will not be retried", forcePause: true);
             }
             else this.RegisterStepFailure("interaction-transfer-timeout", "interaction did not start a transfer");
             return true;

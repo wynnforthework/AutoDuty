@@ -148,6 +148,7 @@ static void Run()
     TestInteractionTransfer();
     TestMovementTransfer();
     TestLaunchTransfer();
+    TestTransitionRegions();
     var loadingRecovery = new LoadingRecoveryProgress();
     Check(!loadingRecovery.Ready(0, false), "delayed area loading suspends execution");
     Check(!loadingRecovery.Ready(5000, true), "load clear alone cannot resume movement");
@@ -747,6 +748,72 @@ static void TestLaunchTransfer()
     progress.TrackMovement(step, 36, 974, source, 6000, ready);
     Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 8001, false, ready, landing), "stale pad sample cannot authorize unrelated displacement");
     Console.WriteLine("PASS: no-loading launch pad, mesh movement, airborne readiness, expected floor, death/Return and stale-step isolation");
+}
+static void TestTransitionRegions()
+{
+    var region = new TransitionRegion { Territory = 974, Center = new(20, -600, -45), Radius = 20 };
+    Check(region.Valid && region.Contains(974, new(25, -599, -40)), "landing area allows normal offset");
+    Check(!region.Contains(974, new(20, -700, -45)), "overlapping floors are not interchangeable");
+    Check(!region.Contains(975, region.Center) && !region.Contains(974, new(100, -600, -45)), "territory and horizontal limits both apply");
+    var step = new PathAction { Name = "MoveTo", Position = new(0, -700, 0), Transition = region };
+    var transfer = new InteractionTransitionProgress();
+    Check(transfer.BeginDisplacement(step, 36, 974, step.Position, 0, region), "explicit transition owns current step");
+    Check(!transfer.Settled(1000, false, true, 974, region.Center, false), "mesh/ground failure never passes merely after waiting");
+    Check(transfer.WaitingReason == "ground-or-mesh", "diagnostic explains missing evidence");
+    Check(!transfer.Settled(2000, false, true, 974, region.Center, true), "start stable window on actual arrival");
+    Check(!transfer.Settled(3000, false, true, 974, region.Center + new System.Numerics.Vector3(2, 0, 0), true), "sliding position resets stability");
+    Check(!transfer.Settled(4000, false, false, 974, region.Center, true), "loss of readiness resets stability");
+    Check(!transfer.Settled(5000, false, true, 974, region.Center, true) && transfer.Settled(6000, false, true, 974, region.Center, true), "only sustained ready grounded arrival succeeds");
+    transfer.Reset();
+    region.RequireStillness = false; region.RequireGround = false;
+    transfer.BeginDisplacement(step, 36, 974, step.Position, 0, region);
+    Check(!transfer.Settled(1000, false, true, 974, region.Center, false)
+        && transfer.Settled(2000, false, true, 974, region.Center + new System.Numerics.Vector3(3, 0, 0), false), "declared moving platform may waive ground and stillness while retaining region and readiness");
+    Check(transfer.TimedOut(60000), "transition remains bounded even if requirements never settle");
+    transfer.Reset();
+    step.Name = "Interactable"; step.Arguments = ["2000001"];
+    transfer.Click(step, 5, 974, step.Position, 1000);
+    Check(!transfer.ActivateExpectedMovement(step, 5, 974, step.Position, 1100), "interaction click alone is not travel");
+    Check(!transfer.ActivateExpectedMovement(step, 6, 974, region.Center, 1200), "interaction evidence cannot advance another index");
+    Check(transfer.ActivateExpectedMovement(step, 5, 974, region.Center, 1200), "configured same-height or gradual interaction transfer requires no loading flag");
+    var monitor = new DisplacementMonitor();
+    Check(monitor.Observe(974, new(0, 0, 0), 0) == null, "first displacement sample has no history");
+    for (int i = 1; i <= 100; i++)
+        Check(monitor.Observe(974, new(i * .06f, 0, 0), i * 10) == null, "ordinary walking at high frame rate is not a transition");
+    Check(monitor.Observe(974, new(100, 0, 0), 1100) == "forced-displacement", "same-height instant relocation cancels old path");
+    monitor.Reset(); monitor.Observe(974, new(0, 0, 0), 0);
+    string? observed = null;
+    for (int i = 1; i <= 20; i++) observed ??= monitor.Observe(974, new(0, i * .5f, 0), i * 10);
+    Check(observed == "forced-displacement", "continuous fast launch is detected despite sub-two-metre frames");
+    monitor.Reset(); monitor.Observe(974, region.Center, 0);
+    Check(monitor.Observe(975, region.Center, 200) == "territory-changed", "territory change does not need coordinate change");
+    Check(monitor.SourceTerritory == 974, "transition retains source territory rather than destination territory");
+    monitor.Reset(); monitor.Observe(974, region.Center, 0);
+    Check(monitor.Observe(975, region.Center, 10) == "territory-changed", "map changes are observed even inside the displacement sampling interval");
+    transfer.Reset();
+    transfer.BeginDisplacement(step, 36, 974, region.Center, 0, new() { Territory = 975, Center = region.Center });
+    Check(!transfer.Settled(1000, false, true, 975, region.Center)
+        && transfer.Settled(2000, false, true, 975, region.Center), "same coordinates on a different territory still constitute actual travel");
+    var file = new AutoDuty.Data.Classes.PathFile { Actions = [step] };
+    string json = AutoDuty.Data.PathJson.WriteFile(file);
+    var restored = AutoDuty.Data.PathJson.ReadFile(json).Actions[0];
+    Check(restored.Transition?.Center == region.Center && restored.Transition?.RequireGround == false,
+        "transition settings survive file save and reload");
+    var copy = Newtonsoft.Json.JsonConvert.DeserializeObject<PathAction>(Newtonsoft.Json.JsonConvert.SerializeObject(step))!;
+    copy.Transition!.Radius = 30;
+    Check(step.Transition.Radius == 20, "editor clone does not mutate the running destination");
+    Check(PathRecorder.Simplify([new() { Name = "MoveTo", Position = new(0, 0, 0) },
+        new() { Name = "MoveTo", Position = new(1, 0, 0), Transition = region },
+        new() { Name = "MoveTo", Position = new(2, 0, 0) }], 10).Count == 3, "simplification never removes transition boundaries");
+    region.Radius = float.NaN;
+    Check(!region.Valid && PathValidator.Error(step) != null, "invalid region cannot execute");
+    var invalid = Newtonsoft.Json.Linq.JObject.Parse(json);
+    invalid["Actions"]![0]!["Transition"]!["Radius"] = -1;
+    bool rejected = false;
+    try { AutoDuty.Data.PathJson.ReadFile(invalid.ToString()); }
+    catch (Newtonsoft.Json.JsonException) { rejected = true; }
+    Check(rejected, "invalid transition region is rejected at file import");
+    Console.WriteLine("PASS: transition regions, grounded stability, moving-platform exceptions, unknown displacement, high frame rates, serialization and recording boundaries");
 }
 static void TestStepExecutionGates()
 {

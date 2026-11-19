@@ -13,7 +13,7 @@ namespace AutoDuty.Data;
 // Path-only settings. Configuration clones and the multibox wire format keep their existing settings.
 internal static class PathJson
 {
-    internal const int CurrentSchema = 2;
+    internal const int CurrentSchema = 3;
     internal static JsonSerializerSettings Read { get; } = Create();
     internal static JsonSerializerSettings Write { get; } = Create();
 
