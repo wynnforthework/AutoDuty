@@ -1597,6 +1597,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.currentAttempt!.StartedAt = Environment.TickCount64;
         this.currentAttempt.Progress.Reset(Player.Position, Environment.TickCount64);
         this.currentAttempt.NavigationStop.Reset();
+        this.interactionTransition.TrackMovement(this.pathAction, this.indexer, Svc.ClientState.TerritoryType,
+            Player.Position, Environment.TickCount64);
         this.Stage = Stage.Moving;
     }
 
@@ -1605,6 +1607,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (!PlayerHelper.IsValid || this.indexer == -1 || this.indexer >= this.Actions.Count)
             return;
 
+        this.interactionTransition.TrackMovement(this.pathAction, this.indexer, Svc.ClientState.TerritoryType,
+            Player.Position, Environment.TickCount64);
         this.action = $"{Plugin.Actions[this.indexer].ToCustomString()}";
         if (this.TryApplyNearbyCombatSwitch()) return;
 

@@ -596,6 +596,22 @@ static void TestMovementTransfer()
     progress.ObserveMovementLoading(step, 22, true, 1366, trigger, 1000, false);
     Check(!progress.Settled(2000, false, true, 999, trigger)
         && progress.Settled(3000, false, true, 999, trigger), "changed territory also confirms movement transfer after settling");
+    progress.Reset();
+    progress.TrackMovement(step, 22, 1366, trigger, 1000);
+    Check(!progress.ObserveTrackedMovementLoading(step, 22, 1100, true), "cached portal approach cannot authorize death or Return");
+    Check(!progress.ObserveTrackedMovementLoading(step, 23, 1100, false), "cached approach belongs to the original index");
+    Check(!progress.ObserveTrackedMovementLoading(new AutoDuty.Data.Classes.PathAction { Name = "MoveTo", Position = step.Position }, 22, 1100, false), "replacement step cannot reuse cached approach");
+    Check(progress.ObserveTrackedMovementLoading(step, 22, 1100, false), "preload sample survives absent player, changed position or readiness fallback to Reading_Path");
+    Check(progress.ObserveTrackedMovementLoading(step, 22, 5000, false), "second loading flag preserves pending transfer beyond approach sample lifetime");
+    Check(!progress.Settled(5100, false, true, 1366, upstairs)
+        && progress.Settled(6100, false, true, 1366, upstairs), "cached origin confirms upstairs arrival without revisiting old coordinates");
+    progress.Reset();
+    Check(!progress.ObserveTrackedMovementLoading(step, 22, 6200, false), "reset removes pending and cached approach evidence");
+    progress.TrackMovement(step, 22, 1366, trigger, 7000);
+    Check(!progress.ObserveTrackedMovementLoading(step, 22, 9001, false), "stale approach cannot authorize unrelated loading");
+    progress.TrackMovement(step, 22, 1366, trigger, 10000);
+    progress.TrackMovement(step, 22, 1366, trigger + new System.Numerics.Vector3(40, 0, 0), 10100);
+    Check(!progress.ObserveTrackedMovementLoading(step, 22, 10200, false), "moving away from portal invalidates cached approach");
     Console.WriteLine("PASS: Dusk Vigil movement portal, duplicate flags, stable destination, ownership, reset, timeout and death/Return exclusion");
 }
 static void TestNavigationReadiness()

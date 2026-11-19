@@ -14,6 +14,31 @@ internal sealed class InteractionTransitionProgress
     private long clickedAt;
     private long loadingAt;
     private long? readySince;
+    private PathAction? approachingStep;
+    private int approachingIndex;
+    private uint approachingTerritory;
+    private Vector3 approachingPosition;
+    private long approachedAt;
+
+    internal void TrackMovement(PathAction step, int index, uint territory, Vector3 position, long now)
+    {
+        if (this.Pending) return;
+        this.approachingStep = step.Name == "MoveTo" && Vector3.DistanceSquared(step.Position, position) <= 100 ? step : null;
+        this.approachingIndex = index;
+        this.approachingTerritory = territory;
+        this.approachingPosition = position;
+        this.approachedAt = now;
+    }
+
+    internal bool ObserveTrackedMovementLoading(PathAction step, int index, long now, bool deathOrReturn)
+    {
+        if (deathOrReturn) return false;
+        if (this.Pending) return this.ObserveLoading(step, index, now, false);
+        if (!ReferenceEquals(this.approachingStep, step) || this.approachingIndex != index
+            || now < this.approachedAt || now - this.approachedAt > 2000) return false;
+        return this.ObserveMovementLoading(step, index, true, this.approachingTerritory,
+            this.approachingPosition, now, false);
+    }
 
     internal static bool RequiresTransfer(uint territory, uint objectId)
         => territory == 1303 && objectId is >= 2000460 and <= 2000465;
@@ -65,6 +90,7 @@ internal sealed class InteractionTransitionProgress
 
     internal void Reset()
     {
+        this.approachingStep = null;
         this.Step = null;
         this.Index = -1;
         this.Pending = false;

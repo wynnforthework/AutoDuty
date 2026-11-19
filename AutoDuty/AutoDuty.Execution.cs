@@ -223,19 +223,30 @@ public partial class AutoDuty
 
     private unsafe bool ObserveMovementLoading()
     {
-        if (!Player.Available || !InDungeon || this.dutyState == DutyState.DutyComplete
+        // Loading may already have invalidated the player or changed Moving to
+        // Reading_Path. Use the last valid approach sample, not loading-time coordinates.
+        if (this.Stage is not (Stage.Moving or Stage.Reading_Path or Stage.Waiting_For_Combat or Stage.Interactable)
+            || this.dutyState == DutyState.DutyComplete
             || !this.States.HasFlag(PluginState.Navigating) || this.currentFailure != null
             || this.currentAttempt?.Index != this.indexer
             || !RouteCompletionPolicy.HasStep(this.indexer, this.Actions.Count)
             || !ReferenceEquals(this.pathAction, this.Actions[this.indexer])) return false;
-        bool deathOrReturn = DeathHelper.DeathState != PlayerLifeState.Alive || Player.IsDead
+        bool deathOrReturn = DeathHelper.DeathState != PlayerLifeState.Alive
+            || (Player.Available && Player.IsDead)
             || Environment.TickCount64 < this.returnObservedUntil
             || FFXIVClientStructs.FFXIV.Client.Game.ActionManager.Instance()->CastActionId == 6;
-        if (!this.interactionTransition.ObserveMovementLoading(this.pathAction, this.indexer,
-                this.Stage == Stage.Moving, Svc.ClientState.TerritoryType, Player.Position,
-                Environment.TickCount64, deathOrReturn)) return false;
+        bool observed = this.interactionTransition.ObserveTrackedMovementLoading(this.pathAction,
+            this.indexer, Environment.TickCount64, deathOrReturn);
+        if (!observed && Player.Available && this.Stage == Stage.Moving)
+            observed = this.interactionTransition.ObserveMovementLoading(this.pathAction, this.indexer,
+                true, Svc.ClientState.TerritoryType, Player.Position, Environment.TickCount64, deathOrReturn);
+        if (!observed)
+        {
+            NavigationDiagnostics.Record("movement-transfer-rejected", detail: new { deathOrReturn, playerAvailable = Player.Available });
+            return false;
+        }
         VNavmesh_IPCSubscriber.Path_Stop();
-        NavigationDiagnostics.Record("movement-transfer-start", detail: new { target = this.pathAction.Position, origin = Player.Position });
+        NavigationDiagnostics.Record("movement-transfer-start", detail: new { target = this.pathAction.Position, playerAvailable = Player.Available });
         return true;
     }
 
