@@ -6,7 +6,7 @@
 
 AutoDuty is a Dalamud plugin for creating and following FFXIV duty routes, including repeat runs with Duty Support, Trusts, or Squadrons. This repository maintains an experimental, AI-assisted fork of [erdelf/AutoDuty](https://github.com/erdelf/AutoDuty) on **`dev_01`**. It is independently maintained and is not an upstream release.
 
-Current test version: **0.0.0.399.1**, targeting Dalamud API 15. The latest code passed a Release build with zero errors and 33 offline test groups. **This version has not been tested in game.** These results do not establish that every duty, transition, or an unattended level 16–100 run works.
+Current test version: **0.0.0.399.2**, targeting Dalamud API 15. The latest code passed a Release build with zero errors and 33 offline test groups. **This version has not been tested in game.** These results do not establish that every duty, transition, or an unattended level 16–100 run works.
 
 ## What this fork adds
 
@@ -33,7 +33,7 @@ The official-route download progress and clean-refresh behavior proposed in [ups
 
 ## Build and load this fork
 
-Fork versions use `<upstream four-part version>.<local revision>`, currently `0.0.0.399.1`. Local changes increment only the fifth part. Because .NET/Dalamud version fields support at most four parts, AssemblyVersion and the manifest remain `0.0.0.399`; the full fork version is stored as DLL ProductVersion and shown in the plugin window and diagnostics.
+Fork versions use `<upstream four-part version>.<local revision>`, currently `0.0.0.399.2`. Local changes increment only the fifth part. Because .NET/Dalamud version fields support at most four parts, AssemblyVersion and the manifest remain `0.0.0.399`; the full fork version is stored as DLL ProductVersion and shown in the plugin window and diagnostics.
 
 The upstream installer repository installs upstream AutoDuty. To test this fork, build the `dev_01` sources and load the result as a Dalamud development plugin.
 

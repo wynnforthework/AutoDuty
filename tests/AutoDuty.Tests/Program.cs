@@ -1016,6 +1016,22 @@ static void TestNavigationReadiness()
     }
     Check(RouteMovementPolicy.StopsForCombat(new() { Name = "Boss" }), "Boss restores normal combat even after a false step");
     Check(!RouteMovementPolicy.ActionMovement(new() { Name = "Interactable" }), "interaction retains ownership of movement");
+    PathAction[] traversal =
+    [
+        pull, new() { Name = "MoveTo" }, new() { Name = "Jump", Arguments = ["200"] },
+        new() { Name = "WaitFor", Arguments = ["IsReady"] },
+        new() { Name = "Wait", Arguments = ["200"] },
+        new() { Name = "Wait", Arguments = ["500"] }, move, fight,
+    ];
+    for (int i = 0; i < traversal.Length; i++)
+    {
+        Check(RouteMovementPolicy.StopsForCombat(traversal[i]) == (i == 7),
+            $"pull sequence step {i} only stops for combat at explicit checkpoint 7");
+        Check(RouteMovementPolicy.ActionMovement(traversal[i]) == (i == 7),
+            $"pull sequence step {i} does not restore BossMod movement at timing/jump entries");
+    }
+    Check(!RouteMovementPolicy.StopsForCombat(new() { Name = "WaitFor", Arguments = ["OOC"] }),
+        "explicit OOC condition owns its wait without enabling combat movement");
     Check(!RouteMovementPolicy.RotationEnabled(new() { Name = "MoveTo", Arguments = ["false"] }), "direct MoveTo uses the same rotation policy as navmesh MoveTo");
     foreach (var stage in new[] { AutoDuty.Data.Enums.Stage.Action, AutoDuty.Data.Enums.Stage.Waiting_For_Combat,
         AutoDuty.Data.Enums.Stage.Paused, AutoDuty.Data.Enums.Stage.Stopped, AutoDuty.Data.Enums.Stage.Interactable })
