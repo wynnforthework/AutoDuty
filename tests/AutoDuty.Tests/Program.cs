@@ -145,6 +145,20 @@ static void Run()
     Check(!new InteractionDialogueProgress().Observe(false, false), "new interaction cannot reuse previous dialogue evidence");
     TestInteractionTransfer();
     TestMovementTransfer();
+    var loadingRecovery = new LoadingRecoveryProgress();
+    Check(!loadingRecovery.Ready(0, false), "delayed area loading suspends execution");
+    Check(!loadingRecovery.Ready(5000, true), "load clear alone cannot resume movement");
+    Check(!loadingRecovery.Ready(5500, false), "a second load flag restarts the stable window");
+    Check(!loadingRecovery.Ready(6000, true) && !loadingRecovery.Ready(6999, true)
+        && loadingRecovery.Ready(7000, true), "resume only after continuous one-second readiness");
+    loadingRecovery.Reset();
+    Check(!loadingRecovery.Ready(10000, true), "new transition cannot reuse readiness");
+    Check(LoadingRecoveryProgress.CanResume("MoveTo", false, false), "Babil step 24 and Vanaspati step 9 retry same MoveTo after delayed relocation");
+    Check(!LoadingRecoveryProgress.CanResume("MoveTo", true, false), "Return never automatically retries old movement");
+    Check(!LoadingRecoveryProgress.CanResume("MoveTo", false, true), "existing failure remains paused");
+    foreach (var name in new[] { "Boss", "Interactable", "AutoMoveFor", "TeleportTo" })
+        Check(!LoadingRecoveryProgress.CanResume(name, false, false), "unknown action cannot replay after loading: " + name);
+    Console.WriteLine("PASS: delayed loading recovery, stable readiness, same-step movement replay and unsafe replay exclusions");
     TestNavigationReadiness();
     TestPathPersistence();
     var bindings = new Dictionary<string, AutoDuty.Data.Enums.JobWithRole>

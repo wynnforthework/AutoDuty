@@ -259,6 +259,8 @@ public partial class AutoDuty
         if (now < this.returnObservedUntil && this.interactionTransition.Pending)
         {
             this.transitionPending = true;
+            this.loadingRecovery.Reset();
+            this.transitionWorkCancelled = false;
             this.transitionObservedAt = now;
             this.transitionOrigin = Player.Available ? Player.Position : default;
             this.transitionWasReturn = true;

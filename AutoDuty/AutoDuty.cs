@@ -354,7 +354,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.assemblyDirectoryInfo = this.assemblyFileInfo.Directory;
 
             this.Version = 
-                ((PluginInterface.IsDev     ? new Version(0,0,0, 396) :
+                ((PluginInterface.IsDev     ? new Version(0,0,0, 397) :
                   PluginInterface.IsTesting ? PluginInterface.Manifest.TestingAssemblyVersion ?? PluginInterface.Manifest.AssemblyVersion : PluginInterface.Manifest.AssemblyVersion)!).Revision;
 
             if (!this.configDirectory.Exists)
@@ -1093,12 +1093,15 @@ public sealed partial class AutoDuty : IDalamudPlugin
             // A zone/load/jump flag is not evidence that navigation or an
             // interaction succeeded. In particular Return used to skip the
             // failed step while relocating the character to the entrance.
-            this.MetricsProblem("unexpected-position-transition");
+            if (this.transitionPending) return;
+            NavigationDiagnostics.Record("position-transition-wait", detail: new { flag, step = this.indexer });
             this.transitionPending = true;
+            this.loadingRecovery.Reset();
+            this.transitionWorkCancelled = false;
             this.transitionObservedAt = Environment.TickCount64;
             this.transitionOrigin = Player.Position;
             this.transitionWasReturn = Environment.TickCount64 < this.returnObservedUntil;
-            this.FailCurrentStep("unexpected-position-transition", $"flag={flag}; step={this.indexer}; position={Player.Position}", forcePause: true);
+            // Defer cancellation and classification until Framework_Update.
         }
         if (Conditions.Instance()->WatchingCutscene || flag is ConditionFlag.WatchingCutscene or ConditionFlag.WatchingCutscene78 or ConditionFlag.OccupiedInCutSceneEvent)
         {
@@ -2294,6 +2297,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         NavigationDiagnostics.Tick();
         this.TickBossProgress();
         this.TickPositionRecovery();
+        if (this.transitionPending) return;
         if (this.TickInteractionTransition()) return;
         if (Player.Available && !InDungeon) this.GetJobAndLevelingCheck();
         this.TickMetrics();
