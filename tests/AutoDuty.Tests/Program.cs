@@ -149,6 +149,9 @@ static void Run()
     TestMovementTransfer();
     TestLaunchTransfer();
     TestTransitionRegions();
+    TestTransitionStages();
+    TestTransitionPathProbe();
+    TestTransitionRecordingTrace();
     var loadingRecovery = new LoadingRecoveryProgress();
     Check(!loadingRecovery.Ready(0, false), "delayed area loading suspends execution");
     Check(!loadingRecovery.Ready(5000, true), "load clear alone cannot resume movement");
@@ -815,6 +818,92 @@ static void TestTransitionRegions()
     Check(rejected, "invalid transition region is rejected at file import");
     Console.WriteLine("PASS: transition regions, grounded stability, moving-platform exceptions, unknown displacement, high frame rates, serialization and recording boundaries");
 }
+static void TestTransitionStages()
+{
+    var region = new TransitionRegion { Center = new(20, 10, 0), RequirePath = true };
+    PathAction step = new() { Name = "MoveTo", Transition = region };
+    var transfer = new InteractionTransitionProgress();
+    transfer.BeginDisplacement(step, 5, 1, new(0, 0, 0), 0, region);
+    Check(transfer.Phase == TransitionPhase.Suspected && !transfer.CompleteStep(step, 5, true, true, true), "suspected conversion never means completed step");
+    Check(!transfer.Settled(1000, false, true, 1, region.Center, true, true)
+        && transfer.Phase == TransitionPhase.Travelling && transfer.WaitingReason == "forced-movement", "forced motion flag rejects even apparently correct stable coordinates");
+    Check(!transfer.Settled(2000, false, true, 1, region.Center) && transfer.Settled(3000, false, true, 1, region.Center), "forced movement ending starts sustained confirmation window");
+    Check(transfer.Phase == TransitionPhase.DestinationConfirmed, "destination confirmation is separate from step completion");
+    Check(!transfer.CompleteStep(step, 6, true, true, true)
+        && !transfer.CompleteStep(new() { Name = "MoveTo", Transition = region }, 5, true, true, true), "only owning step identity and index may consume evidence");
+    Check(!transfer.CompleteStep(step, 5, false, true, true), "step conditions cannot be replaced by landing evidence");
+    Check(!transfer.CompleteStep(step, 5, true, false, true), "required path cannot be bypassed by waiting");
+    Check(transfer.CompleteStep(step, 5, true, true, true) && transfer.Phase == TransitionPhase.StepCompleted, "only combined evidence completes owning step");
+    Check(!transfer.CompleteStep(step, 5, true, true, true), "completion cannot be consumed twice");
+    transfer.Reset();
+    step.Transition = null;
+    transfer.Click(step, 5, 1, new(0, 0, 0), 0); transfer.ObserveLoading(step, 5, 10, false);
+    transfer.Settled(1000, false, true, 1, region.Center); transfer.Settled(2000, false, true, 1, region.Center);
+    Check(transfer.Phase == TransitionPhase.ValidatingDestination && !transfer.CompleteStep(step, 5, true, true, true), "unconfigured landing cannot guess step completion");
+    Check(region.NearTrigger(new(0, 0, 0), new(5, 1, 0)) && !region.NearTrigger(new(0, 0, 0), new(0, 10, 0)), "trigger area separates overlapping floors");
+    region.TriggerRadius = float.NaN; Check(!region.Valid, "invalid trigger range is rejected");
+    Console.WriteLine("PASS: transition stages, forced movement, owning-step completion, mandatory path, missing destination and trigger floors");
+}
+
+static void TestTransitionPathProbe()
+{
+    var probe = new TransitionPathProbe();
+    var target = new System.Numerics.Vector3(20, 0, 0);
+    var from = new System.Numerics.Vector3(0, 0, 0);
+    var pending = new TaskCompletionSource<List<System.Numerics.Vector3>>();
+    int calls = 0;
+    Task<List<System.Numerics.Vector3>> Query(System.Numerics.Vector3 a, System.Numerics.Vector3 b) { calls++; return pending.Task; }
+    probe.Tick(0, 1, from, target, true, Query);
+    for (int i = 1; i <= 100; i++) probe.Tick(i * 100, 1, from, target, true, Query);
+    Check(calls == 1 && !probe.Connected, "slow IPC never queues additional path requests");
+    Check(probe.OptionalWaitFinished(3000), "supplementary path evidence has bounded wait without claiming connectivity");
+    probe.Reset(); probe.Tick(11000, 1, from, target, true, Query);
+    Check(calls == 1, "reset does not abandon outstanding query and pile up more work");
+    pending.SetResult([from, target]);
+    probe.Tick(12000, 1, from, target, true, Query);
+    Check(!probe.Connected && probe.Status == "stale-result", "previous-step result is discarded");
+    pending = new(); probe.Tick(12100, 1, from, target, true, Query);
+    pending.SetResult([from, new(10, 0, 0)]); probe.Tick(12200, 1, from, target, true, Query);
+    Check(probe.Status == "endpoint-mismatch", "partial path is not accepted as reachable");
+    int count = calls; probe.Tick(13000, 1, from, target, true, Query);
+    Check(calls == count, "failed path retry is rate limited");
+    pending = new(); probe.Tick(14200, 1, from, target, true, Query);
+    pending.SetResult([from, target]); probe.Tick(14300, 2, from, target, true, Query);
+    Check(!probe.Connected && probe.Status == "stale-result", "cross-map query result cannot confirm a destination");
+    pending = new(); probe.Tick(16300, 2, from, target, true, Query);
+    pending.SetResult([from, target]); probe.Tick(16400, 2, from, target, true, Query);
+    Check(probe.Connected, "finite endpoint on expected floor proves connectivity");
+    probe.Tick(16500, 2, from, target, false, Query);
+    Check(!probe.Connected, "mesh loss invalidates cached connectivity");
+    pending = new(); probe.Tick(18400, 2, from, target, true, Query);
+    pending.SetException(new InvalidOperationException("IPC unavailable")); probe.Tick(18500, 2, from, target, true, Query);
+    Check(probe.Status == "query-error" && !probe.Connected, "async IPC errors are observed without blocking framework");
+    pending = new(); probe.Tick(20400, 2, from, target, true, Query);
+    pending.SetResult([from, target]); probe.Tick(20500, 2, from + new System.Numerics.Vector3(3, 0, 0), target, true, Query);
+    Check(probe.Status == "stale-result" && !probe.Connected, "moving query origin invalidates a previously requested route");
+    Check(!TransitionPathProbe.HasEndpoint([], target)
+        && !TransitionPathProbe.HasEndpoint([new(20, 100, 0)], target)
+        && !TransitionPathProbe.HasEndpoint([new(float.NaN, 0, 0), target], target), "empty, wrong-floor and malformed paths fail");
+    Check(TransitionPathProbe.ContinuationTarget([new() { Name = "MoveTo" }, new() { Name = "WaitFor" }, new() { Name = "MoveTo", Position = target }], 0) == target,
+        "path target skips non-spatial waits");
+    Console.WriteLine("PASS: async transition path query, endpoint validation, rate limit, outstanding request ownership, stale maps, mesh loss and IPC failure");
+}
+
+static void TestTransitionRecordingTrace()
+{
+    var trace = new RecordedTransitionTrace { SourceTerritory = 974, Source = new(0, -700, 0) };
+    for (int i = 0; i < 200; i++) trace.Add(new() { ElapsedMs = i * 200, Territory = 974, Position = new(0, -700 + i, 0), ForcedMovement = i < 195, Ready = i >= 195 });
+    Check(trace.Valid && trace.Samples.Count == 64 && trace.Samples[0].ElapsedMs == 0 && trace.Samples[^1].ElapsedMs == 39800,
+        "recorded travel keeps source and latest landing within bounded sample count");
+    PathAction step = new() { Name = "MoveTo", Position = trace.Source, Transition = new() { Center = new(0, -501, 0), Recording = trace } };
+    var json = AutoDuty.Data.PathJson.WriteFile(new() { Actions = [step] });
+    var restored = AutoDuty.Data.PathJson.ReadFile(json).Actions[0].Transition!;
+    Check(restored.Recording?.Samples.Count == 64 && restored.Recording.SourceTerritory == 974, "travel evidence survives route save/share serialization");
+    restored.Recording!.Samples[2].ElapsedMs = -1;
+    Check(!restored.Valid, "malformed recorded travel is rejected as part of region validation");
+    Console.WriteLine("PASS: bounded transition recording, source, motion state, landing and serialization validation");
+}
+
 static void TestStepExecutionGates()
 {
     var gate = new StepExecutionGate();

@@ -66,6 +66,13 @@
     "TransferReason_player-or-loading": "waiting for player/loading",
     "TransferReason_destination-region": "waiting for destination region",
     "TransferReason_ground-or-mesh": "waiting for mesh and nearby ground",
-    "TransferReason_position-stability": "waiting for position stability"
+    "TransferReason_position-stability": "waiting for position stability",
+    "TransferReason_forced-movement": "waiting for forced movement to end",
+    "TransferReason_destination-unknown": "destination region is missing; configure this step",
+    "TransferReason_step-conditions": "waiting for this step's completion conditions",
+    "TransferReason_path-evidence": "verifying the path to the next target",
+    "TransferTriggerRadius": "Trigger radius (m)",
+    "TransferTriggerHeight": "Trigger height tolerance (m)",
+    "TransferPath": "Require a verified path to the next target"
   }
 }

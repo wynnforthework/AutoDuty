@@ -6,6 +6,7 @@ using System.Numerics;
 using AutoDuty.Configurations;
 using AutoDuty.Data;
 using Dalamud.Game.ClientState.Objects.Enums;
+using Dalamud.Game.ClientState.Conditions;
 using ECommons;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -28,12 +29,16 @@ internal sealed class PathRecorder
     private Vector3? lastReadyPosition, recordingSource;
     private long recordingTransferAt;
     private PathAction? manualTransfer;
+    private RecordedTransitionTrace? recordingTrace;
     internal bool HasManualTransfer => this.manualTransfer != null;
 
     internal void MarkTransferStart()
     {
         if (!this.Recording || !PlayerHelper.IsReadyFull) throw new InvalidOperationException("请先开始录制，并在转换前标记起点");
         this.recordingSource = null;
+        this.recordingTransferAt = Environment.TickCount64;
+        this.recordingTrace = new() { Source = Player.Position, SourceTerritory = Svc.ClientState.TerritoryType };
+        this.RecordTransferSample(this.recordingTransferAt);
         this.manualTransfer = new() { Name = "MoveTo", Position = Player.Position, Note = "区域转换：待标记落点" };
         PathEditHelper.MutateActions(list => list.Add(this.manualTransfer), "record transfer start");
     }
@@ -41,10 +46,12 @@ internal sealed class PathRecorder
     internal void MarkTransferEnd()
     {
         if (this.manualTransfer == null || !this.Recording || !PlayerHelper.IsReadyFull) throw new InvalidOperationException("请在落地并恢复操作后标记终点");
-        this.manualTransfer.Transition = new() { Center = Player.Position, Territory = Svc.ClientState.TerritoryType };
+        this.RecordTransferSample(Environment.TickCount64);
+        this.manualTransfer.Transition = new() { Center = Player.Position, Territory = Svc.ClientState.TerritoryType, Recording = this.recordingTrace };
         this.manualTransfer.Note = "录制的区域转换：请检查目的区域范围";
         this.manualTransfer = null;
         this.recordingSource = null;
+        this.recordingTrace = null;
         this.lastReadyPosition = Player.Position;
         this.transitionMonitor.Reset();
         PathEditHelper.MutateActions(_ => { }, "record transition destination");
@@ -61,6 +68,7 @@ internal sealed class PathRecorder
         this.job = Player.Job.ToString();
         this.seenObjects.Clear(); this.visibleDialogs.Clear();
         this.transitionMonitor.Reset(); this.landingStability.Reset();
+        this.recordingTrace = null;
         this.recordingSource = null; this.manualTransfer = null; this.lastReadyPosition = Player.Position;
         PathEditHelper.MutateActions(list => list.Clear(), "start recording");
         // A new recording must never retain an existing route as its save target.
@@ -73,6 +81,7 @@ internal sealed class PathRecorder
     {
         if (!this.Recording) return;
         if (this.manualTransfer != null) throw new InvalidOperationException("请先标记转换终点，再停止录制");
+        if (this.recordingSource != null) throw new InvalidOperationException("区域转换尚未确认；请等待落地或撤回本次识别，再停止录制");
         if (Player.Available && Svc.ClientState.TerritoryType == this.Territory && !PartyHelper.PartyInCombat()) this.Add("MoveTo");
         this.Recording = false;
         var simplified = Simplify(Plugin.Actions, this.SimplifyTolerance);
@@ -87,32 +96,39 @@ internal sealed class PathRecorder
         if (Svc.ClientState.TerritoryType != this.Territory)
         {
             this.manualTransfer = null;
+            this.recordingSource = null; this.recordingTrace = null;
             this.Stop(); Svc.Chat.Print("[AutoDuty] Recording stopped: territory changed; record the next territory separately."); return;
         }
         if (!Player.Available) return;
         if (Plugin.Actions.Count >= 10000) { this.Stop(); return; }
-        if (this.manualTransfer != null) return;
+        if (this.manualTransfer != null) { this.RecordTransferSample(this.lastTick); return; }
         string? displacement = this.transitionMonitor.Observe(Svc.ClientState.TerritoryType, Player.Position, this.lastTick);
         if (Player.IsDead || PartyHelper.PartyInCombat())
-        { this.recordingSource = null; this.lastReadyPosition = null; this.landingStability.Reset(); }
+        { this.recordingSource = null; this.recordingTrace = null; this.lastReadyPosition = null; this.landingStability.Reset(); }
         else
         {
             if (this.recordingSource == null && this.lastReadyPosition is { } source
                 && (!PlayerHelper.IsReadyFull || displacement != null))
-            { this.recordingSource = source; this.recordingTransferAt = this.lastTick; this.landingStability.Reset(); }
+            {
+                this.recordingSource = source; this.recordingTransferAt = this.lastTick; this.landingStability.Reset();
+                this.recordingTrace = new() { Source = source, SourceTerritory = this.Territory };
+            }
             if (this.recordingSource is { } start)
             {
-                if (this.lastTick - this.recordingTransferAt > 60000) this.recordingSource = null;
-                else if (this.landingStability.Observe(PlayerHelper.IsReadyFull, Player.Position, this.lastTick, 1000, true))
+                this.RecordTransferSample(this.lastTick);
+                if (this.lastTick - this.recordingTransferAt > 60000) { this.recordingSource = null; this.recordingTrace = null; }
+                else if (this.landingStability.Observe(PlayerHelper.IsReadyFull && !Svc.Condition[ConditionFlag.BeingMoved]
+                    && !PlayerHelper.IsJumping, Player.Position, this.lastTick, 1000, true))
                 {
                     if (Vector3.DistanceSquared(start, Player.Position) >= 100)
                     {
                         this.Append(new() { Name = "MoveTo", Position = start,
-                            Transition = new() { Center = Player.Position, Territory = this.Territory },
+                            Transition = new() { Center = Player.Position, Territory = this.Territory, Recording = this.recordingTrace },
                             Note = "自动录制的区域转换：请检查触发点与目的区域" });
                         this.Add("MoveTo");
                     }
                     this.recordingSource = null;
+                    this.recordingTrace = null;
                 }
                 else return;
             }
@@ -171,6 +187,19 @@ internal sealed class PathRecorder
         this.Append(action);
     }
 
+    private void RecordTransferSample(long now)
+    {
+        if (this.recordingTrace == null || !Player.Available) return;
+        this.recordingTrace.Add(new()
+        {
+            ElapsedMs = (int)Math.Clamp(now - this.recordingTransferAt, 0, 600000),
+            Territory = Svc.ClientState.TerritoryType, Position = Player.Position,
+            Loading = Svc.Condition[ConditionFlag.BetweenAreas] || Svc.Condition[ConditionFlag.BetweenAreas51],
+            Ready = PlayerHelper.IsReadyFull,
+            ForcedMovement = Svc.Condition[ConditionFlag.BeingMoved] || PlayerHelper.IsJumping
+        });
+    }
+
     private void Append(PathAction action)
     {
         if (Plugin.Actions.LastOrDefault() is { } last && last.Transition == null && action.Transition == null
@@ -184,6 +213,7 @@ internal sealed class PathRecorder
         if (Plugin.Actions.Count > 0) PathEditHelper.MutateActions(list => list.RemoveAt(list.Count - 1), "record undo");
         if (this.manualTransfer != null && !Plugin.Actions.Contains(this.manualTransfer)) this.manualTransfer = null;
         this.recordingSource = null;
+        this.recordingTrace = null;
         this.lastReadyPosition = Player.Available ? Player.Position : null;
         this.transitionMonitor.Reset();
         this.landingStability.Reset();

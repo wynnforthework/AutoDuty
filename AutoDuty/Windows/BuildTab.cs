@@ -772,6 +772,10 @@ namespace AutoDuty.Windows
                         ImGui.InputFloat(Loc.Get("BuildTab.TransferRadius"), ref radius);
                         ImGui.InputFloat(Loc.Get("BuildTab.TransferHeight"), ref height);
                         region.Radius = radius; region.HeightTolerance = height;
+                        float triggerRadius = region.TriggerRadius, triggerHeight = region.TriggerHeightTolerance;
+                        ImGui.InputFloat(Loc.Get("BuildTab.TransferTriggerRadius"), ref triggerRadius);
+                        ImGui.InputFloat(Loc.Get("BuildTab.TransferTriggerHeight"), ref triggerHeight);
+                        region.TriggerRadius = triggerRadius; region.TriggerHeightTolerance = triggerHeight;
                         int stable = region.StableMs, timeout = region.TimeoutMs;
                         ImGui.InputInt(Loc.Get("BuildTab.TransferStable"), ref stable);
                         ImGui.InputInt(Loc.Get("BuildTab.TransferTimeout"), ref timeout);
@@ -780,6 +784,9 @@ namespace AutoDuty.Windows
                         ImGui.Checkbox(Loc.Get("BuildTab.TransferGround"), ref ground);
                         ImGui.Checkbox(Loc.Get("BuildTab.TransferStill"), ref stillness);
                         region.RequireGround = ground; region.RequireStillness = stillness;
+                        bool path = region.RequirePath;
+                        ImGui.Checkbox(Loc.Get("BuildTab.TransferPath"), ref path);
+                        region.RequirePath = path;
                         if (!region.Valid) ImGui.TextWrapped(Loc.Get("BuildTab.TransferInvalid"));
                     }
                 }

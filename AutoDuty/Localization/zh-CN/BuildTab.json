@@ -63,6 +63,13 @@
     "TransferReason_player-or-loading": "等待角色和加载就绪",
     "TransferReason_destination-region": "等待进入目的区域",
     "TransferReason_ground-or-mesh": "等待网格和附近地面",
-    "TransferReason_position-stability": "等待位置稳定"
+    "TransferReason_position-stability": "等待位置稳定",
+    "TransferReason_forced-movement": "等待强制移动结束",
+    "TransferReason_destination-unknown": "缺少目的区域，请配置当前步骤",
+    "TransferReason_step-conditions": "等待当前步骤完成条件",
+    "TransferReason_path-evidence": "验证到后续目标的路径",
+    "TransferTriggerRadius": "触发范围半径（米）",
+    "TransferTriggerHeight": "触发范围高度容差（米）",
+    "TransferPath": "必须确认到后续目标的有效路径"
   }
 }

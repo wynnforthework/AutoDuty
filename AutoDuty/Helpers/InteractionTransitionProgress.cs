@@ -2,6 +2,8 @@ using System.Numerics;
 
 namespace AutoDuty.Helpers;
 
+internal enum TransitionPhase { AwaitingTrigger, Suspected, Travelling, ValidatingDestination, DestinationConfirmed, StepCompleted }
+
 // Transfer evidence belongs to one step: an actual interaction, or loading triggered
 // while actively approaching a nearby MoveTo destination.
 internal sealed class InteractionTransitionProgress
@@ -29,6 +31,8 @@ internal sealed class InteractionTransitionProgress
     private Vector3 launchOrigin;
     private long launchAt;
     private readonly TransitionStability stability = new();
+    private readonly TransitionStability processStability = new();
+    internal TransitionPhase Phase { get; private set; }
     internal TransitionRegion? Destination { get; private set; }
     internal string WaitingReason { get; private set; } = "waiting-for-transfer";
     internal void Expect(TransitionRegion? destination) => this.Destination = destination ?? this.Step?.Transition;
@@ -51,7 +55,20 @@ internal sealed class InteractionTransitionProgress
     internal static TransitionRegion? InferDestination(PathAction? next, PathAction? after) =>
         next is { Name: "WaitFor", Arguments.Count: 1 } && next.Position == Vector3.Zero
         && WaitForArguments.Normalize(next.Arguments[0]) is ["IsReady"] && after != null && after.Position != Vector3.Zero
-            ? new() { Center = after.Position, Radius = 100 } : null;
+            ? new() { Center = after.Position, Radius = 100 }
+            : next != null && next.Position != Vector3.Zero && next.Name is "MoveTo" or "Boss" or "Interactable"
+                ? new() { Center = next.Position } : null;
+
+    internal bool CompleteStep(PathAction step, int index, bool conditions, bool pathConfirmed, bool pathWaitFinished)
+    {
+        if (!ReferenceEquals(this.Step, step) || this.Index != index || !this.Pending
+            || this.Phase != TransitionPhase.DestinationConfirmed || this.Destination == null) return false;
+        if (!conditions) { this.WaitingReason = "step-conditions"; return false; }
+        if ((this.Destination.RequirePath && !pathConfirmed) || !pathWaitFinished)
+        { this.WaitingReason = "path-evidence"; return false; }
+        this.Phase = TransitionPhase.StepCompleted;
+        return true;
+    }
 
     internal bool ObserveForcedMovement(PathAction step, int index, uint territory, Vector3 position,
         long now, bool deathOrReturn, PathAction? next, PathAction? landing)
@@ -103,7 +120,7 @@ internal sealed class InteractionTransitionProgress
             && Vector3.DistanceSquared(position, this.movementOrigin) >= .25f
             && Vector3.DistanceSquared(position, this.movementOrigin + fraction * segment) <= 9;
         this.approachingStep = step.Name == "MoveTo"
-            && (Vector3.DistanceSquared(step.Position, position) <= 100 || onTransferSegment) ? step : null;
+            && ((step.Transition?.NearTrigger(step.Position, position) ?? (Vector3.DistanceSquared(step.Position, position) <= 100)) || onTransferSegment) ? step : null;
         this.approachingIndex = index;
         this.approachingTerritory = territory;
         this.approachingPosition = position;
@@ -150,7 +167,7 @@ internal sealed class InteractionTransitionProgress
         // before the recorded destination (Dusk Vigil triggers about 7m before it).
         // Restrict automatic ownership to a 10m sphere around that destination.
         if (!moving || deathOrReturn || step.Name != "MoveTo"
-            || Vector3.DistanceSquared(step.Position, position) > 100) return false;
+            || !(step.Transition?.NearTrigger(step.Position, position) ?? (Vector3.DistanceSquared(step.Position, position) <= 100))) return false;
         this.Click(step, index, territory, position, now);
         return this.ObserveLoading(step, index, now, false);
     }
@@ -161,27 +178,39 @@ internal sealed class InteractionTransitionProgress
             || (!this.Pending && now - this.clickedAt >= 30_000)) return false;
         if (!this.Pending) this.loadingAt = now;
         this.Pending = true;
+        this.Phase = TransitionPhase.Suspected;
         this.stability.Reset();
+        this.processStability.Reset();
         return true;
     }
 
-    internal bool Settled(long now, bool loading, bool valid, uint territory, Vector3 position, bool groundReady = true)
+    internal bool Settled(long now, bool loading, bool valid, uint territory, Vector3 position, bool groundReady = true,
+        bool forcedMovement = false)
     {
         if (!this.Pending) return false;
-        if (loading || !valid) { this.stability.Reset(); this.WaitingReason = "player-or-loading"; return false; }
+        if (loading || !valid || forcedMovement)
+        {
+            this.stability.Reset(); this.processStability.Reset(); this.Phase = TransitionPhase.Travelling;
+            this.WaitingReason = forcedMovement ? "forced-movement" : "player-or-loading"; return false;
+        }
+        bool processEnded = this.processStability.Observe(true, position, now,
+            this.Destination?.StableMs ?? 1000, this.Destination?.RequireStillness ?? true);
+        this.Phase = processEnded ? TransitionPhase.ValidatingDestination : TransitionPhase.Travelling;
         if (this.Destination is { } expected)
         {
             bool arrived = expected.Contains(territory, position);
             this.WaitingReason = !arrived ? "destination-region" : expected.RequireGround && !groundReady ? "ground-or-mesh" : "position-stability";
-            return this.stability.Observe(arrived && (!expected.RequireGround || groundReady)
+            bool destinationStable = this.stability.Observe(arrived && (!expected.RequireGround || groundReady)
                 && (territory != this.territory || Vector3.DistanceSquared(this.origin, position) > 4),
                 position, now, expected.StableMs, expected.RequireStillness);
+            if (processEnded && destinationStable) this.Phase = TransitionPhase.DestinationConfirmed;
+            return processEnded && destinationStable;
         }
         if (this.forcedLanding is { } landing
             && (System.MathF.Abs(position.Y - landing.Y) > 3
                 || new Vector2(position.X - landing.X, position.Z - landing.Z).LengthSquared() > 10000))
         { this.stability.Reset(); return false; }
-        this.WaitingReason = "position-stability";
+        this.WaitingReason = "destination-unknown";
         return this.stability.Observe(territory != this.territory || Vector3.DistanceSquared(this.origin, position) > 4,
             position, now, 1000, true);
     }
@@ -200,6 +229,8 @@ internal sealed class InteractionTransitionProgress
         this.launchStep = null;
         this.Destination = null;
         this.stability.Reset();
+        this.processStability.Reset();
+        this.Phase = TransitionPhase.AwaitingTrigger;
         this.WaitingReason = "waiting-for-transfer";
     }
 }

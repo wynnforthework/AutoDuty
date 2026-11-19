@@ -301,6 +301,8 @@ internal static class VNavmesh_IPCSubscriber
     internal static bool     Path_GetAlignCamera                                 => Vnavmesh.GetAlignCamera();
     internal static void     Path_SetAlignCamera(bool        align)              => Vnavmesh.SetAlignCamera(align);
     internal static Vector3? Query_Mesh_PointOnFloor(Vector3 p, bool a, float b) => Vnavmesh.PointOnFloor(p, a, b);
+    internal static System.Threading.Tasks.Task<List<Vector3>> Query_Path(Vector3 from, Vector3 to)
+        => Vnavmesh.Pathfind(from, to, false);
 
     internal static void SetMovementAllowed(bool move)
     {
