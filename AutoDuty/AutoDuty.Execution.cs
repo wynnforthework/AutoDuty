@@ -24,6 +24,8 @@ public partial class AutoDuty
     internal StepAttempt? currentAttempt;
     internal StepFailure? currentFailure;
     internal readonly Dictionary<int, StepAttempt> attemptHistory = [];
+    internal long ActiveActionTime => this.currentAttempt is { ActionStartedAt: > 0 } attempt
+        ? Math.Max(0, Environment.TickCount64 - attempt.ActionStartedAt) : Environment.TickCount64;
     private (string Reason, string Detail)? pendingStepFailure;
 
     internal void BeginAttempt(int index)

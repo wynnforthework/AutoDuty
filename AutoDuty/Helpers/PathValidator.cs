@@ -35,6 +35,13 @@ internal static class PathValidator
         if (action.Name == "WaitFor") return WaitForArguments.Error(action.Arguments[0]);
         if (action.Name is "Wait" or "SelectString" or "DutySpecificCode" or "AutoMoveFor" or "ModifyIndex")
             if (!Integer(0)) return $"{action.Name}: invalid integer";
+        if (action.Name is "Wait" or "AutoMoveFor")
+            if (int.Parse(action.Arguments[0], CultureInfo.InvariantCulture) < 0) return $"{action.Name}: negative duration";
+        if (action.Name == "KillInRange" && (!uint.TryParse(action.Arguments[0], NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out uint range) || range == 0)) return "KillInRange: expected positive range";
+        if (action.Name == "Interactable" && !action.Arguments.Any(argument =>
+                uint.TryParse(RegexHelper.ObjectIdRegex().Match(argument).Value, out uint id) && id != 0))
+            return "Interactable: expected at least one valid object id";
         if (action.Name == "MoveTo" && action.Arguments.Count > 0 && action.Arguments[0].Length > 0 && !bool.TryParse(action.Arguments[0], out _)) return "MoveTo: invalid mesh boolean";
         if (action.Name is "StopForCombat" or "SelectJournalResult" or "BLULoad")
             if (!bool.TryParse(action.Arguments[0], out _)) return $"{action.Name}: invalid boolean";

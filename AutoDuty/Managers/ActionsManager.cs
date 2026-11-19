@@ -391,11 +391,12 @@ namespace AutoDuty.Managers
             if (!Player.Available)
                 return;
             Plugin.action = $"AutoMove For {action.Arguments[0]}";
+            var duration = new ActiveDurationProgress(Convert.ToInt32(action.Arguments[0]));
             uint movementMode = Svc.GameConfig.UiControl.TryGetUInt("MoveMode", out uint mode) ? mode : 0;
             taskManager.Enqueue(() => { if (movementMode == 1) Svc.GameConfig.UiControl.Set("MoveMode", 0); }, "AutoMove-MoveMode");
             taskManager.Enqueue(() => Chat.ExecuteCommand("/automove on"), "AutoMove-On");
-            taskManager.Enqueue(() => EzThrottler.Throttle("AutoMove", Convert.ToInt32(action.Arguments[0])), "AutoMove-Throttle");
-            taskManager.Enqueue(() => EzThrottler.Check("AutoMove") || !IsReady, "AutoMove-CheckThrottleOrNotReady", new TaskManagerConfiguration((int)Math.Min(int.MaxValue, Math.Max(0L, Convert.ToInt32(action.Arguments[0])) + 1000)));
+            taskManager.Enqueue(() => duration.Start(Plugin.ActiveActionTime), "AutoMove-StartTimer");
+            taskManager.Enqueue(() => duration.Completed(Plugin.ActiveActionTime) || !IsReady, "AutoMove-CheckDurationOrNotReady", new TaskManagerConfiguration((int)Math.Min(int.MaxValue, Math.Max(0L, Convert.ToInt32(action.Arguments[0])) + 1000)));
             taskManager.Enqueue(() => { if (movementMode == 1) Svc.GameConfig.UiControl.Set("MoveMode", 1); }, "AutoMove-MoveMode2");
             taskManager.Enqueue(() => IsReady, "AutoMove-WaitIsReady", new TaskManagerConfiguration(int.MaxValue));
             taskManager.Enqueue(() => Chat.ExecuteCommand("/automove off"), "AutoMove-Off");
@@ -410,10 +411,11 @@ namespace AutoDuty.Managers
 
         public unsafe void Wait(int ms)
         {
+            var duration = new ActiveDurationProgress(ms);
             if (Plugin.DutyData?.StopForCombat ?? true)
                 taskManager.Enqueue(() => !Player.Character->InCombat, "Wait", new TaskManagerConfiguration(int.MaxValue));
-            taskManager.Enqueue(() => EzThrottler.Throttle("Wait", ms), "Wait");
-            taskManager.Enqueue(() => EzThrottler.Check("Wait"),                                          "Wait", new TaskManagerConfiguration((int)Math.Min(int.MaxValue, Math.Max(0L, ms) + 1000)));
+            taskManager.Enqueue(() => duration.Start(Plugin.ActiveActionTime), "Wait-StartTimer");
+            taskManager.Enqueue(() => duration.Completed(Plugin.ActiveActionTime), "Wait-Duration", new TaskManagerConfiguration((int)Math.Min(int.MaxValue, Math.Max(0L, ms) + 1000)));
             if (Plugin.DutyData?.StopForCombat ?? true)
                 taskManager.Enqueue(() => !Player.Character->InCombat, "Wait", new TaskManagerConfiguration(int.MaxValue));
         }

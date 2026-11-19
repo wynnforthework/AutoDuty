@@ -287,6 +287,16 @@ static void TestValidation()
         Check(PathValidator.Error(new() { Name = "WaitFor", Arguments = [argument] }) != null, "invalid wait rejected: " + argument);
     Check(PathValidator.Error(new() { Name = "Wait", Arguments = ["2147483648"] }) != null, "overflow rejected before execution");
     Check(PathValidator.Error(new() { Name = "MoveTo", Arguments = ["typo"] }) != null, "bad mesh boolean");
+    foreach (string name in new[] { "Wait", "AutoMoveFor" })
+    {
+        Check(PathValidator.Error(new() { Name = name, Arguments = ["-1"] }) != null, "negative duration cannot silently complete: " + name);
+        Check(PathValidator.Error(new() { Name = name, Arguments = ["0"] }) == null, "zero duration remains valid: " + name);
+    }
+    foreach (string range in new[] { "typo", "-1", "0", "4294967296" })
+        Check(PathValidator.Error(new() { Name = "KillInRange", Arguments = [range] }) != null, "bad combat range cannot silently complete: " + range);
+    Check(PathValidator.Error(new() { Name = "KillInRange", Arguments = ["30"] }) == null, "valid combat range");
+    Check(PathValidator.Error(new() { Name = "Interactable", Arguments = ["NPC without ID"] }) != null, "invalid object id cannot silently complete");
+    Check(PathValidator.Error(new() { Name = "Interactable", Arguments = ["2000460 Sand"] }) == null, "legacy labelled object id remains valid");
     foreach (string json in new[] { """{"Actions":[null]}""", """{"Actions":[{"Name":"Wait","Arguments":null}]}""", """{"Actions":[{"Position":[1,2]}]}""", """{"Actions":[],"Actions":[]}""", """{"Actions":[{"Conditions":[{"Condition":"Unknown"}]}]}""" })
     {
         try { AutoDuty.Data.PathJson.ReadFile(json); throw new Exception("accepted malformed path: " + json); }
@@ -655,6 +665,18 @@ static void TestMovementTransfer()
 static void TestStepExecutionGates()
 {
     var gate = new StepExecutionGate();
+    var duration = new ActiveDurationProgress(5000);
+    Check(!duration.Completed(999999), "unstarted duration never completes");
+    duration.Start(1000);
+    Check(!duration.Completed(5999) && duration.Completed(6000), "wait measures active duration");
+    var independent = new ActiveDurationProgress(5000);
+    independent.Start(5500);
+    Check(!independent.Completed(6000) && duration.Completed(6000), "overlapping waits do not share throttle state");
+    var pausedWait = new StepAttempt { Index = 0, Action = new() { Name = "Wait" }, StartedAt = 1000, ActionStartedAt = 1000, LastTickAt = 3000 };
+    duration.Start(0);
+    pausedWait.Suspend(123000, default);
+    Check(!duration.Completed(123000 - pausedWait.ActionStartedAt), "two-minute loading cannot consume five-second scripted wait");
+    Check(duration.Completed(126000 - pausedWait.ActionStartedAt), "wait completes after remaining active time resumes");
     Check(!gate.Ready(false, 0) && !gate.Ready(false, 120000), "slow loading cannot open a step through elapsed wall time");
     Check(!gate.Ready(true, 120001) && !gate.Ready(true, 121000), "first ready frame is not permission to execute");
     Check(gate.Ready(true, 121001), "continuously ready state permits execution");
