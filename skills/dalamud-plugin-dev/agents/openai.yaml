@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dalamud 插件开发与热加载"
+  short_description: "固定本机依赖、查阅接口文档并构建到稳定的热加载目录"
+  default_prompt: "使用 $dalamud-plugin-dev 开发或修改插件，核对当前 Dalamud API 并构建覆盖固定的热加载入口。"

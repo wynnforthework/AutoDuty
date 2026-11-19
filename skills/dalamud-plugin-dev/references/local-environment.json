@@ -1,0 +1,24 @@
+{
+  "VerifiedOn": "2026-11-19",
+  "Dotnet": "C:/Program Files/dotnet/dotnet.exe",
+  "InstalledSdkVersions": ["8.0.404", "9.0.313", "10.0.100"],
+  "DalamudLibPath": "C:/Users/Administrator/AppData/Roaming/XIVLauncherCN/addon/Hooks/dev/",
+  "DalamudConfig": "C:/Users/Administrator/AppData/Roaming/XIVLauncherCN/dalamudConfig.json",
+  "ApiLevel": 15,
+  "CurrentTargetFramework": "net10.0-windows8.0",
+  "CurrentDalamudSdk": "Dalamud.NET.Sdk/15.0.0",
+  "ClientStructsSource": "D:/UGit/_scratch/structs-ref/FFXIVClientStructs",
+  "NewPluginDeployRoot": "D:/UGit/_dalamud-dev",
+  "Plugins": {
+    "AutoDuty": {
+      "Project": "D:/UGit/AutoDuty/AutoDuty/AutoDuty.csproj",
+      "InternalName": "AutoDuty",
+      "DeployDirectory": "D:/UGit/AutoDuty/artifacts/AutoDuty-session-stop-fix"
+    },
+    "DutyUiProbe": {
+      "Project": "D:/UGit/DutyUiProbe/DutyUiProbe.csproj",
+      "InternalName": "DutyUiProbe",
+      "DeployDirectory": "D:/UGit/DutyUiProbe/dist/DutyUiProbe-0.1.0"
+    }
+  }
+}
