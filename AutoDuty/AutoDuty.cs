@@ -1,4 +1,4 @@
-﻿global using AutoDuty.Managers;
+global using AutoDuty.Managers;
 global using ECommons.GameHelpers;
 global using static AutoDuty.AutoDuty;
 global using static AutoDuty.Data.Classes;
@@ -357,7 +357,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.assemblyDirectoryInfo = this.assemblyFileInfo.Directory;
 
             this.Version = 
-                ((PluginInterface.IsDev     ? new Version(0,0,0, 400) :
+                ((PluginInterface.IsDev     ? new Version(0,0,0, 401) :
                   PluginInterface.IsTesting ? PluginInterface.Manifest.TestingAssemblyVersion ?? PluginInterface.Manifest.AssemblyVersion : PluginInterface.Manifest.AssemblyVersion)!).Revision;
 
             if (!this.configDirectory.Exists)
@@ -1595,7 +1595,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
         Chat.ExecuteCommand("/automove off");
         FollowHelper.SetFollow(null);
-        BossMod_IPCSubscriber.SetMovement(false);
+        BossMod_IPCSubscriber.SetMovement(false,
+            RouteMovementPolicy.PreferInstants(this.DutyData?.StopForCombat ?? true, Stage.Moving));
         this.DutyData?.StayCloseToTank = false;
         if (this.currentAttempt == null) this.BeginAttempt(this.indexer);
         this.ReportAttemptStart();
@@ -1627,6 +1628,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.interactionTransition.TrackMovement(this.pathAction, this.indexer, Svc.ClientState.TerritoryType,
             Player.Position, Environment.TickCount64, this.indexer + 1 < this.Actions.Count ? this.Actions[this.indexer + 1] : null);
         this.action = $"{Plugin.Actions[this.indexer].ToCustomString()}";
+        BossMod_IPCSubscriber.SetMovement(false,
+            RouteMovementPolicy.PreferInstants(this.DutyData?.StopForCombat ?? true, Stage.Moving));
         if (this.TryApplyNearbyCombatSwitch()) return;
 
         if (EzThrottler.Throttle("BossChecker", 25) && this.pathAction.Name.Equals("Boss") && this.pathAction.Position != Vector3.Zero && ObjectHelper.BelowDistanceToPlayer(this.pathAction.Position, 50, 10))

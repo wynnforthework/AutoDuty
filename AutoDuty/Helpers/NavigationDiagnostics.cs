@@ -32,6 +32,8 @@ internal static class NavigationDiagnostics
                 position = Player.Available ? Player.Position : default,
                 rotation = Player.Available ? Player.Character->Rotation : 0,
                 combat = PartyHelper.PartyInCombat(),
+                stopForCombat = Plugin.DutyData?.StopForCombat,
+                pullingInstantCasts = RouteMovementPolicy.PreferInstants(Plugin.DutyData?.StopForCombat ?? true, Plugin.Stage),
                 target = Svc.Targets.Target is { } target ? new { target.EntityId, target.Position } : null,
                 playerValid = PlayerHelper.IsValid, playerReady = PlayerHelper.IsReadyFull,
                 dutyStarted = Svc.DutyState.IsDutyStarted,

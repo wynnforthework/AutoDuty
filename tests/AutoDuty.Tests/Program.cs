@@ -759,6 +759,11 @@ static void TestStepExecutionGates()
 }
 static void TestNavigationReadiness()
 {
+    Check(RouteMovementPolicy.PreferInstants(false, AutoDuty.Data.Enums.Stage.Moving), "pulling with StopForCombat false gives walking priority over cast bars");
+    Check(!RouteMovementPolicy.PreferInstants(true, AutoDuty.Data.Enums.Stage.Moving), "normal combat retains casting policy");
+    foreach (var stage in new[] { AutoDuty.Data.Enums.Stage.Action, AutoDuty.Data.Enums.Stage.Waiting_For_Combat,
+        AutoDuty.Data.Enums.Stage.Paused, AutoDuty.Data.Enums.Stage.Stopped, AutoDuty.Data.Enums.Stage.Interactable })
+        Check(!RouteMovementPolicy.PreferInstants(false, stage), "pull cast restriction ends outside route movement");
     var combatReady = new NavigationReadiness();
     for (long now = 0; now <= 10000; now += 100)
     {

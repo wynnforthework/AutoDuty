@@ -90,6 +90,7 @@ internal static class BossMod_IPCSubscriber
 
     public static void RefreshPreset(string name, string preset)
     {
+        lastMovement = null;
         if (BossMod.Presets_Get(name) != null)
             BossMod.Presets_Delete(name);
         AddPreset(name, preset);
@@ -100,6 +101,7 @@ internal static class BossMod_IPCSubscriber
         if (AutoDuty.Configuration.DutyConfig.AutoManageBossModAISettings)
             if (BossMod.Presets_GetActive() != name)
             {
+                lastMovement = null;
                 Svc.Log.Debug($"BossMod Setting Preset: {name}");
                 AddPreset(name, preset);
                 BossMod.Presets_SetActive(name);
@@ -108,6 +110,7 @@ internal static class BossMod_IPCSubscriber
 
     public static void DisablePresets()
     {
+        lastMovement = null;
         if (AutoDuty.Configuration.DutyConfig.AutoManageBossModAISettings)
             if (BossMod.Presets_GetActive() != null)
             {
@@ -180,17 +183,31 @@ internal static class BossMod_IPCSubscriber
 
     public enum DestinationStrategy { None, Pathfind, Explicit }
 
-    public static void SetMovement(bool on)
+    private static (bool On, bool PreferInstants)? lastMovement;
+
+    public static void SetMovement(bool on, bool preferInstantCasts = false)
     {
         if (AutoDuty.Configuration.DutyConfig.AutoManageBossModAISettings)
         {
-            NavigationDiagnostics.Record("boss-movement", detail: on);
-            Svc.Log.Debug($"BossMod Setting Movement: {on}");
+            preferInstantCasts &= !on;
+            if (lastMovement == (on, preferInstantCasts)) return;
+            NavigationDiagnostics.Record("boss-movement", detail: new { on, preferInstantCasts });
+            Svc.Log.Debug($"BossMod Setting Movement: {on}; instant casts while pulling: {preferInstantCasts}");
 
             string destinationStrategy = (on ? DestinationStrategy.Pathfind : DestinationStrategy.None).ToString();
 
-            BossMod.Presets_AddTransientStrategy("AutoDuty",         "BossMod.Autorotation.MiscAI.NormalMovement", "Destination", destinationStrategy);
-            BossMod.Presets_AddTransientStrategy("AutoDuty Passive", "BossMod.Autorotation.MiscAI.NormalMovement", "Destination", destinationStrategy);
+            // Destination=None alone does not disable cast bars. BossMod's
+            // PreventMovingWhileCasting otherwise stops vnavmesh every cast.
+            string castStrategy = preferInstantCasts ? "DropInstants" : "Leeway";
+            bool applied = true;
+            foreach (string preset in new[] { "AutoDuty", "AutoDuty Passive" })
+            {
+                applied &= BossMod.Presets_AddTransientStrategy(preset, "BossMod.Autorotation.MiscAI.NormalMovement", "Destination", destinationStrategy);
+                applied &= BossMod.Presets_AddTransientStrategy(preset, "BossMod.Autorotation.MiscAI.NormalMovement", "Cast", castStrategy);
+            }
+            if (applied) lastMovement = (on, preferInstantCasts);
+            else if (ECommons.Throttlers.EzThrottler.Throttle("BossMovementStrategyRejected", 5000))
+                Svc.Log.Warning("BossMod rejected movement/casting strategy; check AutoDuty presets and BossMod compatibility.");
         }
     }
 
