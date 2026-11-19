@@ -357,7 +357,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             this.assemblyDirectoryInfo = this.assemblyFileInfo.Directory;
 
             this.Version = 
-                ((PluginInterface.IsDev     ? new Version(0,0,0, 399) :
+                ((PluginInterface.IsDev     ? new Version(0,0,0, 400) :
                   PluginInterface.IsTesting ? PluginInterface.Manifest.TestingAssemblyVersion ?? PluginInterface.Manifest.AssemblyVersion : PluginInterface.Manifest.AssemblyVersion)!).Revision;
 
             if (!this.configDirectory.Exists)
@@ -1615,7 +1615,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.currentAttempt.Progress.Reset(Player.Position, Environment.TickCount64);
         this.currentAttempt.NavigationStop.Reset();
         this.interactionTransition.TrackMovement(this.pathAction, this.indexer, Svc.ClientState.TerritoryType,
-            Player.Position, Environment.TickCount64);
+            Player.Position, Environment.TickCount64, this.indexer + 1 < this.Actions.Count ? this.Actions[this.indexer + 1] : null);
         this.Stage = Stage.Moving;
     }
 
@@ -1625,7 +1625,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             return;
 
         this.interactionTransition.TrackMovement(this.pathAction, this.indexer, Svc.ClientState.TerritoryType,
-            Player.Position, Environment.TickCount64);
+            Player.Position, Environment.TickCount64, this.indexer + 1 < this.Actions.Count ? this.Actions[this.indexer + 1] : null);
         this.action = $"{Plugin.Actions[this.indexer].ToCustomString()}";
         if (this.TryApplyNearbyCombatSwitch()) return;
 

@@ -615,6 +615,33 @@ static void TestInteractionTransfer()
 }
 static void TestMovementTransfer()
 {
+    var portal = new InteractionTransitionProgress();
+    var crossing = new AutoDuty.Data.Classes.PathAction { Name = "MoveTo", Position = new(-125.86f, 501.29f, -5.6f), Arguments = ["false"] };
+    var waitReady = new AutoDuty.Data.Classes.PathAction { Name = "WaitFor", Arguments = ["IsReady"] };
+    var entry = new System.Numerics.Vector3(-136.75784f, 500.28732f, 7.183294f);
+    var loadPosition = new System.Numerics.Vector3(-133.499f, 501.48148f, 3.3606186f);
+    var destination = new System.Numerics.Vector3(-155.4559f, 621.7324f, -2.44003f);
+    Check(System.Numerics.Vector3.Distance(loadPosition, crossing.Position) > 10, "reported Ktisis trigger lies outside old portal sphere");
+    portal.TrackMovement(crossing, 18, 974, entry, 0, waitReady);
+    Check(!portal.ObserveTrackedMovementLoading(crossing, 18, 10, false), "portal pattern alone without actual movement cannot skip a step");
+    portal.TrackMovement(crossing, 18, 974, loadPosition, 800, waitReady);
+    Check(!portal.ObserveTrackedMovementLoading(crossing, 18, 801, true), "scripted portal does not authorize death or Return");
+    Check(portal.ObserveTrackedMovementLoading(crossing, 18, 801, false), "Ktisis direct crossing owns observed loading before destination sphere");
+    Check(!portal.Settled(900, true, false, 974, loadPosition)
+        && !portal.Settled(1000, false, true, 974, loadPosition)
+        && !portal.Settled(2100, false, true, 974, loadPosition), "flag ending before teleport cannot complete or replay old coordinates");
+    Check(portal.ObserveTrackedMovementLoading(crossing, 18, 2300, false), "delayed second load flag keeps original portal owner");
+    Check(!portal.Settled(2400, false, true, 974, destination)
+        && portal.Settled(3400, false, true, 974, destination), "new floor settles before crossing completes");
+    portal.Reset();
+    portal.TrackMovement(crossing, 18, 974, entry, 0);
+    portal.TrackMovement(crossing, 18, 974, loadPosition, 800);
+    Check(!portal.ObserveTrackedMovementLoading(crossing, 18, 801, false), "ordinary distant movement retains strict portal guard");
+    portal.Reset();
+    portal.TrackMovement(crossing, 18, 974, entry, 0, waitReady);
+    portal.TrackMovement(crossing, 18, 974, entry + new System.Numerics.Vector3(0, 5, 0), 800, waitReady);
+    Check(!portal.ObserveTrackedMovementLoading(crossing, 18, 801, false), "another floor cannot authorize scripted segment");
+    Check(!InteractionTransitionProgress.IsScriptedTransfer(crossing, new() { Name = "WaitFor", Arguments = ["Combat"] }), "other waits do not imply portal intent");
     var progress = new InteractionTransitionProgress();
     var step = new AutoDuty.Data.Classes.PathAction
     {

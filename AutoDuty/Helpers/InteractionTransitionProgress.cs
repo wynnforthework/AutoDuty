@@ -19,11 +19,38 @@ internal sealed class InteractionTransitionProgress
     private uint approachingTerritory;
     private Vector3 approachingPosition;
     private long approachedAt;
+    private PathAction? movementStep;
+    private int movementIndex;
+    private uint movementTerritory;
+    private Vector3 movementOrigin;
 
-    internal void TrackMovement(PathAction step, int index, uint territory, Vector3 position, long now)
+    internal static bool IsScriptedTransfer(PathAction step, PathAction? next) => step.Name == "MoveTo"
+        && step.Arguments.Count > 0 && bool.TryParse(step.Arguments[0], out bool mesh) && !mesh
+        && next is { Name: "WaitFor", Arguments.Count: 1 } && next.Position == Vector3.Zero
+        && WaitForArguments.Normalize(next.Arguments[0]) is ["IsReady"];
+
+    internal void TrackMovement(PathAction step, int index, uint territory, Vector3 position, long now,
+        PathAction? next = null)
     {
         if (this.Pending) return;
-        this.approachingStep = step.Name == "MoveTo" && Vector3.DistanceSquared(step.Position, position) <= 100 ? step : null;
+        if (!ReferenceEquals(this.movementStep, step) || this.movementIndex != index || this.movementTerritory != territory)
+        {
+            this.movementStep = step;
+            this.movementIndex = index;
+            this.movementTerritory = territory;
+            this.movementOrigin = position;
+        }
+        // Direct MoveTo + WaitFor IsReady is an existing portal idiom. Its
+        // loading trigger can precede the destination by more than 10m. Accept
+        // actual progress along that specific segment, not arbitrary loading.
+        Vector3 segment = step.Position - this.movementOrigin;
+        float lengthSquared = segment.LengthSquared();
+        float fraction = lengthSquared > .25f ? Vector3.Dot(position - this.movementOrigin, segment) / lengthSquared : -1;
+        bool onTransferSegment = IsScriptedTransfer(step, next) && fraction > 0 && fraction <= 1
+            && Vector3.DistanceSquared(position, this.movementOrigin) >= .25f
+            && Vector3.DistanceSquared(position, this.movementOrigin + fraction * segment) <= 9;
+        this.approachingStep = step.Name == "MoveTo"
+            && (Vector3.DistanceSquared(step.Position, position) <= 100 || onTransferSegment) ? step : null;
         this.approachingIndex = index;
         this.approachingTerritory = territory;
         this.approachingPosition = position;
@@ -36,8 +63,8 @@ internal sealed class InteractionTransitionProgress
         if (this.Pending) return this.ObserveLoading(step, index, now, false);
         if (!ReferenceEquals(this.approachingStep, step) || this.approachingIndex != index
             || now < this.approachedAt || now - this.approachedAt > 2000) return false;
-        return this.ObserveMovementLoading(step, index, true, this.approachingTerritory,
-            this.approachingPosition, now, false);
+        this.Click(step, index, this.approachingTerritory, this.approachingPosition, now);
+        return this.ObserveLoading(step, index, now, false);
     }
 
     internal static bool RequiresTransfer(uint territory, uint objectId)
@@ -91,6 +118,7 @@ internal sealed class InteractionTransitionProgress
     internal void Reset()
     {
         this.approachingStep = null;
+        this.movementStep = null;
         this.Step = null;
         this.Index = -1;
         this.Pending = false;
