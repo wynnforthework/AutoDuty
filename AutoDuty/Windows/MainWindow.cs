@@ -87,7 +87,7 @@ public sealed class MainWindow : Window, IDisposable
 
     internal static void StopResumePause()
     {
-        using (ImRaii.Disabled(!Plugin.States.HasFlag(PluginState.Looping) && !Plugin.States.HasFlag(PluginState.Navigating) && !ActiveHelper.AnyHelperRunning()))
+        using (ImRaii.Disabled(!Plugin.HasAutomationWork))
         {
             if (ImGui.Button($"Stop###Stop2"))
             {
@@ -292,6 +292,19 @@ public sealed class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
+        // Session controls must not depend on the selected tab/duty, readiness,
+        // plugin availability or whether a route step is currently running.
+        if (Plugin.HasAutomationWork)
+        {
+            using (ImRaii.PushId("SessionControls"))
+            {
+                if (ImGui.Button("Stop")) StopAndReset();
+                ImGui.SameLine();
+                ImGui.TextUnformatted(DutyActivationPolicy.DisplayStage(Plugin.Stage,
+                    Plugin.States.HasFlag(PluginState.Looping)).ToCustomString());
+            }
+            ImGui.Separator();
+        }
         DrawPopup();
 
         if(DalamudHelper.IsOnStaging())

@@ -103,9 +103,10 @@ public class Overlay : Window
             this.lineHeight++;
             lineActions.Add(() =>
                             {
-                                using (ImRaii.Disabled(!InDungeon || !ContentPathsManager.DictionaryPaths.ContainsKey(Svc.ClientState.TerritoryType)))
+                                using (ImRaii.Disabled(!Plugin.HasAutomationWork
+                                    && (!InDungeon || !ContentPathsManager.DictionaryPaths.ContainsKey(Svc.ClientState.TerritoryType))))
                                 {
-                                    if (Plugin.Stage == 0)
+                                    if (!Plugin.HasAutomationWork)
                                     {
                                         if (!Plugin.States.HasFlag(PluginState.Navigating) && !Plugin.States.HasFlag(PluginState.Looping))
                                             if (ImGui.Button("Start"))

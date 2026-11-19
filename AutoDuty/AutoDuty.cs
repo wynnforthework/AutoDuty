@@ -135,6 +135,9 @@ public sealed partial class AutoDuty : IDalamudPlugin
 
     public   int   Version { get; set; }
     internal Stage previousStage = Stage.Stopped;
+    internal bool HasAutomationWork => DutyActivationPolicy.CanStop(this.Stage,
+        this.States.HasFlag(PluginState.Looping), this.States.HasFlag(PluginState.Navigating),
+        this.States.HasFlag(PluginState.Other), this.taskManager?.IsBusy == true, ActiveHelper.AnyHelperRunning());
 
     internal Stage Stage
     {
@@ -2398,6 +2401,10 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.transitionPending = false;
         this.returnObservedUntil = 0;
         this.combatCheckpoints.Reset();
+        SchedulerHelper.DescheduleAction("ConditionChangeStageReadingPath");
+        SchedulerHelper.DescheduleAction("StuckHelperReturn");
+        SchedulerHelper.DescheduleAction("StuckHelperReturnInsurance");
+        SchedulerHelper.DescheduleAction("StuckHelperUnschedule");
         this.EndMetricsSession();
         this.currentAttempt = null;
         this.currentFailure = null;
@@ -2449,7 +2456,8 @@ public sealed partial class AutoDuty : IDalamudPlugin
             VNavmesh_IPCSubscriber.Path_SetTolerance(0.25f);
         FollowHelper.SetFollow(null);
 
-        if (VNavmesh_IPCSubscriber.IsEnabled && VNavmesh_IPCSubscriber.Path_IsRunning)
+        if (VNavmesh_IPCSubscriber.IsEnabled
+            && (VNavmesh_IPCSubscriber.Path_IsRunning || VNavmesh_IPCSubscriber.SimpleMove_PathfindInProgress))
             VNavmesh_IPCSubscriber.Path_Stop();
 
         if (MapHelper.State == ActionState.Running)

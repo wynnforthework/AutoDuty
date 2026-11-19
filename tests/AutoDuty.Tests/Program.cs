@@ -75,6 +75,17 @@ static void Run()
     Check(DutyActivationPolicy.RouteActive(AutoDuty.Data.Enums.Stage.Moving, true), "explicit navigation retains execution");
     Check(DutyActivationPolicy.RouteActive(AutoDuty.Data.Enums.Stage.Paused, true), "paused active route retains step cards");
     Check(DutyActivationPolicy.RouteActive(AutoDuty.Data.Enums.Stage.Revived, true), "active route may recover after death");
+    Check(!DutyActivationPolicy.CanStop(AutoDuty.Data.Enums.Stage.Stopped, false, false, false, false, false), "idle window does not report active automation");
+    Check(DutyActivationPolicy.CanStop(AutoDuty.Data.Enums.Stage.Stopped, true, false, false, false, false), "loop owns Stop even between steps with stopped route stage");
+    Check(DutyActivationPolicy.DisplayStage(AutoDuty.Data.Enums.Stage.Stopped, true) == AutoDuty.Data.Enums.Stage.Looping, "window shows active loop instead of idle step state");
+    Check(DutyActivationPolicy.CanStop(AutoDuty.Data.Enums.Stage.Stopped, false, true, false, false, false), "navigation ownership overrides stale stopped stage for Stop visibility");
+    Check(DutyActivationPolicy.CanStop(AutoDuty.Data.Enums.Stage.Stopped, false, false, false, true, false), "pending queue work always exposes Stop");
+    Check(DutyActivationPolicy.CanStop(AutoDuty.Data.Enums.Stage.Stopped, false, false, false, false, true), "running helper exposes Stop with no selected content");
+    Check(DutyActivationPolicy.CanStop(AutoDuty.Data.Enums.Stage.Stopped, false, false, true, false, false), "between-duty actions expose Stop");
+    foreach (var stage in new[] { AutoDuty.Data.Enums.Stage.Looping, AutoDuty.Data.Enums.Stage.Moving, AutoDuty.Data.Enums.Stage.Paused, AutoDuty.Data.Enums.Stage.Revived })
+        Check(DutyActivationPolicy.CanStop(stage, false, false, false, false, false), "non-idle phase remains stoppable during temporary flag changes");
+    Check(DutyActivationPolicy.DisplayStage(AutoDuty.Data.Enums.Stage.Paused, true) == AutoDuty.Data.Enums.Stage.Paused, "paused loop preserves displayed pause state");
+    Console.WriteLine("PASS: session Stop visibility across queue, route, pause, loop boundaries and missing content; idle versus active-loop display");
     Console.WriteLine("PASS: idle duty entry, multibox activation boundary, route-owned cards and death recovery");
     TestDutyExecutionBoundary();
     TestBossProgress();

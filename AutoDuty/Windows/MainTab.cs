@@ -216,7 +216,7 @@ namespace AutoDuty.Windows
                     {
                         using (ImRaii.Disabled(!InDungeon || !ContentPathsManager.DictionaryPaths.ContainsKey(Plugin.CurrentTerritoryContent.TerritoryType)))
                         {
-                            if (Plugin.Stage == 0)
+                            if (!Plugin.HasAutomationWork)
                             {
                                 if (ImGui.Button(Loc.Get("MainTab.Start")))
                                 {
@@ -323,7 +323,7 @@ namespace AutoDuty.Windows
 
                 using (ImRaii.Disabled(Plugin.CurrentTerritoryContent == null))
                 {
-                    if (!Plugin.States.HasFlag(PluginState.Looping))
+                    if (!Plugin.HasAutomationWork)
                     {
                         if (ImGui.Button(Loc.Get("MainTab.Run")))
                         {
