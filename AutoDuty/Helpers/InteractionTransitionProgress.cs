@@ -56,13 +56,14 @@ internal sealed class InteractionTransitionProgress
     internal static TransitionRegion? InferDestination(PathAction? next, PathAction? after) =>
         next is { Name: "WaitFor", Arguments.Count: 1 } && next.Position == Vector3.Zero
         && WaitForArguments.Normalize(next.Arguments[0]) is ["IsReady"] && after != null && after.Position != Vector3.Zero
-            // A legacy continuation coordinate is a point farther along the
-            // destination, not the landing pad. Allow a bounded slope envelope,
-            // but require mesh connectivity before accepting that wider region.
-            // Explicit recorded regions retain their author-specified bounds.
-            ? new() { Center = after.Position, Radius = 100, HeightTolerance = 12, RequirePath = true }
+            ? ContinuationEvidence(after.Position)
             : next != null && next.Position != Vector3.Zero && next.Name is "MoveTo" or "Boss" or "Interactable"
-                ? new() { Center = next.Position } : null;
+                ? ContinuationEvidence(next.Position) : null;
+
+    // Readiness barriers describe a transfer followed by independent navigation.
+    // No coordinate envelope can be inferred for its landing from the next target.
+    private static TransitionRegion ContinuationEvidence(Vector3 target) => new()
+    { Center = target, IsContinuationTarget = true, RequirePath = true };
 
     // Inspect only a bounded, linear sequence of harmless zero-position entries.
     // Never search through a branch, interaction, combat checkpoint or teleport.
@@ -124,7 +125,7 @@ internal sealed class InteractionTransitionProgress
         Vector3 source = this.launchOrigin;
         this.Click(step, index, territory, source, now);
         this.forcedLanding = landing.Position;
-        this.Expect(step.Transition ?? new TransitionRegion { Center = landing.Position, Radius = 100 });
+        this.Expect(step.Transition ?? ContinuationEvidence(landing.Position));
         return this.ObserveLoading(step, index, now, false);
     }
 
@@ -233,7 +234,10 @@ internal sealed class InteractionTransitionProgress
         this.Phase = processEnded ? TransitionPhase.ValidatingDestination : TransitionPhase.Travelling;
         if (this.Destination is { } expected)
         {
-            bool arrived = expected.Contains(territory, position);
+            // Inferred continuation points supply connectivity evidence only.
+            // Ground, player/process stability and observed displacement still
+            // gate completion; the next step performs the actual navigation.
+            bool arrived = expected.IsContinuationTarget || expected.Contains(territory, position);
             this.WaitingReason = !arrived ? "destination-region" : expected.RequireGround && !groundReady ? "ground-or-mesh" : "position-stability";
             bool destinationStable = this.stability.Observe(arrived && (!expected.RequireGround || groundReady)
                 && (territory != this.territory || Vector3.DistanceSquared(this.origin, position) > 4),

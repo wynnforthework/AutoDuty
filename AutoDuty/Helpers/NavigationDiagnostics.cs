@@ -46,6 +46,8 @@ internal static class NavigationDiagnostics
                 interactionTransferPending = Plugin.interactionTransition.Pending,
                 interactionTransferStep = Plugin.interactionTransition.Index,
                 transferDestination = Plugin.interactionTransition.Destination,
+                transferEvidence = Plugin.interactionTransition.Destination?.IsContinuationTarget == true
+                    ? "continuation-connectivity" : "explicit-region-or-unknown",
                 transferWaiting = Plugin.interactionTransition.WaitingReason,
                 transferPhase = Plugin.interactionTransition.Phase.ToString(),
                 transferPath = Plugin.transitionPathProbe.Status,

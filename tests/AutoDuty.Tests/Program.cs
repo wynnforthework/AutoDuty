@@ -1,4 +1,4 @@
-using System.Runtime.Loader;
+﻿using System.Runtime.Loader;
 using AutoDuty.Helpers;
 using PathAction = AutoDuty.Data.Classes.PathAction;
 
@@ -741,7 +741,7 @@ static void TestLaunchTransfer()
     Check(!progress.ObserveForcedMovement(step, 36, 974, airborne, 1200, false, new() { Name = "WaitFor", Arguments = ["Combat"] }, landing), "ordinary movement without transfer intent stays bounded");
     progress.TrackMovement(step, 36, 974, source + new System.Numerics.Vector3(0, 4, 0), 1250, ready);
     Check(progress.ObserveForcedMovement(step, 36, 974, airborne, 1300, false, ready, landing), "mesh MoveTo launch is recognized without any loading event despite airborne samples");
-    Check(!progress.Settled(2000, false, true, 974, airborne) && !progress.Settled(4000, false, true, 974, airborne), "readiness alone cannot complete while flying between floors");
+    Check(!progress.Settled(2000, false, true, 974, airborne, false) && !progress.Settled(4000, false, true, 974, airborne, false), "readiness alone cannot complete while flying between floors");
     Check(!progress.Settled(4100, false, false, 974, destination), "landing without player readiness waits");
     Check(!progress.Settled(4200, false, true, 974, destination) && progress.Settled(5200, false, true, 974, destination), "ready on expected destination floor completes launch after settling");
     progress.Reset();
@@ -800,8 +800,8 @@ static void TestKtisisTransitionContinuation()
     var landing = new System.Numerics.Vector3(.7863167f, -709.5715f, 64.58382f);
     Check(!new TransitionRegion { Center = actions[34].Position, Radius = 100 }.Contains(974, landing),
         "reported landing reproduces rejection by the old three-metre height bound");
-    Check(slopeRegion!.Contains(974, landing) && slopeRegion.RequirePath,
-        "legacy slope envelope requires path evidence instead of treating the next point as a flat platform");
+    Check(slopeRegion!.IsContinuationTarget && slopeRegion.RequirePath,
+        "legacy continuation supplies mandatory path target, never a landing coordinate envelope");
     progress.Reset();
     progress.TrackMovement(portal, 32, 974, actions[31].Position, 1000, actions[33]);
     Check(progress.ObserveTrackedMovementLoading(portal, 32, 1100, false), "portal approach owns step 32 transfer");
@@ -809,21 +809,29 @@ static void TestKtisisTransitionContinuation()
     Check(!progress.Settled(30000, true, false, 974, landing), "slow loading cannot complete step 32");
     Check(!progress.Settled(31000, false, true, 974, landing, false), "slope landing still needs local ground evidence");
     Check(!progress.Settled(32000, false, true, 974, landing)
-        && progress.Settled(33000, false, true, 974, landing), "reported grounded landing stabilizes in the inferred slope region");
+        && progress.Settled(33000, false, true, 974, landing), "reported grounded landing stabilizes independently of continuation coordinates");
     Check(!progress.CompleteStep(portal, 32, true, false, true), "time or optional query timeout cannot waive slope connectivity");
     Check(!progress.CompleteStep(actions[33], 33, true, true, true), "connectivity cannot skip the following readiness step");
     Check(progress.CompleteStep(portal, 32, true, true, true), "confirmed connectivity completes only portal step 32");
-    Check(!slopeRegion.Contains(974, portal.Position)
-        && !slopeRegion.Contains(974, landing - new System.Numerics.Vector3(0, 10, 0))
-        && !slopeRegion.Contains(974, landing + new System.Numerics.Vector3(101, 0, 0)),
-        "old floor, another lower platform and far landing remain outside inference");
+    var remoteLanding = landing + new System.Numerics.Vector3(200, -40, 0);
+    progress.Reset();
+    progress.TrackMovement(portal, 32, 974, actions[31].Position, 1000, actions[33]);
+    progress.ObserveTrackedMovementLoading(portal, 32, 1100, false);
+    progress.Expect(slopeRegion);
+    Check(!progress.Settled(2000, false, true, 974, remoteLanding)
+        && progress.Settled(3000, false, true, 974, remoteLanding),
+        "landing may be over 100m and 12m away from the continuation target if stable and grounded");
+    Check(!progress.CompleteStep(portal, 32, true, false, true), "a stable wrong platform with no connecting path still cannot complete");
+    Check(progress.CompleteStep(portal, 32, true, true, true), "connected landing completes transfer without moving to step 34");
+    Check(!Newtonsoft.Json.JsonConvert.SerializeObject(slopeRegion).Contains("IsContinuationTarget"),
+        "inferred connectivity mode is runtime-only and never becomes a user-authored region");
     var explicitRegion = new TransitionRegion { Center = actions[34].Position };
     portal.Transition = explicitRegion;
     progress.Reset();
     progress.Click(portal, 32, 974, portal.Position, 40000);
     Check(ReferenceEquals(progress.Destination, explicitRegion) && !explicitRegion.Contains(974, landing),
         "explicit destination keeps its strict author-specified height bounds");
-    Console.WriteLine("PASS: actual Ktisis step 32 sloped landing, mandatory path evidence, slow loading, ground, wrong-floor rejection and explicit region preservation");
+    Console.WriteLine("PASS: actual Ktisis step 32 transfer completion separated from continuation navigation, mandatory connectivity, ground and explicit region preservation");
 }
 
 static void TestTransitionRegions()

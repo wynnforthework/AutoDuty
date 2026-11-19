@@ -8,6 +8,9 @@ namespace AutoDuty.Helpers;
 // Optional, portable completion contract attached to the step that triggers travel.
 public sealed class TransitionRegion
 {
+    // Runtime-only legacy evidence. A continuation is a route target to query,
+    // never a recorded landing region; do not serialize this into user scripts.
+    internal bool IsContinuationTarget { get; init; }
     public uint Territory { get; set; }
     public Vector3 Center { get; set; }
     public float Radius { get; set; } = 15;
