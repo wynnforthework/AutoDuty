@@ -1473,14 +1473,14 @@ public sealed partial class AutoDuty : IDalamudPlugin
         this.action = $"{(this.Actions.Count >= this.indexer ? Plugin.Actions[this.indexer].ToCustomString() : "")}";
 
         this.pathAction = this.Actions[this.indexer];
-        this.DutyData?.StopForCombat = RouteMovementPolicy.StopsForCombat(this.pathAction);
+        this.DutyData?.StopForCombat = RouteMovementPolicy.InterruptsApproach(this.pathAction);
         this.ApplyStepRotation();
         BossMod_IPCSubscriber.SetMovement(false,
             RouteMovementPolicy.PreferInstants(this.pathAction, Stage.Moving));
 
         if (MultiboxUtility.MultiboxBlockingNextStep)
         {
-            if (PartyHelper.PartyInCombat() && (Plugin.DutyData?.StopForCombat ?? true))
+            if (PartyHelper.PartyInCombat() && RouteMovementPolicy.InterruptsApproach(this.pathAction))
             {
                 if (Configuration is { DutyConfig: { AutoManageRotationPluginState: true, UsingAlternativeRotationPlugin: false } })
                     this.SetRotationPluginSettings(true);
@@ -1654,7 +1654,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             }
         }
 
-        if (PartyHelper.PartyInCombat() && (Plugin.DutyData?.StopForCombat ?? true))
+        if (PartyHelper.PartyInCombat() && RouteMovementPolicy.InterruptsApproach(this.pathAction))
         {
             if (Configuration is { DutyConfig: { AutoManageRotationPluginState: true, UsingAlternativeRotationPlugin: false } })
                 this.SetRotationPluginSettings(true);
@@ -1713,7 +1713,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
             VNavmesh_IPCSubscriber.Path_Stop();
             return true;
         }
-        if (!Player.Available || (PartyHelper.PartyInCombat() && (this.DutyData?.StopForCombat ?? true))
+        if (!Player.Available || (PartyHelper.PartyInCombat() && RouteMovementPolicy.InterruptsApproach(this.pathAction))
             || !CombatCheckpointProgress.HasArrived(this.pathAction, Player.Position, this.currentAttempt?.Attempts ?? 0))
         {
             this.movementCompletionGate.Reset();
@@ -1992,7 +1992,7 @@ public sealed partial class AutoDuty : IDalamudPlugin
         if (this.indexer >= 0 && this.indexer < this.Actions.Count)
         {
             this.pathAction = this.Actions[this.indexer];
-            this.DutyData.StopForCombat = RouteMovementPolicy.StopsForCombat(this.pathAction);
+            this.DutyData.StopForCombat = RouteMovementPolicy.InterruptsApproach(this.pathAction);
             this.ApplyStepRotation();
             BossMod_IPCSubscriber.SetMovement(false,
                 RouteMovementPolicy.PreferInstants(this.pathAction, Stage.Moving));

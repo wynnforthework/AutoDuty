@@ -29,7 +29,9 @@ internal static class RouteMovementPolicy
         CombatPolicy.Switch => CombatCheckpointProgress.IsSwitchOn(step),
         _ => false,
     };
+    // A true switch owns combat only after its coordinate has been reached.
+    internal static bool InterruptsApproach(PathAction step) => step.Name != "StopForCombat" && StopsForCombat(step);
     internal static bool PreferInstants(PathAction step, Stage stage)
-        => step.Name == "StopForCombat" && !StopsForCombat(step) && stage == Stage.Moving;
+        => step.Name == "StopForCombat" && stage == Stage.Moving;
     internal static bool ActionMovement(PathAction step) => StopsForCombat(step) && step.Name != "Interactable";
 }

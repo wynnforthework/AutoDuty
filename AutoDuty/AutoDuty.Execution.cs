@@ -433,7 +433,8 @@ public partial class AutoDuty
 
     private bool TryApplyNearbyCombatSwitch()
     {
-        if (!Player.Available || !this.combatCheckpoints.CanApply(this.pathAction, Player.Position, PartyHelper.PartyInCombat())) return false;
+        if (!Player.Available || !this.combatCheckpoints.CanApply(this.pathAction, Player.Position, PartyHelper.PartyInCombat())
+            || !CombatCheckpointProgress.HasArrived(this.pathAction, Player.Position, this.currentAttempt?.Attempts ?? 0)) return false;
         VNavmesh_IPCSubscriber.Path_Stop();
         Svc.Log.Info($"Step {this.indexer}: applying nearby StopForCombat after observed combat ended; executing switch without waiting for another fight.");
         this.Stage = Stage.Action;
@@ -458,7 +459,7 @@ public partial class AutoDuty
             this.EnsureDutyContext();
             // Claim the next step before readiness waits, not after starting its path.
             this.pathAction = routeAttempt.Action;
-            this.DutyData?.StopForCombat = RouteMovementPolicy.StopsForCombat(this.pathAction);
+            this.DutyData?.StopForCombat = RouteMovementPolicy.InterruptsApproach(this.pathAction);
             this.ApplyStepRotation();
             BossMod_IPCSubscriber.SetMovement(false,
                 RouteMovementPolicy.PreferInstants(this.pathAction, Stage.Moving));

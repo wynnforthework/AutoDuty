@@ -7,6 +7,7 @@ internal static class StepTimeoutPolicy
     internal static long Limit(PathAction action, int combatLimit, int waitLimit, int actionLimit)
         => action.Name switch
         {
+            "StopForCombat" when CombatCheckpointProgress.IsSwitchOn(action) => Math.Max(1000L, combatLimit),
             "Boss" or "KillInRange" => Math.Max(1000L, combatLimit),
             "WaitFor" => waitLimit <= 0 ? long.MaxValue : Math.Max(1000L, waitLimit),
             "Wait" or "AutoMoveFor" when action.Arguments.Count > 0

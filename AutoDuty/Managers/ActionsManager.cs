@@ -58,7 +58,7 @@ namespace AutoDuty.Managers
             ("KillInRange","Kills every enemy in range", ["Range"]),
             ("AutoMoveFor", "Adds an AutoMoveFor step to the path; AutoDuty will turn on Standard Mode and Auto Move for the time specified in milliseconds (or until player is not ready)", ["how long in ms?"]),
             ("ChatCommand","Adds a ChatCommand step to the path; after moving to the position, AutoDuty will execute the Command specified", ["chat command"]),
-            ("StopForCombat","Combat movement for this step only: false keeps navigating with rotation; true stops navigation to fight. MoveTo disables rotation and combat movement independently.", ["true/false"]),
+            ("StopForCombat","Combat movement for this step only: false keeps navigating with rotation; true navigates to the target first, then stops navigation and waits for combat to finish. MoveTo disables rotation and combat movement independently.", ["true/false"]),
             ("Revival", "Adds a Revive flag to the path; this is just a flag to mark the positions of Revival Points, AutoDuty will ignore this step during navigation.\nUse this if the Revive Teleporter does not take you directly to the arena of the last boss you killed, such as Sohm Al", []),
             ("ForceAttack",  "Adds a ForceAttack step to the path; after moving to the position, AutoDuty will ForceAttack the closest mob", []),
             ("Jump", "Adds a Jump step to the path; after AutoMoving, AutoDuty will jump", ["automove duration before jump"]),
@@ -313,7 +313,19 @@ namespace AutoDuty.Managers
             bool boolTrueFalse = action.Arguments[0].Equals("true", StringComparison.InvariantCultureIgnoreCase);
             Plugin.action = $"StopForCombat: {action.Arguments[0]}";
 
-            this.StopForCombat(boolTrueFalse, action.Arguments.Count <= 1 || action.Arguments[1] != "noWait");
+            // Coordinate approach has already finished. Never resume vnavmesh in this phase.
+            VNavmesh_IPCSubscriber.Path_Stop();
+            this.StopForCombat(boolTrueFalse, false);
+            if (!boolTrueFalse || action.Arguments.Count > 1 && action.Arguments[1] == "noWait") return;
+            var progress = new CombatStopProgress(PartyHelper.PartyInCombat() || Plugin.combatCheckpoints.CanApply(action, Player.Position, false));
+            taskManager.Enqueue(() => progress.Start(Plugin.ActiveActionTime), "StopForCombat-Start");
+            taskManager.Enqueue(() =>
+            {
+                bool done = progress.Tick(PartyHelper.PartyInCombat(), Plugin.ActiveActionTime);
+                if (!done && progress.SpawnTimedOut(Plugin.ActiveActionTime, Configuration.DutyConfig.BossSpawnTimeoutMs))
+                    Plugin.ReportTaskFailure("combat-not-started", "StopForCombat: no combat observed at destination");
+                return done;
+            }, "StopForCombat-CombatEnd", new TaskManagerConfiguration(int.MaxValue));
         }
 
         public void StopForCombat(bool stop, bool waitAfter = true)

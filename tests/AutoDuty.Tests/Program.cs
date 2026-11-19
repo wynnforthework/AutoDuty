@@ -1074,6 +1074,25 @@ static void TestActionCombatCatalogue()
 
 static void TestNavigationReadiness()
 {
+    var stopProgress = new CombatStopProgress(false);
+    stopProgress.Start(0);
+    Check(!stopProgress.Tick(false, 500), "true checkpoint cannot finish before its first combat");
+    Check(!stopProgress.SpawnTimedOut(999, 1000) && stopProgress.SpawnTimedOut(1000, 1000), "missing combat has a bounded spawn wait");
+    Check(!stopProgress.Tick(true, 1200), "combat starting at destination holds checkpoint");
+    Check(!stopProgress.SpawnTimedOut(900000, 1000), "active combat never uses spawn timeout");
+    Check(!stopProgress.Tick(false, 2000) && !stopProgress.Tick(false, 2499), "combat end must remain stable");
+    Check(!stopProgress.Tick(true, 2500) && !stopProgress.Tick(false, 2600), "new wave resets completion stability");
+    Check(stopProgress.Tick(false, 3100), "combat completion releases checkpoint after stable end");
+    var finishedPull = new CombatStopProgress(true);
+    finishedPull.Start(0);
+    Check(!finishedPull.Tick(false, 0) && finishedPull.Tick(false, 500), "nearby observed completed combat requires no new fight");
+    var zeroStop = new PathAction { Name = "StopForCombat", Arguments = ["true"] };
+    var zeroEvidence = new CombatCheckpointProgress();
+    zeroEvidence.Observe([zeroStop], 0, new(100, 10, 100), true, true);
+    zeroEvidence.Observe([zeroStop], 0, new(100, 10, 100), false, true);
+    Check(zeroEvidence.CanApply(zeroStop, new(100, 10, 100), false), "zero-position checkpoint tracks combat at current location");
+    Check(StepTimeoutPolicy.Limit(zeroStop, 600000, 0, 30000) == 600000, "true combat phase has combat timeout, not generic action timeout");
+
     PathAction pull = new() { Name = "StopForCombat", Arguments = ["false"] };
     PathAction move = new() { Name = "MoveTo", Arguments = ["true"] };
     PathAction fight = new() { Name = "StopForCombat", Arguments = ["true"] };
@@ -1082,9 +1101,10 @@ static void TestNavigationReadiness()
         bool movingOnly = step.Name == "MoveTo";
         bool stopping = ReferenceEquals(step, fight);
         Check(RouteMovementPolicy.RotationEnabled(step) == !movingOnly, "rotation is owned by the current entry, independent of the preceding switch");
-        Check(RouteMovementPolicy.StopsForCombat(step) == stopping, "combat cannot interrupt MoveTo or false approach, but interrupts true approach");
+        Check(RouteMovementPolicy.StopsForCombat(step) == stopping, "true retains its destination combat phase");
         Check(RouteMovementPolicy.ActionMovement(step) == stopping, "zero-position action cannot re-enable combat movement on MoveTo or false");
-        Check(RouteMovementPolicy.PreferInstants(step, AutoDuty.Data.Enums.Stage.Moving) == ReferenceEquals(step, pull), "only false combat movement limits cast bars");
+        Check(!RouteMovementPolicy.InterruptsApproach(step), "neither MoveTo nor either switch may stop before arrival");
+        Check(RouteMovementPolicy.PreferInstants(step, AutoDuty.Data.Enums.Stage.Moving) == !movingOnly, "both switch approaches avoid cast bars while pulling");
     }
     Check(RouteMovementPolicy.StopsForCombat(new() { Name = "Boss" }), "Boss restores normal combat even after a false step");
     Check(!RouteMovementPolicy.ActionMovement(new() { Name = "Interactable" }), "interaction retains ownership of movement");

@@ -33,18 +33,18 @@ internal sealed class CombatCheckpointProgress
             this.Reset();
             this.checkpoint = candidate;
         }
-        if (candidate == null || candidate.Position == Vector3.Zero) return;
+        if (candidate == null) return;
         if (inCombat)
         {
             this.combatEnded = false;
-            if (Vector3.Distance(position, candidate.Position) <= NearbyRadius) this.observedCombat = true;
+            if (ReferenceEquals(actions[index], candidate) || candidate.Position == Vector3.Zero || Vector3.Distance(position, candidate.Position) <= NearbyRadius) this.observedCombat = true;
         }
         else if (this.observedCombat) this.combatEnded = true;
     }
 
     internal bool CanApply(PathAction step, Vector3 position, bool inCombat) => !inCombat
         && this.observedCombat && this.combatEnded && ReferenceEquals(step, this.checkpoint)
-        && Vector3.Distance(position, step.Position) <= NearbyRadius;
+        && (step.Position == Vector3.Zero || Vector3.Distance(position, step.Position) <= NearbyRadius);
 
     internal static float ArrivalRadius(PathAction step, int retries) => step.Name == "StopForCombat"
         ? SwitchArrivalRadius : step.Name == "Interactable" ? 2f : retries > 0 ? .5f : .25f;
